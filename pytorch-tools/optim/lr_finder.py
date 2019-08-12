@@ -1,3 +1,4 @@
+# code borrowed from https://github.com/davidtvs/pytorch-lr-finder
 from __future__ import print_function, with_statement, division
 import copy
 import os
