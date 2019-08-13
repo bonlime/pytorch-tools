@@ -71,8 +71,8 @@ class BasicBlock(nn.Module):
         out = self.conv2(out)
         out = self.bn2(out)
 
-        if self.se is not None:
-            out = self.se(out)
+        if self.se_module is not None:
+            out = self.se_module(out)
 
         if self.downsample is not None:
             residual = self.downsample(x)
@@ -103,7 +103,7 @@ class Bottleneck(nn.Module):
         self.conv2 = conv3x3(width, width, conv2_stride, groups, dilation)
         self.bn2 = norm_layer(width, activation=norm_act)
         self.conv3 = conv1x1(width, outplanes)
-        self.bn3 = norm_layer(outplanes, activation='idenity')
+        self.bn3 = norm_layer(outplanes, activation='identity')
         self.se_module = SEModule(outplanes, planes // 4) if use_se else None
         self.final_act = activation_from_name(norm_act)
         self.downsample = downsample
@@ -125,8 +125,8 @@ class Bottleneck(nn.Module):
         out = self.conv3(out)
         out = self.bn3(out)
 
-        if self.se is not None:
-            out = self.se(out)
+        if self.se_module is not None:
+            out = self.se_module(out)
 
         if self.downsample is not None:
             residual = self.downsample(x)
