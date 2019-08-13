@@ -146,7 +146,7 @@ class ResNet(nn.Module):
                  block_reduce_first=1, down_kernel_size=1, 
                  dilated=False,
                  norm_layer=ABN,
-                 norm_act='relu',
+                 #norm_act=None,
                  antialias=False, 
                  encoder=False,
                  drop_rate=0.0, 
@@ -154,6 +154,7 @@ class ResNet(nn.Module):
                  init_bn0=True):
 
         stem_width = 64
+        norm_act = 'relu' if norm_layer == ABN else 'leaky_relu'
         self.inplanes = stem_width
         self.num_classes = num_classes
         self.groups = groups
@@ -167,25 +168,23 @@ class ResNet(nn.Module):
 
         # no antialias in stem to avoid huge computations
         if deep_stem:
-            layer0_modules = [
-                # as in https://arxiv.org/pdf/1812.01187.pdf Resnet-B
-                ('conv1', conv3x3(in_chans, stem_width//2, 2)),
-                ('bn1', norm_layer(stem_width // 2, activation=norm_act)),
-                ('conv2', conv3x3(stem_width, stem_width//2)),
-                ('bn2', norm_layer(stem_width // 2, activation=norm_act)),
-                ('conv3', conv3x3(stem_width //2, stem_width, 2)),
-                ('bn3', norm_layer(stem_width, activation=norm_act))]
+            self.conv1 = nn.Sequential(
+                conv3x3(in_chans, stem_width//2, 2),
+                norm_layer(stem_width // 2, activation=norm_act),
+                conv3x3(stem_width, stem_width//2),
+                norm_layer(stem_width // 2, activation=norm_act),
+                conv3x3(stem_width //2, stem_width, 2)
+            )
         else:
-            layer0_modules = [
-                ('conv1', nn.Conv2d(in_chans, stem_width, kernel_size=7, stride=2, 
-                                    padding=3, bias=False)),
-                ('bn1', norm_layer(stem_width, activation=norm_act))]
+            self.conv1 = nn.Conv2d(in_chans, stem_width, kernel_size=7, stride=2, 
+                    padding=3, bias=False)
+        self.bn1 = norm_layer(stem_width, activation=norm_act)
         if antialias:
-            layer0_modules += [('maxpool', nn.MaxPool2d(kernel_size=3, padding=1)), 
-                               ('blurpool', BlurPool())]
+            self.maxpool = nn.Sequential(nn.MaxPool2d(kernel_size=3, padding=1),BlurPool())
         else:
-            layer0_modules += [('maxpool', nn.MaxPool2d(kernel_size=3, stride=2, padding=1))]
-        self.layer0 = nn.Sequential(OrderedDict(layer0_modules))
+            # for se resnets fist maxpool is slightly different
+            self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2,
+                padding=0 if use_se else 1, ceil_mode=True if use_se else False)
         # Output stride is 8 with dilated and 32 without
         stride_3_4 = 1 if self.dilated else 2
         dilation_3 = 2 if self.dilated else 1
@@ -212,22 +211,22 @@ class ResNet(nn.Module):
         
         if stride != 1 or self.inplanes != planes * self.expansion:
             downsample_layers = []
-            if antialias:
-                downsample_layers += [BlurPool()]
+            if antialias: #using OrderedDict to preserve ordering and allow loading
+                downsample_layers += [('blur', BlurPool())]
             downsample_layers += [
-                conv1x1(self.inplanes, planes * self.expansion, stride=1 if antialias else stride),
-                norm_layer(planes * self.expansion, activation='linear')]
-            downsample = nn.Sequential(*downsample_layers)
+                ('0', conv1x1(self.inplanes, planes * self.expansion, stride=1 if antialias else stride)),
+                ('1', norm_layer(planes * self.expansion, activation='identity'))]
+            downsample = nn.Sequential(OrderedDict(downsample_layers))
         
         layers = [self.block(
             self.inplanes, planes, stride, downsample, self.groups, 
-            self.base_width, use_se, dilation, norm_layer)]
+            self.base_width, use_se, dilation, norm_layer, norm_act, antialias)]
         
         self.inplanes = planes * self.expansion
         for _ in range(1, blocks):
             layers.append(self.block(
-                self.inplanes, planes, 1, None, self.groups, 
-                self.base_width, use_se, dilation, norm_layer))
+                self.inplanes, planes, 1, None, self.groups, self.base_width, 
+                use_se, dilation, norm_layer, norm_act, antialias))
         return nn.Sequential(*layers)
     
     def _initialize_weights(self, init_bn0=False):
@@ -251,7 +250,6 @@ class ResNet(nn.Module):
     def forward_features(self, x):
         x0 = self.conv1(x)
         x0 = self.bn1(x0)
-        # 
         x1 = self.maxpool(x0)
         x1 = self.layer1(x1)
         x2 = self.layer2(x1)
@@ -276,6 +274,10 @@ class ResNet(nn.Module):
         for k in keys:
             if k.startswith('fc') and self.encoder:
                 state_dict.pop(k)
+            elif k.startswith('fc'):
+                state_dict[k.replace('fc','last_linear')] = state_dict.pop(k)
+            if k.startswith('layer0'):
+                state_dict[k.replace('layer0.','')] = state_dict.pop(k)
             if k.endswith('num_batches_tracked'):
                 state_dict.pop(k)
         super().load_state_dict(state_dict, **kwargs)
@@ -300,7 +302,7 @@ cfg = {
     'se_resnet101': {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'use_se': True},
     'se_resnet152': {'block': Bottleneck, 'layers': [3, 4, 36, 3], 'use_se': True},
     'se_resnext50_32x4d': {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'base_width':4, 'groups':32, 'use_se':True},
-    'se_resnext101_32x4d' {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width':4, 'groups':32, 'use_se':True},
+    'se_resnext101_32x4d': {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width':4, 'groups':32, 'use_se':True},
 }
 
 model_urls = {
