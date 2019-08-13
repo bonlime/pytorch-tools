@@ -180,7 +180,8 @@ class ResNet(nn.Module):
                     padding=3, bias=False)
         self.bn1 = norm_layer(stem_width, activation=norm_act)
         if antialias:
-            self.maxpool = nn.Sequential(nn.MaxPool2d(kernel_size=3, stride=1, padding=1),BlurPool())
+            self.maxpool = nn.Sequential(nn.MaxPool2d(kernel_size=3, stride=1, padding=1),
+                                        BlurPool(stem_width))
         else:
             # for se resnets fist maxpool is slightly different
             self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2,
@@ -212,7 +213,7 @@ class ResNet(nn.Module):
         if stride != 1 or self.inplanes != planes * self.expansion:
             downsample_layers = []
             if antialias and stride == 2: #using OrderedDict to preserve ordering and allow loading
-                downsample_layers += [('blur', BlurPool())]
+                downsample_layers += [('blur', BlurPool(self.inplanes))]
             downsample_layers += [
                 ('0', conv1x1(self.inplanes, planes * self.expansion, stride=1 if antialias else stride)),
                 ('1', norm_layer(planes * self.expansion, activation='identity'))]
@@ -280,6 +281,10 @@ class ResNet(nn.Module):
                 state_dict[k.replace('layer0.','')] = state_dict.pop(k)
             if k.endswith('num_batches_tracked'):
                 state_dict.pop(k)
+        # handels blurpool
+        for k in list(self.state_dict().keys()):
+            if k.endswith('filt'):
+                state_dict[k] = self.state_dict()[k]
         super().load_state_dict(state_dict, **kwargs)
 
 cfg = {

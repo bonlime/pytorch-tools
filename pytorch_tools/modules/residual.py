@@ -57,7 +57,7 @@ class BasicBlock(nn.Module):
         self.se_module = SEModule(outplanes, planes // 4) if use_se else None
         self.final_act = activation_from_name(norm_act)
         self.downsample = downsample
-        self.blurpool = BlurPool()
+        self.blurpool = BlurPool(planes)
         self.antialias = antialias
 
     def forward(self, x):
@@ -107,7 +107,7 @@ class Bottleneck(nn.Module):
         self.se_module = SEModule(outplanes, planes // 4) if use_se else None
         self.final_act = activation_from_name(norm_act)
         self.downsample = downsample
-        self.blurpool = BlurPool()
+        self.blurpool = BlurPool(width)
         self.antialias = antialias
 
     def forward(self, x):

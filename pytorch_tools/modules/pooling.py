@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from functools import partial
@@ -51,9 +52,12 @@ class GlobalPool2d(nn.Module):
 
 class BlurPool(nn.Module):
     """Idea from https://arxiv.org/abs/1904.11486
-       Efficient implementation of Rect-2 with stride 2"""
-    def __init__(self):
+        Implementation of Rect-2"""
+    def __init__(self, num_features):
         super(BlurPool, self).__init__()
+        filt = torch.ones(num_features, 1, 2,2)
+        filt /= filt.sum()
+        self.register_buffer('filt', filt)
 
-    def forward(self, x):
-        return F.interpolate(x, scale_factor=0.5, mode='bilinear', align_corners=False)
+    def forward(self, inp):
+        return F.conv2d(inp, self.filt, stride=2, groups=inp.shape[1])
