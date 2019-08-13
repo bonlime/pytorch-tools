@@ -45,7 +45,7 @@ class BasicBlock(nn.Module):
                  norm_act='relu',
                  antialias=False):
         super(BasicBlock, self).__init__()
-
+        antialias = antialias and stride == 2
         assert groups == 1, 'BasicBlock only supports groups of 1'
         assert base_width == 64, 'BasicBlock doest not support changing base width'
         outplanes = planes * self.expansion
@@ -93,7 +93,7 @@ class Bottleneck(nn.Module):
                  norm_act='relu',
                  antialias=False):
         super(Bottleneck, self).__init__()
-
+        antialias = antialias and stride == 2
         width = int(math.floor(planes * (base_width / 64)) * groups)
         outplanes = planes * self.expansion
 

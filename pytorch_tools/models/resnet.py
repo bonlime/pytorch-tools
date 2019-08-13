@@ -180,7 +180,7 @@ class ResNet(nn.Module):
                     padding=3, bias=False)
         self.bn1 = norm_layer(stem_width, activation=norm_act)
         if antialias:
-            self.maxpool = nn.Sequential(nn.MaxPool2d(kernel_size=3, padding=1),BlurPool())
+            self.maxpool = nn.Sequential(nn.MaxPool2d(kernel_size=3, stride=1, padding=1),BlurPool())
         else:
             # for se resnets fist maxpool is slightly different
             self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2,
@@ -211,7 +211,7 @@ class ResNet(nn.Module):
         
         if stride != 1 or self.inplanes != planes * self.expansion:
             downsample_layers = []
-            if antialias: #using OrderedDict to preserve ordering and allow loading
+            if antialias and stride == 2: #using OrderedDict to preserve ordering and allow loading
                 downsample_layers += [('blur', BlurPool())]
             downsample_layers += [
                 ('0', conv1x1(self.inplanes, planes * self.expansion, stride=1 if antialias else stride)),
