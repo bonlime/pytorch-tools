@@ -12,14 +12,29 @@ model_urls = {
 }
 
 class VGG(nn.Module):
+    """VGG model builder. Only BN version is supported.  
+        From: https://arxiv.org/pdf/1409.1556.pdf
+
+    Args:
+        cfg ([type]): [description]
+        num_classes (int, optional): [description]. Defaults to 1000.
+        norm_layer (ABN, optional): Which version of ABN to use. Choices are:
+            'ABN' - dropin replacement for BN+Relu.
+            'InplaceABN' - efficient version. If used with `pretrain` Weights still 
+                will be loaded but performance may be worse than with ABN. 
+        encoder (bool, optional): Flag to return features with different resolution. 
+            Defaults to False.
+        antialias (bool, optional): Flag to turn on Rect-2 antialiasing 
+            from https://arxiv.org/abs/1904.11486. Defaults to False.
+    """
 
     def __init__(self, 
                  cfg, 
                  num_classes=1000, 
-                 init_weights=True,
                  norm_layer=ABN,
                  encoder=False,
                  antialias=False):
+
         super(VGG, self).__init__()
         self.norm_layer = norm_layer
         self.norm_act = 'relu' if isinstance(norm_layer, ABN) else 'leaky_relu'
@@ -39,8 +54,7 @@ class VGG(nn.Module):
             )
         else:
             self.forward = self.encoder_features
-        if init_weights:
-            self._initialize_weights()
+        self._initialize_weights()
 
     def encoder_features(self, x):
         features = []
@@ -113,8 +127,6 @@ cfgs = {
 }
 
 def _vgg(arch, cfg, pretrained, **kwargs):
-    if pretrained:
-        kwargs['init_weights'] = False
     model = VGG(cfg, **kwargs)
     if pretrained:
         state_dict = load_state_dict_from_url(model_urls[arch],
