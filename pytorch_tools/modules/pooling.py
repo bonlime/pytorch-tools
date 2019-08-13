@@ -29,8 +29,12 @@ def global_pool2d(x, pool_type):
 
 class GlobalPool2d(nn.Module):
     """Selectable global pooling layer
+    
+        Args:
+            pool_type (str): One of 'avg', 'max', 'avgmax', 'catavgmax'
     """
     def __init__(self, pool_type):
+        
         super(GlobalPool2d, self).__init__()
         self.pool_type = pool_type
         self.pool = partial(global_pool2d, pool_type=pool_type)
