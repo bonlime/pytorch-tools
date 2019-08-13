@@ -50,9 +50,9 @@ class BasicBlock(nn.Module):
         outplanes = planes * self.expansion
         conv1_stride = 1 if antialias else stride
         self.conv1 = conv3x3(inplanes, planes, conv1_stride, dilation)
-        self.abn1 = norm_act(planes, activation=norm_act)
+        self.bn1 = norm_layer(planes, activation=norm_act)
         self.conv2 = conv3x3(planes, outplanes)
-        self.abn2 = norm_layer(outplanes, activation='identity')
+        self.bn2 = norm_layer(outplanes, activation='identity')
         self.se = SEModule(outplanes, planes // 4) if use_se else None
         self.final_act = activation_from_name(norm_act)
         self.downsample = downsample
@@ -63,12 +63,12 @@ class BasicBlock(nn.Module):
         residual = x
 
         out = self.conv1(x)
-        out = self.abn1(out)
+        out = self.bn1(out)
         # Conv(s=2)->BN->Relu(s=1) => Conv(s=1)->BN->Relu(s=1)->BlurPool(s=2)
         if self.antialias:
             out = self.blurpool(out)
         out = self.conv2(out)
-        out = self.abn2(out)
+        out = self.bn2(out)
 
         if self.se is not None:
             out = self.se(out)
@@ -97,10 +97,10 @@ class Bottleneck(nn.Module):
         outplanes = planes * self.expansion
 
         self.conv1 = conv1x1(inplanes, width)
-        self.abn1 = norm_layer(width, activation=norm_act)
+        self.bn1 = norm_layer(width, activation=norm_act)
         conv2_stride = 1 if antialias else stride
         self.conv2 = conv3x3(width, width, conv2_stride, groups, dilation)
-        self.abn2 = norm_layer(width, activation=norm_act)
+        self.bn2 = norm_layer(width, activation=norm_act)
         self.conv3 = conv1x1(width, outplanes)
         self.bn3 = norm_layer(outplanes, activation='idenity')
         self.se = SEModule(outplanes, planes // 4) if use_se else None
@@ -113,11 +113,11 @@ class Bottleneck(nn.Module):
         residual = x
 
         out = self.conv1(x)
-        out = self.abn1(out)
+        out = self.bn1(out)
         
         # Conv(s=2)->BN->Relu(s=1) => Conv(s=1)->BN->Relu(s=1)->BlurPool(s=2)
         out = self.conv2(out)
-        out = self.abn2(out)
+        out = self.bn2(out)
         if self.antialias:
             out = self.blurpool(out)
 
