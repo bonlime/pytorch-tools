@@ -20,9 +20,10 @@ class SEModule(nn.Module):
     def __init__(self, channels, reduction_channels):
         super(SEModule, self).__init__()
         self.pool = GlobalPool2d('avg')
-        self.fc1 = conv1x1(channels, reduction_channels, 1)
+        # authors of original paper DO use bias
+        self.fc1 = nn.Conv2d(channels, reduction_channels, kernel_size=1, stride=1, bias=True)
         self.relu = nn.ReLU(inplace=True)
-        self.fc2 = conv1x1(channels, reduction_channels, 1)
+        self.fc2 = nn.Conv2d(channels, reduction_channels, kernel_size=1, stride=1, bias=True)
 
     def forward(self, x):
         x_se = self.pool(x)
