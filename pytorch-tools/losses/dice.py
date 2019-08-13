@@ -19,7 +19,7 @@ class BinaryDiceLoss(_Loss):
         self.weight = weight
         self.smooth = smooth
 
-    def forward(self, y_pred: Tensor, y_true: Tensor) -> Tensor:
+    def forward(self, y_pred, y_true):
         """
 
         :param y_pred: NxCxHxW
@@ -45,7 +45,7 @@ class BinaryDiceLogLoss(_Loss):
         self.weight = weight
         self.smooth = smooth
 
-    def forward(self, y_pred: Tensor, y_true: Tensor) -> Tensor:
+    def forward(self, y_pred, y_true):
         """
 
         :param y_pred: NxCxHxW
@@ -70,7 +70,7 @@ class MulticlassDiceLoss(_Loss):
         self.from_logits = from_logits
         self.weight = weight
 
-    def forward(self, y_pred: Tensor, y_true: Tensor) -> Tensor:
+    def forward(self, y_pred, y_true):
         """
 
         :param y_pred: NxCxHxW
