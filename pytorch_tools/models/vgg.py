@@ -1,10 +1,8 @@
 import torch
 import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
-from functools import partial
 from inplace_abn import ABN
 from pytorch_tools.modules import BlurPool
-import re
 
 model_urls = {
     'vgg11_bn': 'https://download.pytorch.org/models/vgg11_bn-6002323d.pth',
@@ -19,12 +17,12 @@ class VGG(nn.Module):
                  cfg, 
                  num_classes=1000, 
                  init_weights=True,
-                 norm_act=ABN,
+                 norm_layer=ABN,
                  encoder=False,
                  antialias=False):
         super(VGG, self).__init__()
-        self.norm_act = norm_act
-        self.abn_act = 'relu' if isinstance(norm_act, ABN) else 'leaky_relu'
+        self.norm_layer = norm_layer
+        self.norm_act = 'relu' if isinstance(norm_layer, ABN) else 'leaky_relu'
         self.encoder = encoder
         self.antialias = antialias
         self.features = self._make_layers(cfgs[cfg])
@@ -84,7 +82,7 @@ class VGG(nn.Module):
                     layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             else:
                 conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
-                layers += [conv2d, self.norm_act(v, activation=self.abn_act)]
+                layers += [conv2d, self.norm_layer(v, activation=self.norm_act)]
                 in_channels = v
         return nn.Sequential(*layers)
 
