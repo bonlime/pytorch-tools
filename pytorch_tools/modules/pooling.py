@@ -52,12 +52,10 @@ class GlobalPool2d(nn.Module):
 
 class BlurPool(nn.Module):
     """Idea from https://arxiv.org/abs/1904.11486
-        Implementation of Rect-2"""
-    def __init__(self, num_features):
+        Efficient implementation of Rect-2 using AvgPool"""
+    def __init__(self):
         super(BlurPool, self).__init__()
-        filt = torch.ones(num_features, 1, 2,2)
-        filt /= filt.sum()
-        self.register_buffer('filt', filt)
+        self.pool = nn.AvgPool2d(2, 2)
 
     def forward(self, inp):
-        return F.conv2d(inp, self.filt, stride=2, groups=inp.shape[1])
+        return self.pool(inp)

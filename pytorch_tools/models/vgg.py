@@ -91,7 +91,7 @@ class VGG(nn.Module):
         for v in cfg:
             if v == 'M':
                 if self.antialias:
-                    layers += [nn.MaxPool2d(kernel_size=2, stride=1), BlurPool(in_channels)]
+                    layers += [nn.MaxPool2d(kernel_size=2, stride=1), BlurPool()]
                 else:
                     layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             else:
@@ -116,10 +116,6 @@ class VGG(nn.Module):
         for k in keys:
             if k.startswith('features'):
                 state_dict[features_map[k]] = state_dict.pop(k)
-        # handle blurpool
-        for k in list(self.state_dict().keys()):
-            if k.endswith('filt'):
-                state_dict[k] = self.state_dict()[k]
         super().load_state_dict(state_dict, **kwargs)
 
 
