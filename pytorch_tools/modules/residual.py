@@ -23,7 +23,7 @@ class SEModule(nn.Module):
         # authors of original paper DO use bias
         self.fc1 = nn.Conv2d(channels, reduction_channels, kernel_size=1, stride=1, bias=True)
         self.relu = nn.ReLU(inplace=True)
-        self.fc2 = nn.Conv2d(channels, reduction_channels, kernel_size=1, stride=1, bias=True)
+        self.fc2 = nn.Conv2d(reduction_channels, channels, kernel_size=1, stride=1, bias=True)
 
     def forward(self, x):
         x_se = self.pool(x)
@@ -54,7 +54,7 @@ class BasicBlock(nn.Module):
         self.bn1 = norm_layer(planes, activation=norm_act)
         self.conv2 = conv3x3(planes, outplanes)
         self.bn2 = norm_layer(outplanes, activation='identity')
-        self.se = SEModule(outplanes, planes // 4) if use_se else None
+        self.se_module = SEModule(outplanes, planes // 4) if use_se else None
         self.final_act = activation_from_name(norm_act)
         self.downsample = downsample
         self.blurpool = BlurPool()
@@ -104,7 +104,7 @@ class Bottleneck(nn.Module):
         self.bn2 = norm_layer(width, activation=norm_act)
         self.conv3 = conv1x1(width, outplanes)
         self.bn3 = norm_layer(outplanes, activation='idenity')
-        self.se = SEModule(outplanes, planes // 4) if use_se else None
+        self.se_module = SEModule(outplanes, planes // 4) if use_se else None
         self.final_act = activation_from_name(norm_act)
         self.downsample = downsample
         self.blurpool = BlurPool()
