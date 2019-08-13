@@ -48,7 +48,7 @@ class GlobalPool2d(nn.Module):
 class BlurPool(nn.Module):
     """Idea from https://arxiv.org/abs/1904.11486
        Efficient implementation of Rect-2 with stride 2"""
-    def __init__(self, mode=None, align=False):
+    def __init__(self):
         super(BlurPool, self).__init__()
 
     def forward(self, x):

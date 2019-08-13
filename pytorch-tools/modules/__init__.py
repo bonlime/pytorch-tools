@@ -1,1 +1,0 @@
-from .pooling import GlobalPool2d
