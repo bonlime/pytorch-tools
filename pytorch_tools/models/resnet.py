@@ -11,10 +11,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models.utils import load_state_dict_from_url
-from inplace_abn import ABN
+
 from pytorch_tools.modules import BasicBlock, Bottleneck, SEModule
 from pytorch_tools.modules import GlobalPool2d, BlurPool
 from pytorch_tools.modules.residual import conv1x1, conv3x3
+from pytorch_tools.utils.misc import bn_from_name
 from collections import OrderedDict
 
 # from .registry import register_model
@@ -145,7 +146,7 @@ class ResNet(nn.Module):
                  deep_stem=False,
                  block_reduce_first=1, down_kernel_size=1,
                  dilated=False,
-                 norm_layer=ABN,
+                 norm_layer='abn',
                  # norm_act=None,
                  antialias=False,
                  encoder=False,
@@ -154,7 +155,8 @@ class ResNet(nn.Module):
                  init_bn0=True):
 
         stem_width = 64
-        norm_act = 'relu' if norm_layer == ABN else 'leaky_relu'
+        norm_act = 'relu' if norm_layer.lower() == 'abn' else 'leaky_relu'
+        norm_layer = bn_from_name(norm_layer)
         self.inplanes = stem_width
         self.num_classes = num_classes
         self.groups = groups
@@ -279,8 +281,6 @@ class ResNet(nn.Module):
                 state_dict[k.replace('fc', 'last_linear')] = state_dict.pop(k)
             if k.startswith('layer0'):
                 state_dict[k.replace('layer0.', '')] = state_dict.pop(k)
-            if k.endswith('num_batches_tracked'):
-                state_dict.pop(k)
         super().load_state_dict(state_dict, **kwargs)
 
 cfg = {

@@ -1,5 +1,6 @@
 import torch.nn.functional as F
 from functools import partial
+from inplace_abn import ABN, InPlaceABN, InPlaceABNSync
 
 
 def activation_from_name(act_name, act_param=0.01):
@@ -11,7 +12,19 @@ def activation_from_name(act_name, act_param=0.01):
         return partial(F.elu, alpha=act_param, inplace=True)
     elif act_name == "identity":
         return lambda x: x
+    else:
+        raise ValueError("Activation name {} not supported".format(act_name))
 
+def bn_from_name(norm_name):
+    norm_name = norm_name.lower()
+    if norm_name == 'abn':
+        return ABN
+    elif norm_name == 'inplaceabn':
+        return InPlaceABN
+    elif norm_name == 'inplaceabnsync':
+        return InPlaceABNSync
+    else:
+        raise ValueError("Normalization {} not supported".format(norm_name))
 
 def set_random_seed(seed):
     random.seed(seed)

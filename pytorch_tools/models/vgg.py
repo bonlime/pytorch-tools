@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
-from inplace_abn import ABN
 from pytorch_tools.modules import BlurPool
+from pytorch_tools.utils.misc import bn_from_name
 
 model_urls = {
     'vgg11_bn': 'https://download.pytorch.org/models/vgg11_bn-6002323d.pth',
@@ -31,13 +31,13 @@ class VGG(nn.Module):
     def __init__(self, 
                  cfg, 
                  num_classes=1000, 
-                 norm_layer=ABN,
+                 norm_layer='abn',
                  encoder=False,
                  antialias=False):
 
         super(VGG, self).__init__()
-        self.norm_layer = norm_layer
-        self.norm_act = 'relu' if isinstance(norm_layer, ABN) else 'leaky_relu'
+        self.norm_act = 'relu' if norm_layer.lower() == 'abn' else 'leaky_relu'
+        self.norm_layer = bn_from_name(norm_layer)
         self.encoder = encoder
         self.antialias = antialias
         self.features = self._make_layers(cfgs[cfg])
@@ -105,8 +105,6 @@ class VGG(nn.Module):
         # filter classifier and num_batches_tracked
         for k in keys:
             if k.startswith('classifier') and self.encoder:
-                state_dict.pop(k)
-            if k.endswith('num_batches_tracked'):
                 state_dict.pop(k)
         # there is a mismatch in feature layers names, so need this mapping
         self_feature_names = [i for i in self.state_dict().keys() if 'features' in i]
