@@ -70,4 +70,3 @@ venv.bak/
 # mkdocs documentation
 /site
 .vscode/settings.json
-.gitignore
