@@ -176,8 +176,8 @@ class ResNet(nn.Module):
                 conv3x3(stem_width // 2, stem_width, 2)
             )
         else:
-            self.conv1 = nn.Conv2d(in_chans, stem_width, kernel_size=7, stride=2, 
-                    padding = 3, bias=False)
+            self.conv1 = nn.Conv2d(in_chans, stem_width, kernel_size=7, stride=2,
+                                   padding=3, bias=False)
         self.bn1 = norm_layer(stem_width, activation=norm_act)
         if antialias:
             self.maxpool = nn.Sequential(nn.MaxPool2d(kernel_size=3, stride=1, padding=1),
@@ -185,7 +185,8 @@ class ResNet(nn.Module):
         else:
             # for se resnets fist maxpool is slightly different
             self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2,
-                padding=0 if use_se else 1, ceil_mode=True if use_se else False)
+                                        padding=0 if use_se else 1,
+                                        ceil_mode=True if use_se else False)
         # Output stride is 8 with dilated and 32 without
         stride_3_4 = 1 if self.dilated else 2
         dilation_3 = 2 if self.dilated else 1
@@ -212,7 +213,7 @@ class ResNet(nn.Module):
 
         if stride != 1 or self.inplanes != planes * self.expansion:
             downsample_layers = []
-            if antialias and stride == 2: #using OrderedDict to preserve ordering and allow loading
+            if antialias and stride == 2:  # using OrderedDict to preserve ordering and allow loading
                 downsample_layers += [('blur', BlurPool())]
             downsample_layers += [
                 ('0', conv1x1(self.inplanes, planes * self.expansion, stride=1 if antialias else stride)),
@@ -220,13 +221,13 @@ class ResNet(nn.Module):
             downsample = nn.Sequential(OrderedDict(downsample_layers))
 
         layers = [self.block(
-            self.inplanes, planes, stride, downsample, self.groups, 
+            self.inplanes, planes, stride, downsample, self.groups,
             self.base_width, use_se, dilation, norm_layer, norm_act, antialias)]
 
         self.inplanes = planes * self.expansion
         for _ in range(1, blocks):
             layers.append(self.block(
-                self.inplanes, planes, 1, None, self.groups, self.base_width, 
+                self.inplanes, planes, 1, None, self.groups, self.base_width,
                 use_se, dilation, norm_layer, norm_act, antialias))
         return nn.Sequential(*layers)
 
