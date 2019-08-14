@@ -64,7 +64,7 @@ class MulticlassDiceLoss(_Loss):
     """Implementation of Dice loss for multiclass (semantic) image segmentation task
     """
 
-    def __init__(self, classes: List[int] = None, from_logits=True, weight=None, reduction='elementwise_mean'):
+    def __init__(self, classes=None, from_logits=True, weight=None, reduction='elementwise_mean'):
         super(MulticlassDiceLoss, self).__init__(reduction=reduction)
         self.classes = classes
         self.from_logits = from_logits
