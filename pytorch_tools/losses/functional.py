@@ -95,10 +95,10 @@ def reduced_focal_loss(input: torch.Tensor,
     return loss
 
 
-def soft_jaccard_score(pred: torch.Tensor,
-                       target: torch.Tensor,
+def soft_jaccard_score(pred,
+                       target,
                        smooth=1e-3,
-                       from_logits=False) -> torch.Tensor:
+                       from_logits=False):
     if from_logits:
         pred = pred.sigmoid()
 
@@ -109,10 +109,10 @@ def soft_jaccard_score(pred: torch.Tensor,
     return iou
 
 
-def soft_dice_score(pred: torch.Tensor,
-                    target: torch.Tensor,
+def soft_dice_score(pred,
+                    target,
                     smooth=1e-3,
-                    from_logits=False) -> torch.Tensor:
+                    from_logits=False):
     if from_logits:
         pred = pred.sigmoid()
 

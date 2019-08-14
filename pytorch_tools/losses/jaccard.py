@@ -19,7 +19,7 @@ class BinaryJaccardLoss(_Loss):
         self.weight = weight
         self.smooth = smooth
 
-    def forward(self, y_pred: Tensor, y_true: Tensor) -> Tensor:
+    def forward(self, y_pred, y_true):
         """
 
         :param y_pred: NxCxHxW
@@ -45,7 +45,7 @@ class BinaryJaccardLogLoss(_Loss):
         self.weight = weight
         self.smooth = smooth
 
-    def forward(self, y_pred: Tensor, y_true: Tensor) -> Tensor:
+    def forward(self, y_pred, y_true):
         """
 
         :param y_pred: NxCxHxW
@@ -64,13 +64,13 @@ class MulticlassJaccardLoss(_Loss):
     """Implementation of Jaccard loss for multiclass (semantic) image segmentation task
     """
 
-    def __init__(self, classes: List[int] = None, from_logits=True, weight=None, reduction='elementwise_mean'):
+    def __init__(self, classes=None, from_logits=True, weight=None, reduction='elementwise_mean'):
         super(MulticlassJaccardLoss, self).__init__(reduction=reduction)
         self.classes = classes
         self.from_logits = from_logits
         self.weight = weight
 
-    def forward(self, y_pred: Tensor, y_true: Tensor) -> Tensor:
+    def forward(self, y_pred, y_true):
         """
 
         :param y_pred: NxCxHxW
