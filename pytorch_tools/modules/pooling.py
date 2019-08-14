@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from functools import partial
@@ -29,8 +30,12 @@ def global_pool2d(x, pool_type):
 
 class GlobalPool2d(nn.Module):
     """Selectable global pooling layer
+    
+        Args:
+            pool_type (str): One of 'avg', 'max', 'avgmax', 'catavgmax'
     """
     def __init__(self, pool_type):
+        
         super(GlobalPool2d, self).__init__()
         self.pool_type = pool_type
         self.pool = partial(global_pool2d, pool_type=pool_type)
@@ -47,9 +52,10 @@ class GlobalPool2d(nn.Module):
 
 class BlurPool(nn.Module):
     """Idea from https://arxiv.org/abs/1904.11486
-       Efficient implementation of Rect-2 with stride 2"""
+        Efficient implementation of Rect-2 using AvgPool"""
     def __init__(self):
         super(BlurPool, self).__init__()
+        self.pool = nn.AvgPool2d(2, 2)
 
-    def forward(self, x):
-        return F.interpolate(x, scale_factor=0.5, mode='bilinear', align_corners=False)
+    def forward(self, inp):
+        return self.pool(inp)
