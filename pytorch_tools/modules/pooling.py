@@ -44,3 +44,12 @@ class GlobalPool2d(nn.Module):
     def __repr__(self):
         return self.__class__.__name__ + ' (' \
                + ', pool_type=' + self.pool_type + ')'
+
+class BlurPool(nn.Module):
+    """Idea from https://arxiv.org/abs/1904.11486
+       Efficient implementation of Rect-2 with stride 2"""
+    def __init__(self):
+        super(BlurPool, self).__init__()
+
+    def forward(self, x):
+        return F.interpolate(x, scale_factor=0.5, mode='bilinear', align_corners=False)
