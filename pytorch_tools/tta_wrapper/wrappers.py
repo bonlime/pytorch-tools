@@ -1,3 +1,4 @@
+# idea from https://github.com/qubvel/tta_wrapper reworked for PyTorch
 import itertools
 import torch
 import torch.nn as nn
@@ -78,7 +79,18 @@ class TTA_Wrapper(nn.Module):
                  mul=None,
                  merge='mean'):
         """Module wrapper for convinient TTA. 
-        
+        Wrapper add augmentation layers to your model like this:
+
+            Input
+              |           # input batch; shape B, H, W, C
+         / / / \ \ \      # duplicate image for augmentation; shape N*B, H, W, C
+        | | |   | | |     # apply augmentations (flips, rotation, shifts)
+     your nn.Module model
+        | | |   | | |     # reverse transformations (this part is skipped for classification)
+         \ \ \ / / /      # merge predictions (mean, max, gmean)
+              |           # output mask; shape B, H, W, C
+            Output
+            
         Args:
             model (nn.Module): 
             segm (bool): Flag to revert augmentations before merging. Requires output of a model
