@@ -64,7 +64,7 @@ class Augmentation(object):
         return torch.cat(transformed_batches, 0)
 
 
-class TTA_Wrapper(nn.Module):
+class TTA(nn.Module):
 
     def __init__(self,
                  model,
@@ -110,7 +110,7 @@ class TTA_Wrapper(nn.Module):
             nn.Module
         """
         
-        super(TTA_Wrapper, self).__init__()
+        super(TTA, self).__init__()
         self.tta = Augmentation(h_flip=h_flip,
                                 v_flip=v_flip,
                                 h_shift=h_shift,

@@ -1,1 +1,1 @@
-from .wrappers import TTA_Wrapper
+from .wrapper import TTA
