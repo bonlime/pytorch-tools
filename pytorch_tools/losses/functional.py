@@ -5,8 +5,8 @@ import torch.nn.functional as F
 __all__ = ['sigmoid_focal_loss', 'soft_jaccard_score', 'soft_dice_score', 'wing_loss']
 
 
-def sigmoid_focal_loss(input: torch.Tensor,
-                       target: torch.Tensor,
+def sigmoid_focal_loss(input,
+                       target,
                        gamma=2.0,
                        alpha=0.25,
                        reduction='mean'):
@@ -50,8 +50,8 @@ def sigmoid_focal_loss(input: torch.Tensor,
     return loss
 
 
-def reduced_focal_loss(input: torch.Tensor,
-                       target: torch.Tensor,
+def reduced_focal_loss(input,
+                       target,
                        threshold=0.5,
                        gamma=2.0,
                        reduction='mean'):
@@ -121,7 +121,7 @@ def soft_dice_score(pred,
     return 2 * intersection / union
 
 
-def wing_loss(prediction: torch.Tensor, target: torch.Tensor, width=5, curvature=0.5, reduction='mean'):
+def wing_loss(prediction, target, width=5, curvature=0.5, reduction='mean'):
     """
     https://arxiv.org/pdf/1711.06753.pdf
     :param prediction:
@@ -149,3 +149,19 @@ def wing_loss(prediction: torch.Tensor, target: torch.Tensor, width=5, curvature
         loss = loss.mean()
 
     return loss
+
+def accuracy(pred, target, topk=1):
+    if isinstance(topk, int):
+        topk = (topk, )
+        return_single = True
+
+    maxk = max(topk)
+    _, pred_label = pred.topk(maxk, 1, True, True)
+    pred_label = pred_label.t()
+    correct = pred_label.eq(target.view(1, -1).expand_as(pred_label))
+
+    res = []
+    for k in topk:
+        correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+        res.append(correct_k.mul_(100.0 / pred.size(0)))
+    return res[0] if return_single else res
