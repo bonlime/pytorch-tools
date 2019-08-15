@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 
 
-def calculate_psnr(img1, img2):
+def PSNR(img1, img2):
     # img1 and img2 have range [0, 255]
     img1 = img1.astype(np.float64)
     img2 = img2.astype(np.float64)
@@ -15,7 +15,7 @@ def calculate_psnr(img1, img2):
     return 20 * math.log10(255.0 / math.sqrt(mse))
 
 
-def ssim(img1, img2):
+def _ssim(img1, img2):
     C1 = (0.01 * 255)**2
     C2 = (0.03 * 255)**2
 
@@ -38,14 +38,14 @@ def ssim(img1, img2):
     return ssim_map.mean()
 
 
-def calculate_ssim(img1, img2):
+def SSIM(img1, img2):
     '''calculate SSIM
     img1, img2: [0, 255]
     '''
     if not img1.shape == img2.shape:
         raise ValueError('Input images must have the same dimensions.')
     if img1.ndim == 2:  # Grey or Y-channel image
-        return ssim(img1, img2)
+        return _ssim(img1, img2)
     elif img1.ndim == 3:
         if img1.shape[2] == 3:
             ssims = []
@@ -53,6 +53,6 @@ def calculate_ssim(img1, img2):
                 ssims.append(ssim(img1, img2))
             return np.array(ssims).mean()
         elif img1.shape[2] == 1:
-            return ssim(np.squeeze(img1), np.squeeze(img2))
+            return _ssim(np.squeeze(img1), np.squeeze(img2))
     else:
         raise ValueError('Wrong input image dimensions.')
