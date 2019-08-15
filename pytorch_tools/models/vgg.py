@@ -3,20 +3,16 @@ import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
 from pytorch_tools.modules import BlurPool
 from pytorch_tools.utils.misc import bn_from_name
+from functools import wraps, partial
+# avoid overwriting doc string
+wraps = partial(wraps, assigned=('__module__', '__name__', '__qualname__', '__annotations__'))
+from decorator import decorator
 
-model_urls = {
-    'vgg11_bn': 'https://download.pytorch.org/models/vgg11_bn-6002323d.pth',
-    'vgg13_bn': 'https://download.pytorch.org/models/vgg13_bn-abd245e5.pth',
-    'vgg16_bn': 'https://download.pytorch.org/models/vgg16_bn-6c64b313.pth',
-    'vgg19_bn': 'https://download.pytorch.org/models/vgg19_bn-c79401a0.pth',
-}
 
 class VGG(nn.Module):
-    """VGG model builder. Only BN version is supported.  
-        From: https://arxiv.org/pdf/1409.1556.pdf
-
+    """
     Args:
-        cfg ([type]): [description]
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
         num_classes (int, optional): [description]. Defaults to 1000.
         norm_layer (ABN, optional): Which version of ABN to use. Choices are:
             'ABN' - dropin replacement for BN+Relu.
@@ -29,7 +25,8 @@ class VGG(nn.Module):
     """
 
     def __init__(self, 
-                 cfg, 
+                 arch,
+                 pretrained=False,
                  num_classes=1000, 
                  norm_layer='abn',
                  encoder=False,
@@ -40,7 +37,7 @@ class VGG(nn.Module):
         self.norm_layer = bn_from_name(norm_layer)
         self.encoder = encoder
         self.antialias = antialias
-        self.features = self._make_layers(cfgs[cfg])
+        self.features = self._make_layers(cfgs[arch])
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
         if not encoder:
             self.classifier = nn.Sequential(
@@ -54,7 +51,13 @@ class VGG(nn.Module):
             )
         else:
             self.forward = self.encoder_features
-        self._initialize_weights()
+
+        if pretrained:
+            state_dict = load_state_dict_from_url(model_urls[arch],
+                                                  progress=True)
+            self.load_state_dict(state_dict)
+        else:
+            self._initialize_weights()
 
     def encoder_features(self, x):
         features = []
@@ -116,58 +119,55 @@ class VGG(nn.Module):
                 state_dict[features_map[k]] = state_dict.pop(k)
         super().load_state_dict(state_dict, **kwargs)
 
-
-cfgs = {
-    'A': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-    'B': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-    'D': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
-    'E': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+model_urls = {
+    'vgg11_bn': 'https://download.pytorch.org/models/vgg11_bn-6002323d.pth',
+    'vgg13_bn': 'https://download.pytorch.org/models/vgg13_bn-abd245e5.pth',
+    'vgg16_bn': 'https://download.pytorch.org/models/vgg16_bn-6c64b313.pth',
+    'vgg19_bn': 'https://download.pytorch.org/models/vgg19_bn-c79401a0.pth',
 }
 
-def _vgg(arch, cfg, pretrained, **kwargs):
-    model = VGG(cfg, **kwargs)
-    if pretrained:
-        state_dict = load_state_dict_from_url(model_urls[arch],
-                                              progress=True)
-        model.load_state_dict(state_dict)
-    return model
+cfgs = {
+    'vgg11_bn': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+    'vgg13_bn': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+    'vgg16_bn': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
+    'vgg19_bn': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+}
 
+def add_docs_for(other_func):
+    """Simple decorator to concat docstrings"""  
+    def dec(func):  
+        func.__doc__ = func.__doc__ + other_func.__doc__ 
+        return func
+    return dec
 
-def vgg11_bn(pretrained=False, **kwargs):
+@wraps(VGG)
+@add_docs_for(VGG)
+def vgg11_bn(**kwargs):
     r"""VGG 11-layer model (configuration "A") with batch normalization
     `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
-
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    return _vgg('vgg11_bn', 'A', pretrained, **kwargs)
+    return VGG('vgg11_bn', **kwargs)
 
-
-def vgg13_bn(pretrained=False, **kwargs):
+@wraps(VGG)
+@add_docs_for(VGG)
+def vgg13_bn(**kwargs):
     r"""VGG 13-layer model (configuration "B") with batch normalization
     `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
-
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    return _vgg('vgg13_bn', 'B', pretrained, **kwargs)
+    return VGG('vgg13_bn', **kwargs)
 
-
-def vgg16_bn(pretrained=False, **kwargs):
+@wraps(VGG)
+@add_docs_for(VGG)
+def vgg16_bn(**kwargs):
     r"""VGG 16-layer model (configuration "D") with batch normalization
     `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
-
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    return _vgg('vgg16_bn', 'D', pretrained, **kwargs)
+    return VGG('vgg16_bn', **kwargs)
 
-
-def vgg19_bn(pretrained=False, **kwargs):
+@wraps(VGG)
+@add_docs_for(VGG)
+def vgg19_bn(**kwargs):
     r"""VGG 19-layer model (configuration 'E') with batch normalization
     `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
-
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    return _vgg('vgg19_bn', 'E', pretrained, **kwargs)
+    return VGG('vgg19_bn', **kwargs)
