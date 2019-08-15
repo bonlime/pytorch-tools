@@ -2,8 +2,6 @@ import torch
 import pytest
 from pytorch_tools.tta_wrapper import functional as F
 from .wrappers import TTA_Wrapper
-#import numpy as np
-#from pytorch_toolbelt.utils.torch_utils import to_numpy
 from torch import nn
 
 
