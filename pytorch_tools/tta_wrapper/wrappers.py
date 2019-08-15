@@ -1,24 +1,14 @@
 import itertools
 import torch
 import torch.nn as nn
-import pytorch_tools.tta_wrapper.functional as F
-
-# forward на батче работает без проблем. получается
-# B x C x H x W => B*Aug x C x H x W => B*Aug x N_Classes.=> B x Aug x
-#
-# После хотим получить B x N_Classes
-# или для сегментации
-# B x C x H x W => B*Aug x C x H x W => B*Aug x N_Classes x H x W.
-# после хотим получить B x N_Classes x H x W
-# решается хитрым reshape
-
+from pytorch_tools.tta_wrapper import functional as F
 
 class Augmentation(object):
 
     transforms = {
         'h_flip': F.HFlip(),
         'v_flip': F.VFlip(),
-        # 'rotation': F.Rotate(),
+        'rotation': F.Rotate(),
         'h_shift': F.HShift(),
         'v_shift': F.VShift(),
         # 'contrast': F.Contrast(),
@@ -49,34 +39,27 @@ class Augmentation(object):
 
         self.n_transforms = len(transform_params)
 
-    # @property
     def forward(self, x):
-        # only stack first image in a batch for now
-        image = x
         self.bs = x.shape[0]
-        #images = torch.cat([x[0]] * self.n_transforms, axis=0)
-
-        transformed_images = []
+        transformed_batches = []
         for i, args in enumerate(self.forward_params):
+            batch = x
             for f, arg in zip(self.forward_aug, args):
-                image = f(image, arg)  # actually not image but a batch
-            transformed_images.append(image)
-
-        #x.reshape([bs, -1, *x.shape[1:]]).mean(1)
+                batch = f(batch, arg) 
+            transformed_batches.append(batch)
         # returns shape B*Aug x C x H x W
-        return torch.cat(transformed_images, 0)
+        return torch.cat(transformed_batches, 0)
 
-    # @property
     def backward(self, x):
-        # x.reshape([-1, self.bs, *x.shape[1:]]).mean(0)
+        # reshape to separate batches
         x = x.reshape([-1, self.bs, *x.shape[1:]])
-        transformed_images = []
+        transformed_batches = []
         for i, args in enumerate(self.backward_params):
-            image = x[i]
+            batch = x[i]
             for f, arg in zip(self.backward_aug, args):
-                image = f(image, arg)
-            transformed_images.append(image)
-        return torch.cat(transformed_images, 0)
+                batch = f(batch, arg)
+            transformed_batches.append(batch)
+        return torch.cat(transformed_batches, 0)
 
 
 class TTA_Wrapper(nn.Module):
@@ -88,17 +71,38 @@ class TTA_Wrapper(nn.Module):
                  v_flip=False,
                  h_shift=None,
                  v_shift=None,
-                 # rotation=None,
+                 rotation=None,
                  # contrast=None,
                  add=None,
                  mul=None,
                  merge='mean'):
+        """Module wrapper for convinient TTA. 
+        
+        Args:
+            model (nn.Module): 
+            segm (bool): Flag to revert augmentations before merging. Requires output of a model
+                to be of the same size as input. Defaults to False.
+            h_flip (bool): Horizontal flip.
+            v_flip (bool): Vertical flip.
+            h_shift (List[int]): list of horizontal shifts in pixels (e.g. [10, -10])
+            v_shift (List[int]): list of vertical shifts in pixels (e.g. [10, -10])
+            rotation (List[int]): list of angles (deg) for rotation should be divisible by 90 deg (e.g. [90, 180, 270])
+            add (List[float]): list of floats to add to input images.
+            mul (List[float]): list of float to multiply input. Ex: [0.9, 1.1]
+            merge (str): Mode of merging augmented predictions. One of 'mean', 'gmean' and 'max'. 
+                When using 'gmean' option make sure that predictions are less than 1 or number of augs isn't too large
+                otherwise it could lead to an overflow.
+        
+        Returns:
+            nn.Module
+        """
+        
         super(TTA_Wrapper, self).__init__()
         self.tta = Augmentation(h_flip=h_flip,
                                 v_flip=v_flip,
                                 h_shift=h_shift,
                                 v_shift=v_shift,
-                                # rotation=rotation,
+                                rotation=rotation,
                                 # contrast=contrast,
                                 add=add,
                                 mul=mul
@@ -119,11 +123,9 @@ class TTA_Wrapper(nn.Module):
         x = self.tta.forward(x)
         # x.shape = B*N_Transform x C x H x W
         x = self.model(x)
-        # x.shape = `B*N_Transform x N_Classes` for classification or
-        # x.shape = `B*N_Transform x N_Classes x H x W` for segmentation
+        # x.shape = `B*N_Transform x N_Classes (x H x W)`
         if self.segm:
             x = self.tta.backward(x)
-        #print(x.shape)
-        print(x)
         x = x.reshape([-1, self.tta.bs, *x.shape[1:]])
+        # x.shape = `N_Transform x B x N_Classes (x H x W)`
         return self.merge(x)

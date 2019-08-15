@@ -17,28 +17,17 @@ class DualTransform:
             params.append(self.identity_param)
         return params
 
-    def forward(self, image, param):
+    def forward(self, batch, param):
         raise NotImplementedError
 
-    def backward(self, image, param):
+    def backward(self, batch, param):
         raise NotImplementedError
 
 
 class SingleTransform(DualTransform):
 
-    def backward(self, image, param):
-        return image
-
-
-def hflip(flip=True):
-    def wrapped(x):
-        return x.flip(3) if flip else x
-    return wrapped
-    
-def hshift(shift):
-    def wrapped(x):
-        return x.roll(shift, axis=1)
-    return wrapped
+    def backward(self, batch, param):
+        return batch
 
 class HFlip(DualTransform):
 
@@ -50,11 +39,11 @@ class HFlip(DualTransform):
         if params == True:
             return [1, 0]
 
-    def forward(self, image, param):
-        return image.flip(3) if param else image
+    def forward(self, batch, param):
+        return batch.flip(2) if param else batch
 
-    def backward(self, image, param):
-        return self.forward(image, param)
+    def backward(self, batch, param):
+        return self.forward(batch, param)
 
 
 class VFlip(DualTransform):
@@ -67,37 +56,27 @@ class VFlip(DualTransform):
         if params == True:
             return [1, 0]
 
-    def forward(self, image, param):
-        return image.flip(2) if param else image
+    def forward(self, batch, param):
+        return batch.flip(3) if param else batch
 
-    def backward(self, image, param):
-        return self.forward(image, param)
-
-
-# class Rotate(DualTransform):
-
-#     identity_param = 0
-
-#     def forward(self, image, angle):
-#         k = angle // 90 if angle >= 0 else (angle + 360) // 90
-#         return tf.image.rot90(image, k)
-
-#     def backward(self, image, angle):
-#         return self.forward(image, -angle)
+    def backward(self, batch, param):
+        return self.forward(batch, param)
 
 
-class HShift(DualTransform):
+class Rotate(DualTransform):
 
     identity_param = 0
 
-    def forward(self, batch, param):
-        return batch.roll(param, dims=2)
+    def forward(self, batch, angle):
+        # rotation is couterclockwise
+        k = angle // 90
+        return torch.rot90(batch, k, (2,3))
 
-    def backward(self, image, param):
-        return batch.roll(-param, dims=2)
+    def backward(self, batch, angle):
+        return self.forward(batch, -angle)
 
 
-class VShift(DualTransform):
+class HShift(DualTransform):
 
     identity_param = 0
 
@@ -108,12 +87,23 @@ class VShift(DualTransform):
         return batch.roll(-param, dims=3)
 
 
+class VShift(DualTransform):
+
+    identity_param = 0
+
+    def forward(self, batch, param):
+        return batch.roll(param, dims=2)
+
+    def backward(self, batch, param):
+        return batch.roll(-param, dims=2)
+
+
 # class Contrast(SingleTransform):
 
 #     identity_param = 1
 
-#     def forward(self, image, param):
-#         return tf.image.adjust_contrast(image, param)
+#     def forward(self, batch, param):
+#         return tf.image.adjust_contrast(batch, param)
 
 
 class Add(SingleTransform):
