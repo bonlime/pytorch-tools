@@ -15,8 +15,11 @@ from torchvision.models.utils import load_state_dict_from_url
 from pytorch_tools.modules import BasicBlock, Bottleneck, SEModule
 from pytorch_tools.modules import GlobalPool2d, BlurPool
 from pytorch_tools.modules.residual import conv1x1, conv3x3
-from pytorch_tools.utils.misc import bn_from_name
+from pytorch_tools.utils.misc import bn_from_name, add_docs_for
 from collections import OrderedDict
+from functools import wraps, partial
+# avoid overwriting doc string
+wraps = partial(wraps, assigned=('__module__', '__name__', '__qualname__', '__annotations__'))
 
 # from .registry import register_model
 # from .helpers import load_pretrained
@@ -140,15 +143,9 @@ class ResNet(nn.Module):
         This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
 
     """
-    def __init__(self, block=None, layers=None,
-                 num_classes=1000, in_chans=3, use_se=False,
-                 groups=1, base_width=64,
-                 deep_stem=False,
-                 block_reduce_first=1, down_kernel_size=1,
                  dilated=False,
-                 norm_layer='abn',
-                 # norm_act=None,
-                 antialias=False,
+                 norm_layer=ABN,
+                 #norm_act=None,
                  encoder=False,
                  drop_rate=0.0,
                  global_pool='avg',
@@ -210,7 +207,7 @@ class ResNet(nn.Module):
         self._initialize_weights(init_bn0)
 
     def _make_layer(self, planes, blocks, stride=1, dilation=1,
-                    use_se=False, norm_layer=ABN, norm_act='relu', antialias=False):
+                    use_se=None, norm_layer=None, norm_act=None, antialias=None):
         downsample = None
 
         if stride != 1 or self.inplanes != planes * self.expansion:
@@ -306,6 +303,14 @@ cfg = {
     'se_resnext101_32x4d': {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 4, 'groups': 32, 'use_se': True},
 }
 
+# model_urls2 = {
+#     'resnet18': { 'imagenet': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
+#                   'imagenet_inplaceabn': None, # can't load original authors weight, have to retrain
+#                   'imagenet_antialias': None}, # can't load original authors weight, have to retrain
+#     'resnet34': {'imagenet': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
+#                  'imagenet_inplaceabn': None},
+# }
+
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
     'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
@@ -339,11 +344,9 @@ def _resnet(arch, pretrained, **kwargs):
         model.load_state_dict(state_dict)
     return model
 
-
+@add_docs_for(ResNet)
 def resnet18(pretrained=False, **kwargs):
     """Constructs a ResNet-18 model."""
-    return _resnet('resnet18', pretrained, **kwargs)
-
 
 def resnet34(pretrained=False, **kwargs):
     """Constructs a ResNet-34 model."""
@@ -352,7 +355,6 @@ def resnet34(pretrained=False, **kwargs):
 
 def resnet50(pretrained=False, **kwargs):
     """Constructs a ResNet-50 model."""
-    return _resnet('resnet50', pretrained, **kwargs)
 
 
 def resnet101(pretrained=False, **kwargs):

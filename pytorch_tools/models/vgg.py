@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
 from pytorch_tools.modules import BlurPool
-from pytorch_tools.utils.misc import bn_from_name
+from pytorch_tools.utils.misc import bn_from_name, add_docs_for
 from functools import wraps, partial
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=('__module__', '__name__', '__qualname__', '__annotations__'))
@@ -133,12 +133,6 @@ cfgs = {
     'vgg19_bn': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 }
 
-def add_docs_for(other_func):
-    """Simple decorator to concat docstrings"""  
-    def dec(func):  
-        func.__doc__ = func.__doc__ + other_func.__doc__ 
-        return func
-    return dec
 
 @wraps(VGG)
 @add_docs_for(VGG)
