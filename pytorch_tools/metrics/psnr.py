@@ -4,6 +4,7 @@ import math
 import numpy as np
 import cv2
 
+__all__ = ['PSNR', 'SSIM']
 
 def PSNR(img1, img2):
     # img1 and img2 have range [0, 255]
