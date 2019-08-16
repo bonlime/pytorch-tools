@@ -31,3 +31,10 @@ def set_random_seed(seed):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+
+def add_docs_for(other_func):
+    """Simple decorator to concat docstrings"""  
+    def dec(func):  
+        func.__doc__ = func.__doc__ + other_func.__doc__ 
+        return func
+    return dec
