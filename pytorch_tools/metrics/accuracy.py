@@ -1,7 +1,7 @@
 class Accuracy:
 
     def __init__(self, topk=1):
-        self.name = 'Acc@' + topk
+        self.name = 'Acc@' + str(topk)
         self.topk = topk
     
     def __call__(self, output, target):
