@@ -143,13 +143,19 @@ class ResNet(nn.Module):
         This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
 
     """
-                 dilated=False,
-                 norm_layer=ABN,
-                 #norm_act=None,
-                 encoder=False,
-                 drop_rate=0.0,
-                 global_pool='avg',
-                 init_bn0=True):
+        def __init__(self, block=None, layers=None,
+                     pretrained='imagenet',
+                     num_classes=1000, in_chans=3, use_se=False,
+                     groups=1, base_width=64,
+                     deep_stem=False,
+                     block_reduce_first=1, down_kernel_size=1,
+                     dilated=False,
+                     norm_layer='abn',
+                     antialias=False,
+                     encoder=False,
+                     drop_rate=0.0,
+                     global_pool='avg',
+                     init_bn0=True):
 
         stem_width = 64
         norm_act = 'relu' if norm_layer.lower() == 'abn' else 'leaky_relu'
@@ -204,7 +210,14 @@ class ResNet(nn.Module):
         else:
             self.forward = self.forward_features
 
-        self._initialize_weights(init_bn0)
+        # Actually it's a bad idea
+        # TODO remove when not imagenet net weigths become available
+        if pretrained:
+            state_dict = load_state_dict_from_url(model_urls[arch],
+                                                  progress=True)
+            self.load_state_dict(state_dict)
+        else:
+            self._initialize_weights(init_bn0)
 
     def _make_layer(self, planes, blocks, stride=1, dilation=1,
                     use_se=None, norm_layer=None, norm_act=None, antialias=None):
@@ -333,7 +346,7 @@ model_urls = {
     'se_resnext101_32x4d': 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnext101_32x4d-3b2fe3d8.pth',
 }
 
-
+# TODO remove after adding weights for models at the bottom
 def _resnet(arch, pretrained, **kwargs):
     # if pretrained:
     #     kwargs['init_weights'] = False
@@ -344,102 +357,148 @@ def _resnet(arch, pretrained, **kwargs):
         model.load_state_dict(state_dict)
     return model
 
+@wraps(ResNet)
 @add_docs_for(ResNet)
-def resnet18(pretrained=False, **kwargs):
+def resnet18(**kwargs):
     """Constructs a ResNet-18 model."""
+    kwargs.update(cfg['resnet18'])
+    return ResNet(**kwargs)
 
-def resnet34(pretrained=False, **kwargs):
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def resnet34(**kwargs):
     """Constructs a ResNet-34 model."""
-    return _resnet('resnet34', pretrained, **kwargs)
+    kwargs.update(cfg['resnet34'])
+    return ResNet(**kwargs)
 
-
-def resnet50(pretrained=False, **kwargs):
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def resnet50(**kwargs):
     """Constructs a ResNet-50 model."""
+    kwargs.update(cfg['resnet50'])
+    return ResNet(**kwargs)
 
-
-def resnet101(pretrained=False, **kwargs):
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def resnet101(**kwargs):
     """Constructs a ResNet-101 model."""
-    return _resnet('resnet101', pretrained, **kwargs)
+    kwargs.update(cfg['resnet101'])
+    return ResNet(**kwargs)
 
-
-def resnet152(pretrained=False, **kwargs):
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def resnet152(**kwargs):
     """Constructs a ResNet-152 model."""
-    return _resnet('resnet152', pretrained, **kwargs)
+    kwargs.update(cfg['resnet152'])
+    return ResNet(**kwargs)
 
-
-def wide_resnet50_2(pretrained=False, **kwargs):
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def wide_resnet50_2(**kwargs):
     """Constructs a Wide ResNet-50-2 model.
     The model is the same as ResNet except for the bottleneck number of channels
     which is twice larger in every block. The number of channels in outer 1x1
     convolutions is the same, e.g. last block in ResNet-50 has 2048-512-2048
     channels, and in Wide ResNet-50-2 has 2048-1024-2048.
     """
-    return _resnet('wide_resnet50_2', pretrained, **kwargs)
+    kwargs.update(cfg['wide_resnet50_2'])
+    return ResNet(**kwargs)
 
-
-def wide_resnet101_2(pretrained=False, **kwargs):
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def wide_resnet101_2(**kwargs):
     """Constructs a Wide ResNet-101-2 model.
     The model is the same as ResNet except for the bottleneck number of channels
     which is twice larger in every block. The number of channels in outer 1x1
     convolutions is the same."""
-    return _resnet('wide_resnet101_2', pretrained, **kwargs)
+    kwargs.update(cfg['wide_resnet101_2'])
+    return ResNet(**kwargs)
 
-
-def resnext50_32x4d(pretrained=False, **kwargs):
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def resnext50_32x4d(**kwargs):
     """Constructs a ResNeXt50-32x4d model."""
-    return _resnet('resnext50_32x4d', pretrained, **kwargs)
+    kwargs.update(cfg['resnext50_32x4d'])
+    return ResNet(**kwargs)
 
-
-def resnext101_32x8d(pretrained=False, **kwargs):
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def resnext101_32x8d(**kwargs):
     """Constructs a ResNeXt101-32x8d model."""
-    return _resnet('resnext101_32x8d', pretrained, **kwargs)
+    kwargs.update(cfg['resnext101_32x8d'])
+    return ResNet(**kwargs)
 
-
-def ig_resnext101_32x8d(pretrained=False, **kwargs):
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def ig_resnext101_32x8d(**kwargs):
     """Constructs a ResNeXt-101 32x8 model pre-trained on weakly-supervised data
     and finetuned on ImageNet from Figure 5 in
     `"Exploring the Limits of Weakly Supervised Pretraining" <https://arxiv.org/abs/1805.00932>`_
     Weights from https://pytorch.org/hub/facebookresearch_WSL-Images_resnext/"""
-    return _resnet('ig_resnext101_32x8d', pretrained, **kwargs)
+    kwargs.update(cfg['ig_resnext101_32x8d'])
+    return ResNet(**kwargs)
 
-
-def ig_resnext101_32x16d(pretrained=False, **kwargs):
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def ig_resnext101_32x16d(**kwargs):
     """Constructs a ResNeXt-101 32x16 model pre-trained on weakly-supervised data."""
-    return _resnet('ig_resnext101_32x16d', pretrained, **kwargs)
+    kwargs.update(cfg['ig_resnext101_32x16d'])
+    return ResNet(**kwargs)
 
-
-def ig_resnext101_32x32d(pretrained=False, **kwargs):
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def ig_resnext101_32x32d(**kwargs):
     """Constructs a ResNeXt-101 32x32 model pre-trained on weakly-supervised data."""
-    return _resnet('ig_resnext101_32x32d', pretrained, **kwargs)
+    kwargs.update(cfg['ig_resnext101_32x32d'])
+    return ResNet(**kwargs)
 
-
-def ig_resnext101_32x48d(pretrained=False, **kwargs):
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def ig_resnext101_32x48d(**kwargs):
     """Constructs a ResNeXt-101 32x48 model pre-trained on weakly-supervised data."""
-    return _resnet('ig_resnext101_32x48d', pretrained, **kwargs)
+    kwargs.update(cfg['ig_resnext101_32x48d'])
+    return ResNet(**kwargs)
+
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def se_resnet34(**kwargs):
+    kwargs.update(cfg['se_resnet34'])
+    return ResNet(**kwargs)
 
 
-def se_resnet34(pretrained=False, **kwargs):
-    return _resnet('se_resnet34', pretrained, **kwargs)
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def se_resnet50(**kwargs):
+    kwargs.update(cfg['se_resnet50'])
+    return ResNet(**kwargs)
 
 
-def se_resnet50(pretrained=False, **kwargs):
-    return _resnet('se_resnet50', pretrained, **kwargs)
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def se_resnet101(**kwargs):
+    kwargs.update(cfg['se_resnet101'])
+    return ResNet(**kwargs)
 
 
-def se_resnet101(pretrained=False, **kwargs):
-    return _resnet('se_resnet101', pretrained, **kwargs)
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def se_resnet152(**kwargs):
+    kwargs.update(cfg['se_resnet152'])
+    return ResNet(**kwargs)
 
 
-def se_resnet152(pretrained=False, **kwargs):
-    return _resnet('se_resnet152', pretrained, **kwargs)
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def se_resnext50_32x4d(**kwargs):
+    kwargs.update(cfg['se_resnext50_32x4d'])
+    return ResNet(**kwargs)
 
 
-def se_resnext50_32x4d(pretrained=False, **kwargs):
-    return _resnet('se_resnext50_32x4d', pretrained, **kwargs)
-
-
-def se_resnext101_32x4d(pretrained=False, **kwargs):
-    return _resnet('se_resnext101_32x4d', pretrained, **kwargs)
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def se_resnext101_32x4d(**kwargs):
+    kwargs.update(cfg['se_resnext101_32x4d'])
+    return ResNet(**kwargs)
 
 ######################################
 #     NOT YET ADDED WEIGHTS BELOW    #
