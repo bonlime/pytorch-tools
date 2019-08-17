@@ -17,6 +17,7 @@ def activation_from_name(act_name, act_param=0.01):
     else:
         raise ValueError("Activation name {} not supported".format(act_name))
 
+
 def bn_from_name(norm_name):
     norm_name = norm_name.lower()
     if norm_name == 'abn':
@@ -28,12 +29,20 @@ def bn_from_name(norm_name):
     else:
         raise ValueError("Normalization {} not supported".format(norm_name))
 
+
 def set_random_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
+def add_docs_for(other_func):
+    """Simple decorator to concat docstrings"""
+    def dec(func):
+        func.__doc__ = func.__doc__ + other_func.__doc__
+        return func
+    return dec
+   
 def count_parameters(model):
     """Count number of parameters of a model
 
