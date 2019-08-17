@@ -1,9 +1,16 @@
-
+import torch.nn as nn
 import time
 import torch.nn.functional as F
 from functools import partial
 from inplace_abn import ABN, InPlaceABN, InPlaceABNSync
 
+def initialize(model):
+    for m in model.modules():
+        if isinstance(m, nn.Conv2d):
+            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.constant_(m.weight, 1)
+            nn.init.constant_(m.bias, 0)
 
 def activation_from_name(act_name, act_param=0.01):
     if act_name == 'relu':
@@ -14,10 +21,14 @@ def activation_from_name(act_name, act_param=0.01):
         return partial(F.elu, alpha=act_param, inplace=True)
     elif act_name == "identity":
         return lambda x: x
+    elif act_name == 'sigmoid':
+        return nn.Sigmoid()
+    elif act_name == 'softmax':
+        return nn.Softmax2d()
     else:
         raise ValueError("Activation name {} not supported".format(act_name))
 
-
+# TODO return proper activation and layer 
 def bn_from_name(norm_name):
     norm_name = norm_name.lower()
     if norm_name == 'abn':

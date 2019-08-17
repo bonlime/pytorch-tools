@@ -357,6 +357,7 @@ def _resnet(arch, pretrained, **kwargs):
         model.load_state_dict(state_dict)
     return model
 
+# TODO make creation of modules with loop
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def resnet18(**kwargs):
