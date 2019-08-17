@@ -20,10 +20,14 @@ def activation_from_name(act_name, act_param=0.01):
         return partial(F.elu, alpha=act_param, inplace=True)
     elif act_name == "identity":
         return lambda x: x
+    elif act_name == 'sigmoid':
+        return nn.Sigmoid()
+    elif act_name == 'softmax':
+        return nn.Softmax2d()
     else:
         raise ValueError("Activation name {} not supported".format(act_name))
 
-
+# TODO return proper activation and layer 
 def bn_from_name(norm_name):
     norm_name = norm_name.lower()
     if norm_name == 'abn':

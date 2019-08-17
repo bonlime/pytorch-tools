@@ -2,6 +2,7 @@ import torch.nn as nn
 from ..modules.decoder import LinknetDecoderBlock
 from ..modules.residual import conv1x1
 from ..utils.misc import initialize
+from ..utils.misc import bn_from_name
 
 class LinknetDecoder(nn.Module):
     def __init__(
@@ -36,3 +37,53 @@ class LinknetDecoder(nn.Module):
         x = self.final_conv(x)
 
         return x
+
+class Linknet(EncoderDecoder):
+    """Linknet_ is a fully convolution neural network for fast image semantic segmentation
+    Note:
+        This implementation by default has 4 skip connections (original - 3).
+    Args:
+        encoder_name: name of classification model (without last dense layers) used as feature
+            extractor to build segmentation model.
+        encoder_weights: one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
+        decoder_use_batchnorm: if ``True``, ``BatchNormalisation`` layer between ``Conv2D`` and ``Activation`` layers
+            is used.
+        classes: a number of classes for output (output shape - ``(batch, classes, h, w)``).
+        activation: activation function used in ``.predict(x)`` method for inference.
+            One of [``sigmoid``, ``softmax``, callable, None]
+        norm_layer: abn or inplaceabn
+    Returns:
+        ``torch.nn.Module``: **Linknet**
+    .. _Linknet:
+        https://arxiv.org/pdf/1707.03718.pdf
+    """
+
+    def __init__(
+            self,
+            encoder_name='resnet34',
+            encoder_weights='imagenet',
+            decoder_use_batchnorm=True,
+            classes=1,
+            activation='sigmoid',
+            norm_layer='abn',
+            **encoder_params,
+    ):
+        encoder = get_encoder(
+            encoder_name,
+            encoder_weights=encoder_weights,
+            **encoder_params,
+        )
+
+        norm_act = 'relu' if norm_layer.lower() == 'abn' else 'leaky_relu'
+        decoder = LinknetDecoder(
+            encoder_channels=encoder.out_shapes,
+            prefinal_channels=32,
+            final_channels=classes,
+            use_batchnorm=decoder_use_batchnorm,
+            norm_layer=bn_from_name(norm_layer),
+            norm_act=norm_act,
+        )
+
+        super().__init__(encoder, decoder, activation)
+
+        self.name = 'link-{}'.format(encoder_name)
