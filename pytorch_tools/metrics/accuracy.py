@@ -13,7 +13,7 @@ class Accuracy:
 
 class BalancedAccuracy:
     """ BalancedAccuracy == mean of recalls for each class
-        y_true = [0, 1, 0, 0, 1, 0]
+        >>> y_true = [0, 1, 0, 0, 1, 0]
         >>> y_pred = [0, 1, 0, 0, 0, 1]
         >>> BalancedAccuracy()(y_true, y_pred)
         0.625
