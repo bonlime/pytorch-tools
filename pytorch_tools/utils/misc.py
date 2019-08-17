@@ -1,7 +1,15 @@
+import torch.nn as nn
 import torch.nn.functional as F
 from functools import partial
 from inplace_abn import ABN, InPlaceABN, InPlaceABNSync
 
+def initialize(model):
+    for m in model.modules():
+        if isinstance(m, nn.Conv2d):
+            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.constant_(m.weight, 1)
+            nn.init.constant_(m.bias, 0)
 
 def activation_from_name(act_name, act_param=0.01):
     if act_name == 'relu':
