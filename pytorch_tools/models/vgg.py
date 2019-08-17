@@ -70,12 +70,15 @@ class VGG(nn.Module):
         features = features[1:]
         features = features[::-1]
         return features
-
-    def forward(self, x):
-        x = self.features(x)
+    
+    def logits(self, x):
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
         x = self.classifier(x)
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.logits(x)
         return x
 
     def _initialize_weights(self):

@@ -208,7 +208,7 @@ class ResNet(nn.Module):
         if not encoder:
             self.last_linear = nn.Linear(self.num_features * self.global_pool.feat_mult(), num_classes)
         else:
-            self.forward = self.forward_features
+            self.forward = self.encoder_features
 
         # Actually it's a bad idea
         # TODO remove when not imagenet net weigths become available
@@ -258,9 +258,6 @@ class ResNet(nn.Module):
                     nn.init.constant_(m.bn2.weight, 0)
 
     def encoder_features(self, x):
-        raise NotImplementedError
-
-    def forward_features(self, x):
         x0 = self.conv1(x)
         x0 = self.bn1(x0)
         x1 = self.maxpool(x0)
@@ -268,17 +265,28 @@ class ResNet(nn.Module):
         x2 = self.layer2(x1)
         x3 = self.layer3(x2)
         x4 = self.layer4(x3)
-        if self.encoder:
-            return [x4, x3, x2, x1, x0]
-        return x4
+        return [x4, x3, x2, x1, x0]
 
-    def forward(self, x):
-        x = self.forward_features(x)
+    def features(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.maxpool(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        return x
+
+    def logits(self, x):
         x = self.global_pool(x)
         x = torch.flatten(x, 1)
         if self.drop_rate > 0.:
             x = F.dropout(x, p=self.drop_rate, training=self.training)
         x = self.last_linear(x)
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.logits(x)
         return x
 
     def load_state_dict(self, state_dict, **kwargs):
