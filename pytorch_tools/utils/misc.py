@@ -64,6 +64,15 @@ def count_parameters(model):
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     return total, trainable
 
+def listify(p=None, q=None):
+    if p is None:
+        p = []
+    elif not isinstance(p, collections.Iterable):
+        p = [p]
+    n = q if type(q) == int else 1 if q is None else len(q)
+    if len(p) == 1:
+        p = p * n
+    return p
 
 def to_numpy(x):
     """Convert whatever to numpy array"""
