@@ -15,8 +15,6 @@ try:
 except ImportError:  # py3k
     from itertools import filterfalse as ifilterfalse
 
-__all__ = ['BinaryLovaszLoss', 'LovaszLoss']
-
 
 def _lovasz_grad(gt_sorted):
     """Compute gradient of the Lovasz extension w.r.t sorted errors

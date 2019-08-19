@@ -1,7 +1,5 @@
 from torch.nn.modules.loss import _Loss
 
-__all__ = ['JointLoss', 'WeightedLoss']
-
 
 class WeightedLoss(_Loss):
     """Wrapper class around loss function that applies weighted with fixed factor.

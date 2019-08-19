@@ -2,8 +2,6 @@ import math
 import torch
 import torch.nn.functional as F
 
-__all__ = ['sigmoid_focal_loss', 'soft_jaccard_score', 'soft_dice_score', 'wing_loss']
-
 
 def sigmoid_focal_loss(input,
                        target,
