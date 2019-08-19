@@ -34,6 +34,7 @@ class JointLoss(_Loss):
         self.weighted_losses = []
         for loss, weight in zip(losses, weights):
             self.weighted_losses.append(WeightedLoss(loss, weight))
+        print(self.weighted_losses)
 
     def forward(self, *input):
         output = torch.Tensor([0])
