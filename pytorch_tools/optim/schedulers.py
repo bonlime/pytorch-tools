@@ -122,10 +122,6 @@ class PhasesScheduler():
         if self.current_lr == lr and self.current_mom == mom:
             return
 
-        if ((batch_num == 1) or (batch_num == batch_tot)):
-            log.event('Changing LR from {} to {}'.format(self.current_lr, lr))
-            log.event('Changing Momentum from {} to {}'.format(self.current_mom, mom))
-
         self.current_lr = lr
         self.current_mom = mom
         for param_group in self.optimizer.param_groups:
