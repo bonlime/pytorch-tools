@@ -6,8 +6,6 @@ from torch.nn.modules.loss import _Loss
 
 from .functional import soft_dice_score
 
-__all__ = ['BinaryDiceLoss', 'BinaryDiceLogLoss', 'MulticlassDiceLoss']
-
 
 class BinaryDiceLoss(_Loss):
     """Implementation of Dice loss for binary image segmentation task

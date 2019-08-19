@@ -1,7 +1,7 @@
 import torch
 import pytest
 from pytorch_tools.tta_wrapper import functional as F
-from .wrappers import TTA_Wrapper
+from .wrapper import TTA
 from torch import nn
 
 
@@ -83,12 +83,12 @@ def test_rotate():
 def test_wrapper_segm(merge):
     m = NoOp()
     inp = INPUT / 15. # make sure max is less that 1 to avoid overflow                    
-    tta_m = TTA_Wrapper(m, segm=True, h_flip=True, v_flip=True, h_shift=1, v_shift=-1, rotation=90, merge=merge) 
+    tta_m = TTA(m, segm=True, h_flip=True, v_flip=True, h_shift=1, v_shift=-1, rotation=90, merge=merge) 
     assert (inp - tta_m(inp)).mean() < 1e-6
     
 @pytest.mark.parametrize('merge', ['mean', 'max', 'gmean'])
 def test_wrapper_cls(merge):
     m = SumAll()
     inp = INPUT / 15. # make sure max is less that 1 to avoid overflow        
-    tta_m = TTA_Wrapper(m, segm=False, h_flip=True, v_flip=True, h_shift=1, v_shift=-1, rotation=90, merge=merge)
+    tta_m = TTA(m, segm=False, h_flip=True, v_flip=True, h_shift=1, v_shift=-1, rotation=90, merge=merge)
     assert tta_m(inp).allclose(torch.Tensor([8.]))

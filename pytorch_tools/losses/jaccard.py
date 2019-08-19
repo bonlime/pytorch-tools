@@ -6,8 +6,6 @@ from torch.nn.modules.loss import _Loss
 
 from .functional import soft_jaccard_score
 
-__all__ = ['BinaryJaccardLoss', 'BinaryJaccardLogLoss', 'MulticlassJaccardLoss']
-
 
 class BinaryJaccardLoss(_Loss):
     """Implementation of Jaccard loss for binary image segmentation task
