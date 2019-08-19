@@ -131,6 +131,4 @@ class PhasesScheduler():
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = lr
             param_group['momentum'] = mom
-
-        tb.log("sizes/lr", lr)
-        tb.log("sizes/momentum", mom)
+            
