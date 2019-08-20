@@ -41,7 +41,7 @@ def rle_decode(rle_str, shape):
     starts, lengths = [np.asarray(x, dtype=int) for x in (s[0:][::2], s[1:][::2])]
     starts -= 1
     ends = starts + lengths
-    mask = np.zeros(np.prod(shape), dtype=dtype)
+    mask = np.zeros(np.prod(shape), dtype=int)
     for lo, hi in zip(starts, ends):
         mask[lo:hi] = 1
     return mask.reshape(shape[::-1]).T
