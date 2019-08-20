@@ -240,20 +240,20 @@ cfgs = {
     'resnet18': {
         'default': {
             'params' : {'block': BasicBlock, 'layers': [2, 2, 2, 2]},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url' : 'https://download.pytorch.org/models/resnet18-5c106cde.pth'},
         # EXAMPLE
         # 'imagenet_inplaceabn': {
         #     'params': {'block': BasicBlock, 'layers': [2, 2, 2, 2], 'norm_layer': 'inplaceabn', 'deepstem':True, 'antialias':True},
         #     'url' : 'pathtomodel',
-        #     **DEFAULT_RESNET_SETTINGS,
+        #     **DEFAULT_IMAGENET_SETTINGS,
         # }
     },
     'resnet34': {
         'default': {
             'params' : {'block': BasicBlock, 'layers': [3, 4, 6, 3]},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         }, 
         'imagenet': {'url' : 'https://download.pytorch.org/models/resnet34-333f7ec4.pth'}, 
         'imagenet2': { # weigths from rwightman. TODO: test accuracy
@@ -263,21 +263,21 @@ cfgs = {
     'resnet50': {
         'default': {
             'params' : {'block': Bottleneck, 'layers': [3, 4, 6, 3]},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url' : 'https://download.pytorch.org/models/resnet50-19c8e357.pth'},
     },
     'resnet101': {
         'default': {
             'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3]},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url' : 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth'},
     },
     'resnet152': {
         'default': {
             'params' : {'block': Bottleneck, 'layers': [3, 8, 36, 3]},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url' : 'https://download.pytorch.org/models/resnet152-b121ed2d.pth'},
     },
@@ -285,14 +285,14 @@ cfgs = {
     'wide_resnet50_2': {
         'default': {
             'params' : {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'base_width': 128},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url' : 'https://download.pytorch.org/models/wide_resnet50_2-95faca4d.pth'},
     },
     'wide_resnet101_2': {
         'default': {
             'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 128},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url' : 'https://download.pytorch.org/models/wide_resnet101_2-32ee1156.pth'},
     },
@@ -300,7 +300,7 @@ cfgs = {
     'resnext50_32x4d': {
         'default': {
             'params' : {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'base_width': 4, 'groups': 32},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url' : 'https://download.pytorch.org/models/resnext50_32x4d-7cdf4587.pth'},
         # weights from rwightman
@@ -309,7 +309,7 @@ cfgs = {
     'resnext101_32x8d' : {
         'default': {
             'params': {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 8, 'groups': 32},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url': 'https://download.pytorch.org/models/resnext101_32x8d-8ba56ff5.pth'},
         #pretrained on weakly labeled instagram and then tuned on Imagenet
@@ -318,7 +318,7 @@ cfgs = {
     'resnext101_32x16d': {
         'default': { 
             'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 16, 'groups': 32},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         #pretrained on weakly labeled instagram and then tuned on Imagenet
         'imagenet_ig': {'url' : 'https://download.pytorch.org/models/ig_resnext101_32x16-c6f796b0.pth'}
@@ -326,7 +326,7 @@ cfgs = {
     'resnext101_32x32d': {
         'default': {
             'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 32, 'groups': 32},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         #pretrained on weakly labeled instagram and then tuned on Imagenet
         'imagenet_ig': {'url' : 'https://download.pytorch.org/models/ig_resnext101_32x32-e4b90b00.pth'}
@@ -334,7 +334,7 @@ cfgs = {
     'resnext101_32x48d': {
         'default': { #actually it's imagenet_ig. pretrained on weakly labeled instagram and then tuned on Imagenet 
             'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 48, 'groups': 32},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet_ig':{'url' : 'https://download.pytorch.org/models/ig_resnext101_32x48-3e41cc8a.pth'}
     },
@@ -343,21 +343,21 @@ cfgs = {
         'default': {
             'params' : {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'use_se': True},
             'url' : 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet50-ce0d4300.pth',
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url' : 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet50-ce0d4300.pth'},
     },
     'se_resnet101': {
         'default': {
             'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'use_se': True},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url' : 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet101-7e38fcc6.pth'},
     },
     'se_resnet152': {
         'default': {
             'params' : {'block': Bottleneck, 'layers': [3, 4, 36, 3], 'use_se': True},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url' : 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet152-d17c99b7.pth'},
     },
@@ -365,14 +365,14 @@ cfgs = {
     'se_resnext50_32x4d': {
         'default': {
             'params' : {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'base_width': 4, 'groups': 32, 'use_se': True},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url' : 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnext50_32x4d-a260b3a4.pth'}
     },
     'se_resnext101_32x4d': {
         'default': {
             'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 4, 'groups': 32, 'use_se': True},
-            **DEFAULT_RESNET_SETTINGS,
+            **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url' : 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnext101_32x4d-3b2fe3d8.pth'}
     },

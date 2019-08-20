@@ -122,7 +122,7 @@ cfgs = {
         'default': {
             'params': {'layers': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M']},
             **DEFAULT_IMAGENET_SETTINGS,
-        }
+        },
         'imagenet': {'url': 'https://download.pytorch.org/models/vgg11_bn-6002323d.pth'}
     },
     'vgg13_bn': {
