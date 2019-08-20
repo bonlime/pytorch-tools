@@ -1,12 +1,14 @@
 import numpy as np
 
-__all__ = ['rle_decode', 'rle_encode', 'rle_to_string']
+#__all__ = ['rle_decode', 'rle_encode', 'rle_to_string']
 
 
-def rle_encode(mask: np.ndarray):
+def rle_encode(mask):
     """
     Convert mask to EncodedPixels in run-length encoding
     from https://www.kaggle.com/stainsby/fast-tested-rle-and-input-routines
+    Args: 
+        mask(np.array): mask to be converted
     """
     pixels = mask.T.flatten()
     # We need to allow for cases where there is a '1' at either end of the sequence.
@@ -24,11 +26,17 @@ def rle_encode(mask: np.ndarray):
     return rle
 
 
-def rle_to_string(runs) -> str:
+def rle_to_string(runs):
+    """Array to str"""
     return ' '.join(str(x) for x in runs)
 
 
-def rle_decode(rle_str, shape, dtype) -> np.ndarray:
+def rle_decode(rle_str, shape):
+    """
+    Args:
+        rle_str (str): rle string
+        shape (Tuple[int, int]): shape of the output mask
+    """
     s = rle_str.split()
     starts, lengths = [np.asarray(x, dtype=int) for x in (s[0:][::2], s[1:][::2])]
     starts -= 1
