@@ -1,5 +1,5 @@
 from torch.optim.lr_scheduler import _LRScheduler
-from .utils.misc import listify
+from ..utils.misc import listify
 
 
 class LinearLR(_LRScheduler):

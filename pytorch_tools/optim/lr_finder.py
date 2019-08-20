@@ -6,8 +6,7 @@ import torch
 from tqdm.autonotebook import tqdm
 from torch.optim.lr_scheduler import _LRScheduler
 import matplotlib.pyplot as plt
-
-from schedulers import LinearLR, ExponentialLR
+from .schedulers import LinearLR, ExponentialLR
 
 class LRFinder(object):
     """Learning rate range test.

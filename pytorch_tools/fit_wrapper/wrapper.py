@@ -38,7 +38,7 @@ class FitWrapper(nn.Module):
     def _fit_epoch(generator, steps_per_epoch=None):
         timer = TimeMeter()
         loss_meter = AverageMeter()
-        metric_meters [AverageMeter() for i in self.metrics]
+        metric_meters = [AverageMeter() for i in self.metrics]
         model.train()
         pbar = tqdm(generator, ascii=True)
         for batch, target in pbar:
@@ -72,7 +72,7 @@ class FitWrapper(nn.Module):
                       val_steps=None, 
                       val_freq=1, 
                       #initial_epoch=0 #not used
-                      )
+                      ):
 
         # do something
         for ep in range(epochs):
@@ -89,7 +89,7 @@ class FitWrapper(nn.Module):
         # eval metrics on generator
         timer = TimeMeter()
         loss_meter = AverageMeter()
-        metric_meters [AverageMeter() for i in self.metrics]
+        metric_meters = [AverageMeter() for i in self.metrics]
         model.eval()
         pbar = tqdm(generator, ascii=True) if use_pbar else generator
         for batch, target in pbar:
