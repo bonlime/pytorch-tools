@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
 from pytorch_tools.modules import BlurPool
-from pytorch_tools.utils.misc import bn_from_name, add_docs_for
+from pytorch_tools.utils.misc import bn_from_name, add_docs_for, DEFAULT_IMAGENET_SETTINGS
 from functools import wraps, partial
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=('__module__', '__name__', '__qualname__', '__annotations__'))
@@ -25,8 +25,8 @@ class VGG(nn.Module):
     """
 
     def __init__(self, 
-                 arch,
-                 pretrained=False,
+                 layers,
+                 pretrained=None, # not used. here for proper signature.
                  num_classes=1000, 
                  norm_layer='abn',
                  encoder=False,
@@ -37,7 +37,7 @@ class VGG(nn.Module):
         self.norm_layer = bn_from_name(norm_layer)
         self.encoder = encoder
         self.antialias = antialias
-        self.features = self._make_layers(cfgs[arch])
+        self.features = self._make_layers(layers)
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
         if not encoder:
             self.classifier = nn.Sequential(
@@ -51,13 +51,8 @@ class VGG(nn.Module):
             )
         else:
             self.forward = self.encoder_features
-
-        if pretrained:
-            state_dict = load_state_dict_from_url(model_urls[arch],
-                                                  progress=True)
-            self.load_state_dict(state_dict)
-        else:
-            self._initialize_weights()
+    
+        self._initialize_weights()
 
     def encoder_features(self, x):
         features = []
@@ -122,19 +117,49 @@ class VGG(nn.Module):
                 state_dict[features_map[k]] = state_dict.pop(k)
         super().load_state_dict(state_dict, **kwargs)
 
-model_urls = {
-    'vgg11_bn': 'https://download.pytorch.org/models/vgg11_bn-6002323d.pth',
-    'vgg13_bn': 'https://download.pytorch.org/models/vgg13_bn-abd245e5.pth',
-    'vgg16_bn': 'https://download.pytorch.org/models/vgg16_bn-6c64b313.pth',
-    'vgg19_bn': 'https://download.pytorch.org/models/vgg19_bn-c79401a0.pth',
+cfgs = {
+    'vgg11_bn': {
+        'default': {
+            'params': {'layers': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M']},
+            **DEFAULT_IMAGENET_SETTINGS,
+        }
+        'imagenet': {'url': 'https://download.pytorch.org/models/vgg11_bn-6002323d.pth'}
+    },
+    'vgg13_bn': {
+        'default': {
+            'params': {'layers': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M']},
+            **DEFAULT_IMAGENET_SETTINGS,
+        },
+        'imagenet': {'url': 'https://download.pytorch.org/models/vgg13_bn-abd245e5.pth'}
+    },
+    'vgg16_bn': {
+        'default': {
+            'params': {'layers': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M']},
+            **DEFAULT_IMAGENET_SETTINGS,
+        },
+        'imagenet': {'url': 'https://download.pytorch.org/models/vgg16_bn-6c64b313.pth'}
+    },
+    'vgg19_bn': {
+        'default': {
+            'params': {'layers': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M']},
+            **DEFAULT_IMAGENET_SETTINGS,
+        },
+        'imagenet': {'url': 'https://download.pytorch.org/models/vgg19_bn-c79401a0.pth',}
+    }
 }
 
-cfgs = {
-    'vgg11_bn': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-    'vgg13_bn': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-    'vgg16_bn': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
-    'vgg19_bn': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
-}
+def _vgg(arch, pretrained=None, **kwargs):
+    cfg_params = cfgs[arch]['default']['params']
+    if pretrained and cfgs[arch][pretrained].get('params'):
+        cfg_params.update(cfgs[arch][pretrained]['params'])
+    common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
+    assert common_args == set(), "Args {} are going to be overwritten by default params for {} weights".format(common_args.keys(), pretrained or 'default')
+    kwargs.update(cfg_params)
+    model = VGG(**kwargs)
+    if pretrained:
+        state_dict = load_state_dict_from_url(cfgs[arch][pretrained]['url'])
+        model.load_state_dict(state_dict)
+    return model
 
 
 @wraps(VGG)
@@ -143,7 +168,7 @@ def vgg11_bn(**kwargs):
     r"""VGG 11-layer model (configuration "A") with batch normalization
     `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
     """
-    return VGG('vgg11_bn', **kwargs)
+    return _vgg('vgg11_bn', **kwargs)
 
 @wraps(VGG)
 @add_docs_for(VGG)
@@ -151,7 +176,7 @@ def vgg13_bn(**kwargs):
     r"""VGG 13-layer model (configuration "B") with batch normalization
     `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
     """
-    return VGG('vgg13_bn', **kwargs)
+    return _vgg('vgg13_bn', **kwargs)
 
 @wraps(VGG)
 @add_docs_for(VGG)
@@ -159,7 +184,7 @@ def vgg16_bn(**kwargs):
     r"""VGG 16-layer model (configuration "D") with batch normalization
     `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
     """
-    return VGG('vgg16_bn', **kwargs)
+    return _vgg('vgg16_bn', **kwargs)
 
 @wraps(VGG)
 @add_docs_for(VGG)
@@ -167,4 +192,4 @@ def vgg19_bn(**kwargs):
     r"""VGG 19-layer model (configuration 'E') with batch normalization
     `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
     """
-    return VGG('vgg19_bn', **kwargs)
+    return _vgg('vgg19_bn', **kwargs)

@@ -122,3 +122,12 @@ class TimeMeter:
   def batch_end(self):
     self.batch_time.update(time.time() - self.start)
     self.start = time.time()
+
+DEFAULT_IMAGENET_SETTINGS = {
+    'input_space': 'RGB',
+    'input_size': [3, 224, 224],
+    'input_range': [0, 1],
+    'mean': [0.485, 0.456, 0.406],
+    'std': [0.229, 0.224, 0.225],
+    'num_classes': 1000
+}
