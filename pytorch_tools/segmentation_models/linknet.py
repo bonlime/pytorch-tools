@@ -3,6 +3,8 @@ from ..modules.decoder import LinknetDecoderBlock
 from ..modules.residual import conv1x1
 from ..utils.misc import initialize
 from ..utils.misc import bn_from_name
+from .base import EncoderDecoder
+from .encoders import get_encoder
 
 class LinknetDecoder(nn.Module):
     def __init__(
@@ -11,8 +13,7 @@ class LinknetDecoder(nn.Module):
             prefinal_channels=32,
             final_channels=1,
             use_bn=True,
-            **bn_params, #norm layer, norm_act
-    ):
+            **bn_params): #norm layer, norm_act
         super().__init__()
 
         in_channels = encoder_channels
@@ -66,8 +67,7 @@ class Linknet(EncoderDecoder):
             classes=1,
             activation='sigmoid',
             norm_layer='abn',
-            **encoder_params,
-    ):
+            **encoder_params):
         encoder = get_encoder(
             encoder_name,
             encoder_weights=encoder_weights,

@@ -45,7 +45,7 @@ class LinknetDecoderBlock(nn.Module):
         super().__init__()
         middle_channels = in_channels // 4
         conv1 = conv1x1(in_channels, middle_channels)
-        transpose = TransposeX2(middle_channels, middle_channels
+        transpose = TransposeX2(middle_channels, middle_channels,
                                 use_bn, norm_layer, norm_act)
         conv2 = conv1x1(middle_channels, out_channels)
         abn1 = norm_layer(middle_channels, norm_act) if use_bn else nn.ReLU

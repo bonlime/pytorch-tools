@@ -19,14 +19,14 @@ class UnetDecoder(nn.Module):
             final_channels=1,
             use_bn=True,
             center=False,
-            **bn_params, #norm layer, norm_act
-    ):
+            **bn_params): #norm layer, norm_act
+             
         super().__init__()
         if center:
                 channels = encoder_channels[0]
                 self.center = CenterBlock(channels, channels, use_batchnorm=use_batchnorm)
-            else:
-                self.center = None
+        else:
+            self.center = None
 
         in_channels = self.compute_channels(encoder_channels, decoder_channels)
         out_channels = decoder_channels
@@ -95,8 +95,7 @@ class Unet(EncoderDecoder):
             activation='sigmoid',
             center=False,  # usefull for VGG models
             norm_layer='abn',
-            **encoder_params,
-    ):
+            **encoder_params):
         encoder = get_encoder(
             encoder_name,
             encoder_weights=encoder_weights,
