@@ -1,7 +1,12 @@
-import torch.nn as nn
 import time
+import torch
+import random
+import collections
+import numpy as np
+import torch.nn as nn
 import torch.nn.functional as F
 from functools import partial
+
 from inplace_abn import ABN, InPlaceABN, InPlaceABNSync
 
 def initialize(model):

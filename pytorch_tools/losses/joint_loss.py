@@ -10,10 +10,12 @@ class WeightedLoss(_Loss):
     def __init__(self, loss, weight=1.0):
         super().__init__()
         self.loss = loss
-        self.weight = weight
+        self.weight = torch.Tensor([weight])
 
     def forward(self, *input):
-        return self.loss(*input) * self.weight
+        l = self.loss(*input)
+        self.weight = self.weight.to(l.device)
+        return l * self.weight
 
 
 class JointLoss(_Loss):
@@ -37,7 +39,7 @@ class JointLoss(_Loss):
         print(self.weighted_losses)
 
     def forward(self, *input):
-        output = torch.Tensor([0])
+        output = []
         for loss in self.weighted_losses:
-            output += loss(*input)
-        return output
+            output.append(loss(*input))
+        return sum(output)

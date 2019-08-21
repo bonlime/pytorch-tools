@@ -24,8 +24,8 @@ class BinaryDiceLoss(_Loss):
         :param y_true: NxHxW
         :return: scalar
         """
-        if y_true.sum() == 0:
-            return 0
+        # if y_true.sum() == 0:
+        #     return torch.zeros(1)
 
         dice = soft_dice_score(y_pred, y_true, from_logits=self.from_logits, smooth=self.smooth)
         loss = (1.0 - dice)
@@ -50,8 +50,8 @@ class BinaryDiceLogLoss(_Loss):
         :param y_true: NxHxW
         :return: scalar
         """
-        if y_true.sum() == 0:
-            return 0
+        # if y_true.sum() == 0:
+        #     return torch.zeros(1)
 
         iou = soft_dice_score(y_pred, y_true, from_logits=self.from_logits, smooth=self.smooth)
         loss = - torch.log(iou)
