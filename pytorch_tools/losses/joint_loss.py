@@ -42,4 +42,4 @@ class JointLoss(_Loss):
         output = []
         for loss in self.weighted_losses:
             output.append(loss(*input))
-        return sum(output)
+        return sum(output).squeeze()

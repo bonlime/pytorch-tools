@@ -56,7 +56,7 @@ class FitWrapper(nn.Module):
             # calc metrics
             for metric, meter in zip(self.metrics, metric_meters):
                     meter.update(to_numpy(metric(output, target)))
-            loss_meter.update(to_numpy(loss[0]))
+            loss_meter.update(to_numpy(loss))
             # sync
             torch.cuda.synchronize()
             timer.batch_end()
@@ -99,7 +99,7 @@ class FitWrapper(nn.Module):
             with torch.no_grad():
                 output = self.model(batch)
                 loss = self.criterion(output, target).data #do we need data?
-                loss_meter.update(loss[0]) #shape is (1,)
+                loss_meter.update(loss) #shape is (1,)
                 for metric, meter in zip(self.metrics, metric_meters):
                     meter.update(metric(output, target))
             #bs = batch.size(0)
