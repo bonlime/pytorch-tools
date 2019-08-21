@@ -5,3 +5,5 @@ from .psnr import SSIM
 
 from .accuracy import Accuracy
 from .accuracy import BalancedAccuracy
+
+from .dice import DiceScore
