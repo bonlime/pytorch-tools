@@ -229,10 +229,10 @@ class ResNet(nn.Module):
         keys = list(state_dict.keys())
         # filter classifier and num_batches_tracked
         for k in keys:
-            if k.startswith('fc'):
-                state_dict[k.replace('fc', 'last_linear')] = state_dict.pop(k)
-            if k.startswith('last_linear') and self.encoder:
+            if (k.startswith('fc') or k.startswith('last_linear')) and self.encoder:
                 state_dict.pop(k)
+            elif k.startswith('fc'):
+                state_dict[k.replace('fc', 'last_linear')] = state_dict.pop(k)
             if k.startswith('layer0'):
                 state_dict[k.replace('layer0.', '')] = state_dict.pop(k)
         super().load_state_dict(state_dict, **kwargs)
