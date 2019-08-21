@@ -20,6 +20,7 @@ from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from collections import OrderedDict
 from functools import wraps, partial
+from copy import deepcopy
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=('__module__', '__name__', '__qualname__', '__annotations__'))
 
@@ -217,6 +218,7 @@ class ResNet(nn.Module):
         if self.drop_rate > 0.:
             x = F.dropout(x, p=self.drop_rate, training=self.training)
         x = self.last_linear(x)
+        return x
 
     def forward(self, x):
         x = self.features(x)
@@ -235,7 +237,7 @@ class ResNet(nn.Module):
                 state_dict[k.replace('layer0.', '')] = state_dict.pop(k)
         super().load_state_dict(state_dict, **kwargs)
 
-cfgs = {
+CFGS = {
     # RESNET MODELS
     'resnet18': {
         'default': {
@@ -379,10 +381,14 @@ cfgs = {
 }
 
 def _resnet(arch, pretrained=None, **kwargs):
-    cfg_params = cfgs[arch]['default']['params']
-    if pretrained and cfgs[arch][pretrained].get('params'):
-        cfg_params.update(cfgs[arch][pretrained]['params'])
-    # TODO maybe change default params
+    cfgs = deepcopy(CFGS)
+    cfg_settings = cfgs[arch]['default']
+    cfg_params = cfg_settings.pop('params')
+    if pretrained:
+        pretrained_settings = cfgs[arch][pretrained]
+        pretrained_params = pretrained_settings.pop('params', {})
+        cfg_settings.update(pretrained_settings)
+        cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
     assert common_args == set(), "Args {} are going to be overwritten by default params for {} weights".format(common_args.keys(), pretrained)
     kwargs.update(cfg_params)
@@ -390,6 +396,7 @@ def _resnet(arch, pretrained=None, **kwargs):
     if pretrained:
         state_dict = load_state_dict_from_url(cfgs[arch][pretrained]['url'])
         model.load_state_dict(state_dict)
+    setattr(model, 'pretrained_settings', cfg_settings)
     return model
 
 @wraps(ResNet)

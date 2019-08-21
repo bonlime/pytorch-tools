@@ -1,5 +1,5 @@
-from .accuracy import Accuracy
-from .accuracy import BalancedAccuracy
+from pytorch_tools.metrics import Accuracy
+from pytorch_tools.metrics import BalancedAccuracy
 #from ..utils.misc import to_numpy
 import torch
 from sklearn.metrics import accuracy_score, balanced_accuracy_score

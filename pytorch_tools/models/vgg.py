@@ -4,6 +4,7 @@ from torchvision.models.utils import load_state_dict_from_url
 from pytorch_tools.modules import BlurPool
 from pytorch_tools.utils.misc import bn_from_name, add_docs_for, DEFAULT_IMAGENET_SETTINGS
 from functools import wraps, partial
+from copy import deepcopy
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=('__module__', '__name__', '__qualname__', '__annotations__'))
 from decorator import decorator
@@ -70,6 +71,7 @@ class VGG(nn.Module):
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
         x = self.classifier(x)
+        return x
 
     def forward(self, x):
         x = self.features(x)
@@ -117,7 +119,7 @@ class VGG(nn.Module):
                 state_dict[features_map[k]] = state_dict.pop(k)
         super().load_state_dict(state_dict, **kwargs)
 
-cfgs = {
+CFGS = {
     'vgg11_bn': {
         'default': {
             'params': {'layers': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M']},
@@ -149,9 +151,14 @@ cfgs = {
 }
 
 def _vgg(arch, pretrained=None, **kwargs):
-    cfg_params = cfgs[arch]['default']['params']
-    if pretrained and cfgs[arch][pretrained].get('params'):
-        cfg_params.update(cfgs[arch][pretrained]['params'])
+    cfgs = deepcopy(CFGS)
+    cfg_settings = cfgs[arch]['default']
+    cfg_params = cfg_settings.pop('params')
+    if pretrained:
+        pretrained_settings = cfgs[arch][pretrained]
+        pretrained_params = pretrained_settings.pop('params', {})
+        cfg_settings.update(pretrained_settings)
+        cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
     assert common_args == set(), "Args {} are going to be overwritten by default params for {} weights".format(common_args.keys(), pretrained or 'default')
     kwargs.update(cfg_params)
@@ -159,6 +166,7 @@ def _vgg(arch, pretrained=None, **kwargs):
     if pretrained:
         state_dict = load_state_dict_from_url(cfgs[arch][pretrained]['url'])
         model.load_state_dict(state_dict)
+    setattr(model, 'pretrained_settings', cfg_settings)
     return model
 
 

@@ -17,3 +17,6 @@ from .resnet import se_resnet50
 from .resnet import se_resnet101
 
 from .resnet import se_resnext50_32x4d
+
+from .preprocessing import get_preprocessing_fn
+from .preprocessing import preprocess_input
