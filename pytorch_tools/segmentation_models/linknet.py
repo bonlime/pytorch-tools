@@ -79,7 +79,7 @@ class Linknet(EncoderDecoder):
             encoder_channels=encoder.out_shapes,
             prefinal_channels=32,
             final_channels=classes,
-            use_batchnorm=decoder_use_batchnorm,
+            use_bn=decoder_use_batchnorm,
             norm_layer=bn_from_name(norm_layer),
             norm_act=norm_act,
         )
