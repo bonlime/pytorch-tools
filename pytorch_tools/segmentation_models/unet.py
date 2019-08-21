@@ -24,7 +24,7 @@ class UnetDecoder(nn.Module):
         super().__init__()
         if center:
                 channels = encoder_channels[0]
-                self.center = CenterBlock(channels, channels, use_batchnorm=use_batchnorm)
+                self.center = UnetCenterBlock(channels, channels, use_bn=use_bn)
         else:
             self.center = None
 
@@ -98,6 +98,7 @@ class Unet(EncoderDecoder):
             **encoder_params):
         encoder = get_encoder(
             encoder_name,
+            norm_layer=norm_layer,
             encoder_weights=encoder_weights,
             **encoder_params,
         )

@@ -70,6 +70,7 @@ class Linknet(EncoderDecoder):
             **encoder_params):
         encoder = get_encoder(
             encoder_name,
+            norm_layer=norm_layer,
             encoder_weights=encoder_weights,
             **encoder_params,
         )
