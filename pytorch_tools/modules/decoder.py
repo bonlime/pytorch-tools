@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from inplace_abn import ABN
 from .residual import conv3x3, conv1x1
 
@@ -13,8 +14,8 @@ class UnetDecoderBlock(nn.Module):
 
         conv1 = conv3x3(in_channels, out_channels)
         conv2 = conv3x3(out_channels, out_channels)
-        abn1 = norm_layer(out_channels, norm_act) if use_bn else relu
-        abn2 = norm_layer(out_channels, norm_act) if use_bn else relu
+        abn1 = norm_layer(out_channels, activation=norm_act) if use_bn else relu
+        abn2 = norm_layer(out_channels, activation=norm_act) if use_bn else relu
         self.block = nn.Sequential(conv1, abn1, conv2, abn2)
 
     def forward(self, x):
@@ -32,7 +33,7 @@ class TransposeX2(nn.Module):
         super().__init__()
         conv1 = nn.ConvTranspose2d(in_channels, out_channels, 
                                     kernel_size=4, stride=2, padding=1)
-        abn = norm_layer(out_channels, norm_act) if use_bn else relu
+        abn = norm_layer(out_channels, activation=norm_act) if use_bn else relu
         self.block = nn.Sequential(conv1, abn)
 
     def forward(self, x):
@@ -48,8 +49,8 @@ class LinknetDecoderBlock(nn.Module):
         transpose = TransposeX2(middle_channels, middle_channels,
                                 use_bn, norm_layer, norm_act)
         conv2 = conv1x1(middle_channels, out_channels)
-        abn1 = norm_layer(middle_channels, norm_act) if use_bn else nn.ReLU
-        abn2 = norm_layer(out_channels, norm_act) if use_bn else nn.ReLU
+        abn1 = norm_layer(middle_channels, activation=norm_act) if use_bn else nn.ReLU
+        abn2 = norm_layer(out_channels, activation=norm_act) if use_bn else nn.ReLU
         self.block = nn.Sequential(conv1, abn1, transpose, conv2, abn2)
 
     def forward(self, x):
