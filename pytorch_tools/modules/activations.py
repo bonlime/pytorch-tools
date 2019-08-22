@@ -3,19 +3,23 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def silu(input):
+def silu(input, beta=1):
     '''
     Applies the Sigmoid Linear Unit (SiLU) / Swish-1 function element-wise:
-        SiLU(x) = x * sigmoid(x)
+        SiLU(x) = x * sigmoid(beta * x)
     '''
     # return input.mul_(torch.sigmoid(input))
-    return input * torch.sigmoid(input) 
+    if not isinstance(beta, torch.Tensor):
+        beta = torch.Tensor([beta])
+    
+    return input * torch.sigmoid(input.mul_(beta))
+
 
 
 class SiLU(nn.Module):
     '''
     Applies the Sigmoid Linear Unit (SiLU) function element-wise:
-        SiLU(x) = x * sigmoid(x)
+        SiLU(x) = x * sigmoid(beta * x)
     Shape:
         - Input: (N, *) where * means, any number of additional
           dimensions
@@ -23,22 +27,24 @@ class SiLU(nn.Module):
     References:
         -  Related paper:
         https://arxiv.org/pdf/1606.08415.pdf
+        https://arxiv.org/pdf/1710.05941.pdf
     Examples:
         >>> m = SiLU()
         >>> input = torch.randn(2)
         >>> output = m(input)
     '''
-    def __init__(self):
+    def __init__(self, beta=1):
         '''
         Init method.
         '''
         super().__init__()  # init the base class
+        self.beta = beta
 
     def forward(self, input):
         '''
         Forward pass of the function.
         '''
-        return silu(input)  # simply apply already implemented SiLU
+        return silu(input, self.beta)  # simply apply already implemented SiLU
 
     def __repr__(self):
         return self.__class__.__name__ + ' ()'
