@@ -45,7 +45,7 @@ class FitWrapper(nn.Module):
         steps = steps_per_epoch or len(generator)
         pbar = tqdm(generator, leave=False, total=steps)
         for idx, batch in enumerate(pbar):
-            if idx == steps_per_epoch:
+            if idx == steps:
                 break
             data, target = batch
             timer.batch_start()
@@ -65,7 +65,7 @@ class FitWrapper(nn.Module):
             # sync
             torch.cuda.synchronize()
             timer.batch_end()
-            bs = batch.size(0)
+            bs = data.size(0)
             out = self._format_meters(metric_meters)
             desc = 'Loss: {:4.4f} |'.format(loss_meter.avg_smooth) + out
             pbar.set_description(desc)
@@ -86,7 +86,7 @@ class FitWrapper(nn.Module):
         # do something
         for ep in range(initial_epoch, epochs):
             # callbacks.on_epoch_begin
-            desc = self._fit_epoch(generator)
+            desc = self._fit_epoch(generator, steps_per_epoch)
             if (val_generator is not None) and (ep % val_freq == 0):
                 val_loss, val_m  = self.evaluate_generator(val_generator, val_steps, use_pbar=False)
                 val_desc = '| Val_loss: {:4.4f}'.format(val_loss)
@@ -106,7 +106,7 @@ class FitWrapper(nn.Module):
         steps = steps or len(generator)
         pbar = tqdm(generator, leave=False, total=steps) if use_pbar else generator
         for idx, batch in enumerate(pbar):
-            if idx == steps_per_epoch:
+            if idx == steps:
                 break
             data, target = batch
             timer.batch_start()

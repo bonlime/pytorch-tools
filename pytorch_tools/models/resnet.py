@@ -257,8 +257,9 @@ CFGS = {
             'params' : {'block': BasicBlock, 'layers': [3, 4, 6, 3]},
             **DEFAULT_IMAGENET_SETTINGS,
         }, 
-        'imagenet': {'url' : 'https://download.pytorch.org/models/resnet34-333f7ec4.pth'}, 
-        'imagenet2': { # weigths from rwightman. TODO: test accuracy
+        'imagenet': { #                          Acc@1: 71.80. Acc@5: 90.37
+            'url' : 'https://download.pytorch.org/models/resnet34-333f7ec4.pth'}, 
+        'imagenet2': { # weigths from rwightman. Acc@1: 73.25. Acc@5: 91.32
             'url' : 'https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/resnet34-43635321.pth',
         },
     },
@@ -304,7 +305,8 @@ CFGS = {
             'params' : {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'base_width': 4, 'groups': 32},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        'imagenet': {'url' : 'https://download.pytorch.org/models/resnext50_32x4d-7cdf4587.pth'},
+        'imagenet': { # Acc@1: 75.80. Acc@5: 92.71.
+            'url' : 'https://download.pytorch.org/models/resnext50_32x4d-7cdf4587.pth'},
         # weights from rwightman
         'imagenet2': {'url' : 'https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/resnext50d_32x4d-103e99f8.pth'},
     },
