@@ -63,21 +63,20 @@ class BasicBlock(nn.Module):
     def forward(self, x):
         residual = x
 
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
         out = self.conv1(x)
         out = self.bn1(out)
         # Conv(s=2)->BN->Relu(s=1) => Conv(s=1)->BN->Relu(s=1)->BlurPool(s=2)
         if self.antialias:
             out = self.blurpool(out)
         out = self.conv2(out)
-        out = self.bn2(out)
-
+        # avoid 2 inplace ops by chaining into one long op
         if self.se_module is not None:
-            out = self.se_module(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
+            out = self.se_module(self.bn2(out)) + residual
+        else:
+            out = self.bn2(out) + residual
         return self.final_act(out)
 
 
@@ -113,6 +112,9 @@ class Bottleneck(nn.Module):
     def forward(self, x):
         residual = x
 
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
         out = self.conv1(x)
         out = self.bn1(out)
         
@@ -123,14 +125,10 @@ class Bottleneck(nn.Module):
             out = self.blurpool(out)
 
         out = self.conv3(out)
-        out = self.bn3(out)
-
+        # avoid 2 inplace ops by chaining into one long op
         if self.se_module is not None:
-            out = self.se_module(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
+            out = self.se_module(self.bn3(out)) + residual
+        else:
+            out = self.bn3(out) + residual
         return self.final_act(out)
 
