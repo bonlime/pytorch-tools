@@ -26,13 +26,13 @@ from apex import amp
 
 
 
-
 class FitWrapper(nn.Module):
     def __init__(self, model):
         super(FitWrapper, self).__init__()
         self.model = model
 
     def compile(self, optimizer, criterion, metrics=None):
+        # TODO move amp logic here
         self.optimizer = optimizer
         self.criterion = criterion
         self.metrics = listify(metrics)
@@ -42,12 +42,16 @@ class FitWrapper(nn.Module):
         loss_meter = AverageMeter()
         metric_meters = [AverageMeter() for i in self.metrics]
         self.model.train()
-        pbar = tqdm(generator, leave=False)
-        for batch, target in pbar:
+        steps = steps_per_epoch or len(generator)
+        pbar = tqdm(generator, leave=False, total=steps)
+        for idx, batch in enumerate(pbar):
+            if idx == steps_per_epoch:
+                break
+            data, target = batch
             timer.batch_start()
             #TODO add sheduler
             # compute output
-            output = self.model(batch)
+            output = self.model(data)
             loss = self.criterion(output, target)
             # compute grads
             self.optimizer.zero_grad()
@@ -56,8 +60,8 @@ class FitWrapper(nn.Module):
             self.optimizer.step()
             # calc metrics
             for metric, meter in zip(self.metrics, metric_meters):
-                meter.update(to_numpy(metric(output, target)))
-            loss_meter.update(to_numpy(loss))
+                meter.update(to_numpy(metric(output, target)).squeeze())
+            loss_meter.update(to_numpy(loss).squeeze())
             # sync
             torch.cuda.synchronize()
             timer.batch_end()
@@ -71,19 +75,19 @@ class FitWrapper(nn.Module):
 
     def fit_generator(self, 
                       generator, 
-                      steps_per_epoch=None, # not yet supported
+                      steps_per_epoch=None,
                       epochs=1, 
                       val_generator=None, 
                       val_steps=None, 
                       val_freq=1, 
-                      #initial_epoch=0 #not used
+                      initial_epoch=0
                       ):
 
         # do something
-        for ep in range(epochs):
+        for ep in range(initial_epoch, epochs):
             # callbacks.on_epoch_begin
             desc = self._fit_epoch(generator)
-            if val_generator and (ep % val_freq == 0):
+            if (val_generator is not None) and (ep % val_freq == 0):
                 val_loss, val_m  = self.evaluate_generator(val_generator, val_steps, use_pbar=False)
                 val_desc = '| Val_loss: {:4.4f}'.format(val_loss)
                 desc += val_desc
@@ -99,15 +103,19 @@ class FitWrapper(nn.Module):
         loss_meter = AverageMeter()
         metric_meters = [AverageMeter() for i in self.metrics]
         self.model.eval()
-        pbar = tqdm(generator) if use_pbar else generator
-        for batch, target in pbar:
+        steps = steps or len(generator)
+        pbar = tqdm(generator, leave=False, total=steps) if use_pbar else generator
+        for idx, batch in enumerate(pbar):
+            if idx == steps_per_epoch:
+                break
+            data, target = batch
             timer.batch_start()
             with torch.no_grad():
-                output = self.model(batch)
+                output = self.model(data)
                 loss = self.criterion(output, target).data 
-            loss_meter.update(loss) #shape is (1,)
+            loss_meter.update(to_numpy(loss).squeeze()) #shape is (1,)
             for metric, meter in zip(self.metrics, metric_meters):
-                meter.update(metric(output, target))
+                meter.update(to_numpy(metric(output, target).squeeze()))
             #bs = batch.size(0)
             torch.cuda.synchronize()
             timer.batch_end()
