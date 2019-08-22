@@ -4,6 +4,7 @@ It's work in progress, no guarantees that code will work
 """
 from pytorch_tools import models
 import torch.nn as nn
+from torch.nn.modules.loss import _Loss
 
 class ContentLoss(_Loss):
     """
