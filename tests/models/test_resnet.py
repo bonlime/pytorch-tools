@@ -10,8 +10,14 @@ resnet_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and 'resne' in name and callable(models.__dict__[name]))
 
-np_imgs = np.load('tests/models/test_dogs_42.npy') # HxWxC
-
 @pytest.mark.parametrize('arch', resnet_names)
 def test_resnet_init(arch):
     m = models.__dict__[arch](pretrained=None)
+
+@pytest.mark.parametrize('arch', resnet_names[:5]) #test only part of the models
+def test_resnet_imagenet(arch):
+    m = models.__dict__[arch](pretrained='imagenet')
+
+@pytest.mark.parametrize('arch', resnet_names[:5]) #test only part of the models
+def test_resnet_imagenet_custom_cls(arch):
+    m = models.__dict__[arch](pretrained='imagenet', num_classes=10)

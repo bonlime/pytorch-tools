@@ -21,6 +21,7 @@ from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from collections import OrderedDict
 from functools import wraps, partial
 from copy import deepcopy
+import logging
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=('__module__', '__name__', '__qualname__', '__annotations__'))
 
@@ -397,6 +398,13 @@ def _resnet(arch, pretrained=None, **kwargs):
     model = ResNet(**kwargs)
     if pretrained:
         state_dict = load_state_dict_from_url(cfgs[arch][pretrained]['url'])
+        kwargs_cls = kwargs.get('num_classes', None)
+        if kwargs_cls and kwargs_cls != cfg_settings['num_classes']:
+            logging.warning('Using model pretrained for {} classes with {} classes. Last layer is initialized randomly'.format(
+                cfg_settings['num_classes'], kwargs_cls))
+            # if there is last_linear in state_dice, it's going to be overwritten
+            state_dict['fc.weight'] = model.state_dict()['last_linear.weight']
+            state_dict['fc.bias'] = model.state_dict()['last_linear.bias']
         model.load_state_dict(state_dict)
     setattr(model, 'pretrained_settings', cfg_settings)
     return model
