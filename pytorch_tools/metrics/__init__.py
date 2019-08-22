@@ -6,4 +6,5 @@ from .psnr import SSIM
 from .accuracy import Accuracy
 from .accuracy import BalancedAccuracy
 
-from .dice import DiceScore
+from .dice_jaccard import DiceScore
+from .dice_jaccard import JaccardScore

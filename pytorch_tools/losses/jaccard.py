@@ -11,10 +11,9 @@ class BinaryJaccardLoss(_Loss):
     """Implementation of Jaccard loss for binary image segmentation task
     """
 
-    def __init__(self, from_logits=True, weight=None, smooth=1e-3):
+    def __init__(self, from_logits=True, smooth=1e-3):
         super(BinaryJaccardLoss, self).__init__()
         self.from_logits = from_logits
-        self.weight = weight
         self.smooth = smooth
 
     def forward(self, y_pred, y_true):
@@ -24,9 +23,6 @@ class BinaryJaccardLoss(_Loss):
         :param y_true: NxHxW
         :return: scalar
         """
-        if y_true.sum() == 0:
-            return 0
-
         iou = soft_jaccard_score(y_pred, y_true, from_logits=self.from_logits, smooth=self.smooth)
         loss = (1.0 - iou)
 
@@ -37,10 +33,9 @@ class BinaryJaccardLogLoss(_Loss):
     """Implementation of Jaccard loss for binary image segmentation task
     """
 
-    def __init__(self, from_logits=True, weight=None, smooth=1e-3):
+    def __init__(self, from_logits=True, smooth=1e-3):
         super(BinaryJaccardLogLoss, self).__init__()
         self.from_logits = from_logits
-        self.weight = weight
         self.smooth = smooth
 
     def forward(self, y_pred, y_true):
@@ -50,9 +45,6 @@ class BinaryJaccardLogLoss(_Loss):
         :param y_true: NxHxW
         :return: scalar
         """
-        if y_true.sum() == 0:
-            return 0
-
         iou = soft_jaccard_score(y_pred, y_true, from_logits=self.from_logits, smooth=self.smooth)
         loss = - torch.log(iou)
         return loss
