@@ -24,6 +24,39 @@ from functools import wraps, partial
 from copy import deepcopy
 import logging
 
+def _bn_function_factory(norm, relu, conv):
+    def bn_function(*inputs):
+        concated_features = torch.cat(inputs, 1)
+        bottleneck_output = conv(relu(norm(concated_features)))
+        return bottleneck_output
+
+    return bn_function
+
+
+class _DenseLayer(nn.Module):
+    def __init__(self, num_input_features, growth_rate, bn_size, drop_rate, efficient=False):
+        super(_DenseLayer, self).__init__()
+        self.add_module('norm1', nn.BatchNorm2d(num_input_features)),
+        self.add_module('relu1', nn.ReLU(inplace=True)),
+        self.add_module('conv1', nn.Conv2d(num_input_features, bn_size * growth_rate,
+                        kernel_size=1, stride=1, bias=False)),
+        self.add_module('norm2', nn.BatchNorm2d(bn_size * growth_rate)),
+        self.add_module('relu2', nn.ReLU(inplace=True)),
+        self.add_module('conv2', nn.Conv2d(bn_size * growth_rate, growth_rate,
+                        kernel_size=3, stride=1, padding=1, bias=False)),
+        self.drop_rate = drop_rate
+        self.efficient = efficient
+
+    def forward(self, *prev_features):
+        bn_function = _bn_function_factory(self.norm1, self.relu1, self.conv1)
+        if self.efficient and any(prev_feature.requires_grad for prev_feature in prev_features):
+            bottleneck_output = cp.checkpoint(bn_function, *prev_features)
+        else:
+            bottleneck_output = bn_function(*prev_features)
+        new_features = self.conv2(self.relu2(self.norm2(bottleneck_output)))
+        if self.drop_rate > 0:
+            new_features = F.dropout(new_features, p=self.drop_rate, training=self.training)
+        return new_features
 
 class _DenseBlock(nn.Module):
     def __init__(self, num_layers, num_input_features, bn_size, growth_rate, drop_rate, memory_efficient=False):
@@ -52,7 +85,7 @@ class DenseNet(nn.Module):
     `"Densely Connected Convolutional Networks" <https://arxiv.org/pdf/1608.06993.pdf>`_
     
     DenseNet variants:
-      * normal - 7x7 stem, stem_width = 64 (96 for densenet161), same as torchvision DenseNet
+      * normal - 7x7 stem, num_init_features = 64 (96 for densenet161), same as torchvision DenseNet
       * bc - added compression and bottleneck layers
 
     Parameters
@@ -71,9 +104,6 @@ class DenseNet(nn.Module):
         Whether to replace the 7x7 conv1 with 3 3x3 convolution layers.
     compression: float, default 0.
         Decrease number of feature maps in transition layer. 'theta' in paper
-    # dilated : bool, default False
-    #     Applying dilation strategy to pretrained ResNet yielding a stride-8 model,
-    #     typically used in Semantic Segmentation.
     antialias: bool, default False
         Use antialias
     drop_rate : float, default 0.
@@ -100,8 +130,6 @@ class DenseNet(nn.Module):
                  in_chans=3,
                  deep_stem=False,
                  compression=0.,
-                #  block_reduce_first=1, down_kernel_size=1,
-                #  dilated=False,
                  antialias=False,
                 #  encoder=False,
                  norm_layer='bn',
@@ -130,17 +158,15 @@ class DenseNet(nn.Module):
         else:
             self.conv0 = nn.Conv2d(in_chans, num_init_features, kernel_size=7, stride=2,
                                    padding=3, bias=False)
-        self.norm0 = norm_layer(stem_width)  # vanilla BatchNorm by default
+        self.norm0 = norm_layer(num_init_features)  # vanilla BatchNorm by default
         self.relu0 = self.norm_act
-        self.global_pool = GlobalPool2d(global_pool)
-        
         if antialias:
             self.pool0 = nn.Sequential(nn.MaxPool2d(kernel_size=3, stride=1, padding=1),
                                          BlurPool())
         else:
             self.pool0 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1, ceil_mode=False)
-        
 
+        self.global_pool = GlobalPool2d(global_pool)
         # Each denseblock
         num_features = num_init_features
         for i, num_layers in enumerate(block_config):
@@ -161,28 +187,45 @@ class DenseNet(nn.Module):
                 num_features = num_features // 2
 
         # Final normalization
-        self.norm5 = norm_layer(num_features) # Define num_features!!!
+        self.norm5 = norm_layer(self.num_features)  # Define num_features!!!
+
+        largs = dict(use_se=use_se, norm_layer=norm_layer,
+                     norm_act=norm_act, antialias=antialias)
+        self.denseblock1 = self._make_layer(64, layers[0], stride=1, **largs)
+        self.transition1 = 0
+        self.denseblock2 = 0
+        self.transition2 = 0
+        self.denseblock3 = 0
+        self.transition3 = 0
+        self.denseblock4 = 0
+
+
+        self.layer2 = self._make_layer(128, layers[1], stride=2, **largs)
+        self.layer3 = self._make_layer(256, layers[2], stride=stride_3_4, dilation=dilation_3, **largs)
+        self.layer4 = self._make_layer(512, layers[3], stride=stride_3_4, dilation=dilation_4, **largs)
+        self.global_pool = GlobalPool2d(global_pool)
+        self.num_features = 512 * self.expansion
+        self.encoder = encoder
 
         # Linear layer
+        if not encoder:
+            self.classifier = nn.Linear(self.num_features, num_classes)
+            self.last_linear = nn.Linear(self.num_features * self.global_pool.feat_mult(), num_classes)
+        else:
+            self.forward = self.encoder_features
         self.classifier = nn.Linear(num_features, num_classes)
 
-    def features(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.maxpool(x)
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-        return x
+        self._initialize_weights(init_bn0)
 
-    def forward(self, x):
-        features = self.features(x)
-        out = F.relu(features, inplace=True)
-        out = F.adaptive_avg_pool2d(out, (1, 1))
-        out = torch.flatten(out, 1)
-        out = self.classifier(out)
-        return out
+    def features(self, x):
+        x = self.relu0(self.norm0(self.conv0(x)))
+        x = self.pool0(x)
+        x = self.transition1(self.denseblock1(x))
+        x = self.transition2(self.denseblock2(x))
+        x = self.transition3(self.denseblock3(x))
+        x = self.denseblock4(x)
+        x = self.norm5(x)
+        return x
 
     def forward(self, x):
         x = self.features(x)
