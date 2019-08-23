@@ -15,7 +15,7 @@ from torchvision.models.utils import load_state_dict_from_url
 from pytorch_tools.modules import BasicBlock, Bottleneck, SEModule
 from pytorch_tools.modules import GlobalPool2d, BlurPool
 from pytorch_tools.modules.residual import conv1x1, conv3x3
-from pytorch_tools.utils.misc import bn_from_name
+from pytorch_tools.utils.misc import activation_from_name, bn_from_name
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from collections import OrderedDict
@@ -74,6 +74,8 @@ class ResNet(nn.Module):
         Whether to replace the 7x7 conv1 with 3 3x3 convolution layers.
     stem_width : int, default 64
         Number of channels in stem convolutions
+    antialias: bool, default False
+        Use antialias
     dilated : bool, default False
         Applying dilation strategy to pretrained ResNet yielding a stride-8 model,
         typically used in Semantic Segmentation.
@@ -81,27 +83,32 @@ class ResNet(nn.Module):
         Dropout probability before classifier, for training
     global_pool : str, default 'avg'
         Global pooling type. One of 'avg', 'max', 'avgmax', 'catavgmax'
-    init_bn0 : Zero-initialize the last BN in each residual branch,
+    init_bn0 : bool, default True
+        Zero-initialize the last BN in each residual branch,
         so that the residual branch starts with zeros, and each residual block behaves like an identity.
         This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
-
     """
     def __init__(self, block=None, layers=None,
-                     pretrained=None,
-                     num_classes=1000, in_chans=3, use_se=False,
-                     groups=1, base_width=64,
-                     deep_stem=False,
-                     block_reduce_first=1, down_kernel_size=1,
-                     dilated=False,
-                     norm_layer='abn',
-                     antialias=False,
-                     encoder=False,
-                     drop_rate=0.0,
-                     global_pool='avg',
-                     init_bn0=True):
+                 pretrained=None,
+                 num_classes=1000, in_chans=3, use_se=False,
+                 groups=1, base_width=64,
+                 deep_stem=False,
+                 block_reduce_first=1, down_kernel_size=1,
+                 dilated=False,
+                 norm_layer='abn',
+                 antialias=False,
+                 encoder=False,
+                 drop_rate=0.0,
+                 global_pool='avg',
+                 norm_act='relu',
+                 activation_param=None,
+                 init_bn0=True):
 
         stem_width = 64
-        norm_act = 'relu' if norm_layer.lower() == 'abn' else 'leaky_relu'
+        if norm_layer.lower() == 'abn':
+            norm_act = 'relu'
+            activation_param = None
+
         norm_layer = bn_from_name(norm_layer)
         self.inplanes = stem_width
         self.num_classes = num_classes
@@ -112,9 +119,10 @@ class ResNet(nn.Module):
         self.expansion = block.expansion
         self.dilated = dilated
         self.norm_act = norm_act
+        self.activation_param = activation_param
         super(ResNet, self).__init__()
 
-        # no antialias in stem to avoid huge computations
+        
         if deep_stem:
             self.conv1 = nn.Sequential(
                 conv3x3(in_chans, stem_width // 2, 2),
@@ -242,10 +250,10 @@ CFGS = {
     # RESNET MODELS
     'resnet18': {
         'default': {
-            'params' : {'block': BasicBlock, 'layers': [2, 2, 2, 2]},
+            'params': {'block': BasicBlock, 'layers': [2, 2, 2, 2]},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        'imagenet': {'url' : 'https://download.pytorch.org/models/resnet18-5c106cde.pth'},
+        'imagenet': {'url': 'https://download.pytorch.org/models/resnet18-5c106cde.pth'},
         # EXAMPLE
         # 'imagenet_inplaceabn': {
         #     'params': {'block': BasicBlock, 'layers': [2, 2, 2, 2], 'norm_layer': 'inplaceabn', 'deepstem':True, 'antialias':True},
@@ -255,135 +263,141 @@ CFGS = {
     },
     'resnet34': {
         'default': {
-            'params' : {'block': BasicBlock, 'layers': [3, 4, 6, 3]},
+            'params': {'block': BasicBlock, 'layers': [3, 4, 6, 3]},
             **DEFAULT_IMAGENET_SETTINGS,
-        }, 
-        'imagenet': { #                          Acc@1: 71.80. Acc@5: 90.37
-            'url' : 'https://download.pytorch.org/models/resnet34-333f7ec4.pth'}, 
+        },
+        'imagenet': {  #                          Acc@1: 71.80. Acc@5: 90.37
+            'url': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth'}, 
         'imagenet2': { # weigths from rwightman. Acc@1: 73.25. Acc@5: 91.32
-            'url' : 'https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/resnet34-43635321.pth',
+            'url': 'https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/resnet34-43635321.pth',
         },
     },
     'resnet50': {
         'default': {
-            'params' : {'block': Bottleneck, 'layers': [3, 4, 6, 3]},
+            'params': {'block': Bottleneck, 'layers': [3, 4, 6, 3]},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        'imagenet': {'url' : 'https://download.pytorch.org/models/resnet50-19c8e357.pth'},
+        'imagenet': {'url': 'https://download.pytorch.org/models/resnet50-19c8e357.pth'},
     },
     'resnet101': {
         'default': {
-            'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3]},
+            'params': {'block': Bottleneck, 'layers': [3, 4, 23, 3]},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        'imagenet': {'url' : 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth'},
+        'imagenet': {'url': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth'},
     },
     'resnet152': {
         'default': {
-            'params' : {'block': Bottleneck, 'layers': [3, 8, 36, 3]},
+            'params': {'block': Bottleneck, 'layers': [3, 8, 36, 3]},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        'imagenet': {'url' : 'https://download.pytorch.org/models/resnet152-b121ed2d.pth'},
+        'imagenet': {'url': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth'},
     },
     # WIDE RESNET MODELS
     'wide_resnet50_2': {
         'default': {
-            'params' : {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'base_width': 128},
+            'params': {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'base_width': 128},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        'imagenet': {'url' : 'https://download.pytorch.org/models/wide_resnet50_2-95faca4d.pth'},
+        'imagenet': {'url': 'https://download.pytorch.org/models/wide_resnet50_2-95faca4d.pth'},
     },
     'wide_resnet101_2': {
         'default': {
-            'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 128},
+            'params': {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 128},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        'imagenet': {'url' : 'https://download.pytorch.org/models/wide_resnet101_2-32ee1156.pth'},
+        'imagenet': {'url': 'https://download.pytorch.org/models/wide_resnet101_2-32ee1156.pth'},
     },
     # RESNEXT MODELS
     'resnext50_32x4d': {
         'default': {
-            'params' : {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'base_width': 4, 'groups': 32},
+            'params': {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'base_width': 4, 'groups': 32},
             **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': { # Acc@1: 75.80. Acc@5: 92.71.
-            'url' : 'https://download.pytorch.org/models/resnext50_32x4d-7cdf4587.pth'},
+            'url': 'https://download.pytorch.org/models/resnext50_32x4d-7cdf4587.pth'},
         # weights from rwightman
-        'imagenet2': {'url' : 'https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/resnext50d_32x4d-103e99f8.pth'},
+        'imagenet2': {'url': 'https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/resnext50d_32x4d-103e99f8.pth'},
     },
-    'resnext101_32x8d' : {
+    'resnext101_32x8d': {
         'default': {
             'params': {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 8, 'groups': 32},
             **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url': 'https://download.pytorch.org/models/resnext101_32x8d-8ba56ff5.pth'},
-        #pretrained on weakly labeled instagram and then tuned on Imagenet
+        # pretrained on weakly labeled instagram and then tuned on Imagenet
         'imagenet_ig': {'url': 'https://download.pytorch.org/models/ig_resnext101_32x8-c38310e5.pth'}
     },
     'resnext101_32x16d': {
-        'default': { 
-            'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 16, 'groups': 32},
+        'default': {
+            'params': {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 16, 'groups': 32},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        #pretrained on weakly labeled instagram and then tuned on Imagenet
-        'imagenet_ig': {'url' : 'https://download.pytorch.org/models/ig_resnext101_32x16-c6f796b0.pth'}
+        # pretrained on weakly labeled instagram and then tuned on Imagenet
+        'imagenet_ig': {'url': 'https://download.pytorch.org/models/ig_resnext101_32x16-c6f796b0.pth'}
     },
     'resnext101_32x32d': {
         'default': {
-            'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 32, 'groups': 32},
+            'params': {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 32, 'groups': 32},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        #pretrained on weakly labeled instagram and then tuned on Imagenet
-        'imagenet_ig': {'url' : 'https://download.pytorch.org/models/ig_resnext101_32x32-e4b90b00.pth'}
+        # pretrained on weakly labeled instagram and then tuned on Imagenet
+        'imagenet_ig': {'url': 'https://download.pytorch.org/models/ig_resnext101_32x32-e4b90b00.pth'}
     },
     'resnext101_32x48d': {
-        'default': { #actually it's imagenet_ig. pretrained on weakly labeled instagram and then tuned on Imagenet 
-            'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 48, 'groups': 32},
+        'default': { # actually it's imagenet_ig. pretrained on weakly labeled instagram and then tuned on Imagenet 
+            'params': {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 48, 'groups': 32},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        'imagenet_ig':{'url' : 'https://download.pytorch.org/models/ig_resnext101_32x48-3e41cc8a.pth'}
+        'imagenet_ig': {'url': 'https://download.pytorch.org/models/ig_resnext101_32x48-3e41cc8a.pth'}
     },
     # SE RESNET MODELS
     'se_resnet50': {
         'default': {
-            'params' : {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'use_se': True},
-            'url' : 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet50-ce0d4300.pth',
+            'params': {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'use_se': True},
+            'url': 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet50-ce0d4300.pth',
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        'imagenet': {'url' : 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet50-ce0d4300.pth'},
+        'imagenet': {'url': 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet50-ce0d4300.pth'},
     },
     'se_resnet101': {
         'default': {
-            'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'use_se': True},
+            'params': {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'use_se': True},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        'imagenet': {'url' : 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet101-7e38fcc6.pth'},
+        'imagenet': {'url': 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet101-7e38fcc6.pth'},
     },
     'se_resnet152': {
         'default': {
-            'params' : {'block': Bottleneck, 'layers': [3, 4, 36, 3], 'use_se': True},
+            'params': {'block': Bottleneck, 'layers': [3, 4, 36, 3], 'use_se': True},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        'imagenet': {'url' : 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet152-d17c99b7.pth'},
+        'imagenet': {'url': 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet152-d17c99b7.pth'},
     },
     # SE RESNEXT MODELS
     'se_resnext50_32x4d': {
         'default': {
-            'params' : {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'base_width': 4, 'groups': 32, 'use_se': True},
+            'params': {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'base_width': 4, 'groups': 32, 'use_se': True},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        'imagenet': {'url' : 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnext50_32x4d-a260b3a4.pth'}
+        'imagenet': {'url': 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnext50_32x4d-a260b3a4.pth'}
     },
     'se_resnext101_32x4d': {
         'default': {
-            'params' : {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 4, 'groups': 32, 'use_se': True},
+            'params': {'block': Bottleneck, 'layers': [3, 4, 23, 3], 'base_width': 4, 'groups': 32, 'use_se': True},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        'imagenet': {'url' : 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnext101_32x4d-3b2fe3d8.pth'}
+        'imagenet': {'url': 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnext101_32x4d-3b2fe3d8.pth'}
     },
 }
 
-def _resnet(arch, pretrained=None, **kwargs):
+
+def _resnet(arch, pretrained=None, progress=True, **kwargs):
+    """
+    Args:
+        pretrained (str or None): if present, returns a model pre-trained on 'str' dataset
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
     cfgs = deepcopy(CFGS)
     cfg_settings = cfgs[arch]['default']
     cfg_params = cfg_settings.pop('params')
@@ -397,107 +411,112 @@ def _resnet(arch, pretrained=None, **kwargs):
     kwargs.update(cfg_params)
     model = ResNet(**kwargs)
     if pretrained:
-        state_dict = load_state_dict_from_url(cfgs[arch][pretrained]['url'])
+        state_dict = load_state_dict_from_url(cfgs[arch][pretrained]['url'], progress)
         kwargs_cls = kwargs.get('num_classes', None)
         if kwargs_cls and kwargs_cls != cfg_settings['num_classes']:
             logging.warning('Using model pretrained for {} classes with {} classes. Last layer is initialized randomly'.format(
                 cfg_settings['num_classes'], kwargs_cls))
-            # if there is last_linear in state_dice, it's going to be overwritten
+            # if there is last_linear in state_dict, it's going to be overwritten
             state_dict['fc.weight'] = model.state_dict()['last_linear.weight']
             state_dict['fc.bias'] = model.state_dict()['last_linear.bias']
         model.load_state_dict(state_dict)
     setattr(model, 'pretrained_settings', cfg_settings)
     return model
 
+
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def resnet18(**kwargs):
-    """Constructs a ResNet-18 model."""
-    return  _resnet('resnet18', **kwargs)
+    r"""Constructs a ResNet-18 model."""
+    return _resnet('resnet18', **kwargs)
 
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def resnet34(**kwargs):
-    """Constructs a ResNet-34 model."""
-    return  _resnet('resnet34', **kwargs)
+    r"""Constructs a ResNet-34 model."""
+    return _resnet('resnet34', **kwargs)
+
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def resnet50(**kwargs):
-    """Constructs a ResNet-50 model."""
-    return  _resnet('resnet50', **kwargs)
+    r"""Constructs a ResNet-50 model."""
+    return _resnet('resnet50', **kwargs)
+
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def resnet101(**kwargs):
-    """Constructs a ResNet-101 model."""
-    return  _resnet('resnet101', **kwargs)
+    r"""Constructs a ResNet-101 model."""
+    return _resnet('resnet101', **kwargs)
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def resnet152(**kwargs):
     """Constructs a ResNet-152 model."""
-    return  _resnet('resnet152', **kwargs)
+    return _resnet('resnet152', **kwargs)
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def wide_resnet50_2(**kwargs):
-    """Constructs a Wide ResNet-50-2 model.
+    r"""Constructs a Wide ResNet-50-2 model.
     The model is the same as ResNet except for the bottleneck number of channels
     which is twice larger in every block. The number of channels in outer 1x1
     convolutions is the same, e.g. last block in ResNet-50 has 2048-512-2048
     channels, and in Wide ResNet-50-2 has 2048-1024-2048.
     """
-    return  _resnet('wide_resnet50_2', **kwargs)
+    return _resnet('wide_resnet50_2', **kwargs)
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def wide_resnet101_2(**kwargs):
-    """Constructs a Wide ResNet-101-2 model.
+    r"""Constructs a Wide ResNet-101-2 model.
     The model is the same as ResNet except for the bottleneck number of channels
     which is twice larger in every block. The number of channels in outer 1x1
     convolutions is the same."""
-    return  _resnet('wide_resnet101_2', **kwargs)
+    return _resnet('wide_resnet101_2', **kwargs)
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def resnext50_32x4d(**kwargs):
-    """Constructs a ResNeXt50-32x4d model."""
-    return  _resnet('resnext50_32x4d', **kwargs)
+    r"""Constructs a ResNeXt50-32x4d model."""
+    return _resnet('resnext50_32x4d', **kwargs)
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def resnext101_32x8d(**kwargs):
-    """Constructs a ResNeXt101-32x8d model."""
-    return  _resnet('resnext101_32x8d', **kwargs)
+    r"""Constructs a ResNeXt101-32x8d model."""
+    return _resnet('resnext101_32x8d', **kwargs)
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def ig_resnext101_32x8d(**kwargs):
-    """Constructs a ResNeXt-101 32x8 model pre-trained on weakly-supervised data
+    r"""Constructs a ResNeXt-101 32x8 model pre-trained on weakly-supervised data
     and finetuned on ImageNet from Figure 5 in
     `"Exploring the Limits of Weakly Supervised Pretraining" <https://arxiv.org/abs/1805.00932>`_
     Weights from https://pytorch.org/hub/facebookresearch_WSL-Images_resnext/"""
-    return  _resnet('ig_resnext101_32x8d', **kwargs)
+    return _resnet('ig_resnext101_32x8d', **kwargs)
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def ig_resnext101_32x16d(**kwargs):
-    """Constructs a ResNeXt-101 32x16 model pre-trained on weakly-supervised data."""
-    return  _resnet('ig_resnext101_32x16d', **kwargs)
+    r"""Constructs a ResNeXt-101 32x16 model pre-trained on weakly-supervised data."""
+    return _resnet('ig_resnext101_32x16d', **kwargs)
+
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def ig_resnext101_32x32d(**kwargs):
-    """Constructs a ResNeXt-101 32x32 model pre-trained on weakly-supervised data."""
-    return  _resnet('ig_resnext101_32x32d', **kwargs)
+    r"""Constructs a ResNeXt-101 32x32 model pre-trained on weakly-supervised data."""
+    return _resnet('ig_resnext101_32x32d', **kwargs)
+
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def ig_resnext101_32x48d(**kwargs):
-    """Constructs a ResNeXt-101 32x48 model pre-trained on weakly-supervised data."""
-    return  _resnet('ig_resnext101_32x48d', **kwargs)
+    r"""Constructs a ResNeXt-101 32x48 model pre-trained on weakly-supervised data."""
+    return _resnet('ig_resnext101_32x48d', **kwargs)
 
 # @wraps(ResNet)
 # @add_docs_for(ResNet)
@@ -510,32 +529,32 @@ def ig_resnext101_32x48d(**kwargs):
 @add_docs_for(ResNet)
 def se_resnet50(**kwargs):
     """TODO: Add Doc"""
-    return  _resnet('se_resnet50', **kwargs)
+    return _resnet('se_resnet50', **kwargs)
 
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def se_resnet101(**kwargs):
     """TODO: Add Doc"""
-    return  _resnet('se_resnet101', **kwargs)
+    return _resnet('se_resnet101', **kwargs)
 
 
 @wraps(ResNet) 
 @add_docs_for(ResNet)
 def se_resnet152(**kwargs):
     """TODO: Add Doc"""
-    return  _resnet('se_resnet152', **kwargs)
+    return _resnet('se_resnet152', **kwargs)
 
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def se_resnext50_32x4d(**kwargs):
     """TODO: Add Doc"""
-    return  _resnet('se_resnext50_32x4d', **kwargs)
+    return _resnet('se_resnext50_32x4d', **kwargs)
 
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
 def se_resnext101_32x4d(**kwargs):
     """TODO: Add Doc"""
-    return  _resnet('se_resnext101_32x4d', **kwargs)
+    return _resnet('se_resnext101_32x4d', **kwargs)
