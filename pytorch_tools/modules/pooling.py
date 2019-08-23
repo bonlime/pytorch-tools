@@ -28,6 +28,16 @@ def global_pool2d(x, pool_type):
         raise ValueError('Invalid pool type: {}'.format(pool_type))
     return x
 
+
+class Flatten(nn.Module):
+    """
+    This modile is implemented in PyTorch 1.2
+    Leave it here for PyToorch 1.1 support
+    """
+    def forward(self, input):
+        return input.view(input.size(0), -1)
+
+
 class GlobalPool2d(nn.Module):
     """Selectable global pooling layer
     

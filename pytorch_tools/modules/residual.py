@@ -132,3 +132,29 @@ class Bottleneck(nn.Module):
             out = self.bn3(out) + residual
         return self.final_act(out)
 
+class Transition(nn.Module):
+    r"""
+    Transition Block as described in [DenseNet](https://arxiv.org/abs/1608.06993)
+    
+    - ReLU
+    - 1x1 Convolution (with optional compression of the number of channels)
+    - 2x2 Average Pooling
+    """
+    def __init__(self, in_planes, out_planes,
+                 drop_rate=0.0,
+                 norm_layer=nn.BatchNorm2d,
+                 norm_act=nn.ReLU(inplace=True),
+                 global_pool=nn.AvgPool2d(kernel_size=2, stride=2, padding=0)):
+
+        super(_Transition, self).__init__()
+        self.norm = norm_layer(in_planes)
+        self.relu = norm_act
+        self.conv = conv1x1(in_planes, out_planes)
+        self.pool = global_pool
+        self.drop_rate = drop_rate
+
+    def forward(self, x):
+        out = self.conv(self.relu(self.norm(x)))
+        if self.drop_rate > 0:
+            out = F.dropout(out, p=self.drop_rate, inplace=False)
+        out = self.global_pool(out)
