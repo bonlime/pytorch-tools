@@ -8,6 +8,8 @@ import torch.nn.functional as F
 from functools import partial
 
 from inplace_abn import ABN, InPlaceABN, InPlaceABNSync
+from ..modules import SiLU, SoftExponential
+
 
 def initialize(model):
     for m in model.modules():
@@ -16,6 +18,7 @@ def initialize(model):
         elif isinstance(m, nn.BatchNorm2d):
             nn.init.constant_(m.weight, 1)
             nn.init.constant_(m.bias, 0)
+
 
 def activation_from_name(act_name, act_param=0.01):
     if act_name == 'relu':
@@ -30,10 +33,14 @@ def activation_from_name(act_name, act_param=0.01):
         return nn.Sigmoid()
     elif act_name == 'softmax':
         return nn.Softmax2d()
+    elif act_name == 'silu':
+        return SiLU(beta=act_param)
+    elif act_name == 'exp':
+        return SoftExponential(alpha=act_param)
     else:
         raise ValueError("Activation name {} not supported".format(act_name))
 
-# TODO return proper activation and layer 
+#  TODO return proper activation and layer
 def bn_from_name(norm_name):
     norm_name = norm_name.lower()
     if norm_name == 'abn':
@@ -42,6 +49,8 @@ def bn_from_name(norm_name):
         return InPlaceABN
     elif norm_name == 'inplaceabnsync':
         return InPlaceABNSync
+    elif norm_name == "bn":
+        return BatchNorm2d
     else:
         raise ValueError("Normalization {} not supported".format(norm_name))
 
