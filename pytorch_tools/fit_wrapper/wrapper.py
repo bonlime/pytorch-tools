@@ -3,30 +3,14 @@ from ..utils.misc import AverageMeter
 from ..utils.misc import TimeMeter
 from ..utils.misc import to_numpy
 from ..utils.misc import listify
+from collections import OrderedDict
 import torch
-#from tqdm.autonotebook import tqdm
 from tqdm.auto import tqdm
 from torch import nn
 from apex import amp
 
 
-
-# fit_generator
-#   _run_batch_train
-# predict_generator
-# evaluate_generator
-
-# В керасе есть
-# train on batch
-# test on batch
-# predict on batch
-# когда надо сделать val, вызывает evalute_generator
-# в eval считаем всякие лоссы. 
-# в pred только прогоняем вход через сетку и стакаем, ничего не храним
-
-
-
-class FitWrapper(nn.Module):
+class FitWrapper:
     def __init__(self, model):
         super(FitWrapper, self).__init__()
         self.model = model
@@ -36,102 +20,69 @@ class FitWrapper(nn.Module):
         self.optimizer = optimizer
         self.criterion = criterion
         self.metrics = listify(metrics)
+        self.metric_meters = [AverageMeter(name=m.name) for m in self.metrics]
+        self.loss_meter = AverageMeter('Loss')
+        self.timer = TimeMeter()
 
-    def _fit_epoch(self, generator, steps_per_epoch=None):
-        timer = TimeMeter()
-        loss_meter = AverageMeter()
-        metric_meters = [AverageMeter() for i in self.metrics]
-        self.model.train()
-        steps = steps_per_epoch or len(generator)
-        pbar = tqdm(generator, leave=False, total=steps)
-        for idx, batch in enumerate(pbar):
-            if idx == steps:
-                break
-            data, target = batch
-            timer.batch_start()
-            #TODO add sheduler
-            # compute output
-            output = self.model(data)
-            loss = self.criterion(output, target)
-            # compute grads
-            self.optimizer.zero_grad()
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                scaled_loss.backward()
-            self.optimizer.step()
-            # calc metrics
-            for metric, meter in zip(self.metrics, metric_meters):
-                meter.update(to_numpy(metric(output, target)).squeeze())
-            loss_meter.update(to_numpy(loss).squeeze())
-            # sync
-            torch.cuda.synchronize()
-            timer.batch_end()
-            bs = data.size(0)
-            out = self._format_meters(metric_meters)
-            desc = 'Loss: {:4.4f} |'.format(loss_meter.avg_smooth) + out
-            pbar.set_description(desc)
-        out = self._format_meters(metric_meters, smooth=False)
-        desc = 'Loss: {:4.4f} |'.format(loss_meter.avg) + out
-        return desc
+    def fit(self, 
+            train_loader, 
+            epochs=1, 
+            val_loader=None, 
+            ):
 
-    def fit_generator(self, 
-                      generator, 
-                      steps_per_epoch=None,
-                      epochs=1, 
-                      val_generator=None, 
-                      val_steps=None, 
-                      val_freq=1, 
-                      initial_epoch=0
-                      ):
-
-        # do something
-        for ep in range(initial_epoch, epochs):
+        self.n_epoch = epochs
+        for epoch in range(epochs):
             # callbacks.on_epoch_begin
-            desc = self._fit_epoch(generator, steps_per_epoch)
-            if (val_generator is not None) and (ep % val_freq == 0):
-                val_loss, val_m  = self.evaluate_generator(val_generator, val_steps, use_pbar=False)
-                val_desc = '| Val_loss: {:4.4f}'.format(val_loss)
-                desc += val_desc
-            print('Ep {:2d}/{:2d} |'.format(ep, epochs) + desc)
+            self.model.train()
+            self._run_one_epoch(epoch, train_loader, is_train=True)
+
+            #desc = self._fit_epoch(generator, steps_per_epoch)
+            if val_loader is not None:
+                self.model.eval()
+                self._run_one_epoch(epoch, val_loader, is_train=False)
             # callbacks.on_epoch_end
         # callbacks.on_train_end
 
     #TODO add predict_generators
-
-    def evaluate_generator(self, generator, steps=None, *, use_pbar=True):
-        # eval metrics on generator
-        timer = TimeMeter()
-        loss_meter = AverageMeter()
-        metric_meters = [AverageMeter() for i in self.metrics]
+    def evaluate(self, loader):
+        self.n_epoch = 1
         self.model.eval()
-        steps = steps or len(generator)
-        pbar = tqdm(generator, leave=False, total=steps) if use_pbar else generator
-        for idx, batch in enumerate(pbar):
-            if idx == steps:
-                break
-            data, target = batch
-            timer.batch_start()
-            with torch.no_grad():
-                output = self.model(data)
-                loss = self.criterion(output, target).data 
-            loss_meter.update(to_numpy(loss).squeeze()) #shape is (1,)
-            for metric, meter in zip(self.metrics, metric_meters):
-                meter.update(to_numpy(metric(output, target).squeeze()))
-            #bs = batch.size(0)
-            torch.cuda.synchronize()
-            timer.batch_end()
-            # TODO add info from timer
-            out = self._format_meters(metric_meters)
-            desc = 'Loss: {:4.4f} |'.format(loss_meter.avg_smooth) + out
-            if use_pbar:
-                pbar.set_description(desc)
-        return loss_meter.avg, [m.avg for m in metric_meters]
+        self._run_one_epoch(1, loader, is_train=False)
+        return self.loss_meter.avg, [m.avg for m in self.metric_meters]
 
-    def _format_meters(self, meters, smooth=True):
-        # meters: instances of AverageMeter
-        results = [(m.name, meter.avg_smooth if smooth else meter.avg) 
-                    for m, meter in zip(self.metrics, meters)]
-        out = ['{}: {:6.3f}'.format(name, val) for name, val in results]
-        return ' | '.join(out)
-    
-    def forward(self, x):
-        return self.model.forward(x)
+    def _make_step(self, batch, is_train):
+        images, target = batch
+        output = self.model(images)
+        loss = self.criterion(output, target)
+        if is_train:
+            self.optimizer.zero_grad()
+            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                scaled_loss.backward()
+            #grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 5.0)
+            self.optimizer.step()
+            torch.cuda.synchronize()
+            
+        # update metrics
+        self.loss_meter.update(to_numpy(loss))
+        for metric, meter in zip(self.metrics, self.metric_meters):
+            meter.update(to_numpy(metric(output, target).squeeze()))
+
+        return None # or smth? 
+
+    def _run_one_epoch(self, epoch, loader, is_train=True):
+        self.loss_meter.reset()
+        self.timer.reset()
+        for m in self.metric_meters:
+            m.reset()
+        pbar = tqdm(enumerate(loader), total=len(loader)) #, ncols=0
+        pbar.set_description("Epoch {:2d}/{}. {}ing:".format(
+            epoch, self.n_epoch, ['validat', 'train'][is_train]))
+        with torch.set_grad_enabled(is_train):
+            for i, data in pbar:
+                #self.callbacks.on_batch_begin(i)
+                self._make_step(data, is_train)
+                desc = OrderedDict({'Loss': "{:.4f}".format(self.loss_meter.avg_smooth)})
+                desc.update({m.name: "{:.3f}".format(m.avg_smooth) for m in self.metric_meters})
+                pbar.set_postfix(**desc)
+                #self.callbacks.on_batch_end(i, step_report=step_report, is_train=is_train)
+        return None
