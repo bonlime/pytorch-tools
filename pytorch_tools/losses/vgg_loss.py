@@ -3,6 +3,7 @@ Implementation of VGG16 loss, originaly used for style transfer and usefull in m
 It's work in progress, no guarantees that code will work
 """
 from pytorch_tools import models
+import torch
 import torch.nn as nn
 from torch.nn.modules.loss import _Loss
 
