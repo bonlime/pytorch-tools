@@ -97,13 +97,17 @@ class AverageMeter:
             val - last value
             avg - true average
             avg_smooth - smoothed average"""
-    def __init__(self, avg_mom=0.9):
+    def __init__(self, name='Meter', avg_mom=0.9):
+        self.avg_mom = avg_mom
+        self.name = name
+        self.reset()
+
+    def reset(self):
         self.val = 0
         self.avg = 0
         self.avg_smooth = 0
         self.sum = 0
         self.count = 0
-        self.avg_mom = avg_mom
 
     def update(self, val):
         self.val = val
@@ -116,17 +120,20 @@ class AverageMeter:
         self.avg = self.sum / self.count
 
 class TimeMeter:
-  def __init__(self):
-    self.batch_time = AverageMeter()
-    self.data_time = AverageMeter()
-    self.start = time.time()
+    def __init__(self):
+        self.reset()
 
-  def batch_start(self):
-    self.data_time.update(time.time() - self.start)
+    def reset(self):
+        self.batch_time = AverageMeter()
+        self.data_time = AverageMeter()
+        self.start = time.time()
 
-  def batch_end(self):
-    self.batch_time.update(time.time() - self.start)
-    self.start = time.time()
+    def batch_start(self):
+        self.data_time.update(time.time() - self.start)
+
+    def batch_end(self):
+        self.batch_time.update(time.time() - self.start)
+        self.start = time.time()
 
 DEFAULT_IMAGENET_SETTINGS = {
     'input_space': 'RGB',
