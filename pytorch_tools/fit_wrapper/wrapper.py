@@ -8,20 +8,22 @@ import torch
 from tqdm.auto import tqdm
 from torch import nn
 from apex import amp
+from .callbacks import Callbacks
 
 
-class FitWrapper:
+class Runner:
     def __init__(self, model):
-        super(FitWrapper, self).__init__()
+        super(Runner, self).__init__()
         self.model = model
 
-    def compile(self, optimizer, criterion, metrics=None):
+    def compile(self, optimizer, criterion, metrics=None, callbacks=None):
         # TODO move amp logic here
         self.optimizer = optimizer
         self.criterion = criterion
         self.metrics = listify(metrics)
+        self.callbacks = Callbacks(callbacks)
         self.metric_meters = [AverageMeter(name=m.name) for m in self.metrics]
-        self.loss_meter = AverageMeter('Loss')
+        self.loss_meter = AverageMeter('loss')
         self.timer = TimeMeter()
 
     def fit(self, 
@@ -31,21 +33,22 @@ class FitWrapper:
             ):
 
         self.n_epoch = epochs
+        self.callbacks.on_train_begin()
         for epoch in range(epochs):
-            # callbacks.on_epoch_begin
+            self.callbacks.on_epoch_begin(epoch)
+
             self.model.train()
             self._run_one_epoch(epoch, train_loader, is_train=True)
-
-            #desc = self._fit_epoch(generator, steps_per_epoch)
             if val_loader is not None:
-                self.model.eval()
-                self._run_one_epoch(epoch, val_loader, is_train=False)
-            # callbacks.on_epoch_end
-        # callbacks.on_train_end
+                self.evaluate(val_loader)
+
+            self.callbacks.on_epoch_end(epoch)
+        self.callbacks.on_train_end()
 
     #TODO add predict_generators
     def evaluate(self, loader):
-        self.n_epoch = 1
+        if not hasattr(self, 'n_epoch'):
+            self.n_epoch = 1
         self.model.eval()
         self._run_one_epoch(1, loader, is_train=False)
         return self.loss_meter.avg, [m.avg for m in self.metric_meters]
@@ -78,11 +81,15 @@ class FitWrapper:
         pbar.set_description("Epoch {:2d}/{}. {}ing:".format(
             epoch, self.n_epoch, ['validat', 'train'][is_train]))
         with torch.set_grad_enabled(is_train):
-            for i, data in pbar:
-                #self.callbacks.on_batch_begin(i)
-                self._make_step(data, is_train)
+            for i, batch in pbar:
+                self.callbacks.on_batch_begin(i)
+                self._make_step(batch, is_train)
                 desc = OrderedDict({'Loss': "{:.4f}".format(self.loss_meter.avg_smooth)})
                 desc.update({m.name: "{:.3f}".format(m.avg_smooth) for m in self.metric_meters})
                 pbar.set_postfix(**desc)
-                #self.callbacks.on_batch_end(i, step_report=step_report, is_train=is_train)
+                self.callbacks.on_batch_end(i)
+        # set postfix to true average instead of moving mean
+        final_desc = OrderedDict({'Loss': "{:.4f}".format(self.loss_meter.avg)})
+        final_desc.update({m.name: "{:.3f}".format(m.avg) for m in self.metric_meters})
+        pbar.set_postfix(**desc)
         return None

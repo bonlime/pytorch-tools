@@ -1,1 +1,1 @@
-from .wrapper import FitWrapper
+from .wrapper import Runner
