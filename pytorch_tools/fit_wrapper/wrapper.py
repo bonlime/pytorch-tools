@@ -9,6 +9,7 @@ from tqdm.auto import tqdm
 from torch import nn
 from apex import amp
 from .callbacks import Callbacks
+from copy import copy
 
 
 class Runner:
@@ -28,19 +29,24 @@ class Runner:
 
     def fit(self, 
             train_loader, 
+            steps_per_epoch=None,
+            val_loader=None,
+            val_steps=None, 
             epochs=1, 
-            val_loader=None, 
-            ):
-
+            start_epoch=0):
+    
         self.n_epoch = epochs
         self.callbacks.on_train_begin()
-        for epoch in range(epochs):
+        for epoch in range(start_epoch, epochs):
             self.callbacks.on_epoch_begin(epoch)
 
             self.model.train()
-            self._run_one_epoch(epoch, train_loader, is_train=True)
+            self._run_one_epoch(epoch, train_loader, is_train=True, steps=steps_per_epoch)
+            
             if val_loader is not None:
-                self.evaluate(val_loader)
+                # useful in callbacks
+                self._train_metrics = self.loss_meter.avg, [copy(m) for m in self.metric_meters]
+                self.evaluate(val_loader, steps=val_steps)
 
             self.callbacks.on_epoch_end(epoch)
         self.callbacks.on_train_end()
@@ -72,24 +78,24 @@ class Runner:
 
         return None # or smth? 
 
-    def _run_one_epoch(self, epoch, loader, is_train=True):
+    def _run_one_epoch(self, epoch, loader, is_train=True, steps=None):
         self.loss_meter.reset()
         self.timer.reset()
         for m in self.metric_meters:
             m.reset()
-        pbar = tqdm(enumerate(loader), total=len(loader)) #, ncols=0
+        self.ep_size = len(loader) # useful in callbacks
+        pbar = tqdm(enumerate(loader), total=steps or self.ep_size, ncols=0) #, ncols=0
         pbar.set_description("Epoch {:2d}/{}. {}ing:".format(
             epoch, self.n_epoch, ['validat', 'train'][is_train]))
         with torch.set_grad_enabled(is_train):
             for i, batch in pbar:
+                if steps and i == steps:
+                    pbar.close()
+                    break
                 self.callbacks.on_batch_begin(i)
                 self._make_step(batch, is_train)
                 desc = OrderedDict({'Loss': "{:.4f}".format(self.loss_meter.avg_smooth)})
                 desc.update({m.name: "{:.3f}".format(m.avg_smooth) for m in self.metric_meters})
                 pbar.set_postfix(**desc)
                 self.callbacks.on_batch_end(i)
-        # set postfix to true average instead of moving mean
-        final_desc = OrderedDict({'Loss': "{:.4f}".format(self.loss_meter.avg)})
-        final_desc.update({m.name: "{:.3f}".format(m.avg) for m in self.metric_meters})
-        pbar.set_postfix(**desc)
         return None

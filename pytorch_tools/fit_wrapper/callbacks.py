@@ -3,6 +3,7 @@ import torch
 import logging
 from queue import PriorityQueue
 from tensorboardX import SummaryWriter
+from ..utils.misc import listify
 
 
 class Callback(object):
@@ -85,6 +86,88 @@ class Callbacks(Callback):
             callback.on_train_end()
 
 
+class PhasesScheduler(Callback):
+    """
+    LR and momentum scheduler that uses `phases` to prosses
+    updates.
+    Example:
+    LOADED_PHASES = [
+        {'ep':(0,8),  'lr':(lr/2,lr*2), 'mom':0.9, 'mode':'cos'}, # lr warmup is better with --init-bn0
+        {'ep':(8,24), 'lr':(lr*2,lr/2), 'mode':'cos'}, # trying one cycle
+        {'ep':(24, 30), 'lr':(lr*bs_scale[1], lr/5*bs_scale[1])},
+        {'ep':(30, 33), 'lr':(lr/5*bs_scale[2], lr/25*bs_scale[2])},
+        {'ep':(33, 34), 'lr':(lr/25*bs_scale[2], lr/125*bs_scale[2])},
+    ]
+    """
+    def __init__(self, optimizer, phases):
+        self.optimizer = optimizer
+        self.current_lr = None
+        self.current_mom = None
+        self.phases = [self._format_phase(p) for p in phases]
+        self.tot_epochs = max([max(p['ep']) for p in self.phases])
+        super(PhasesScheduler, self).__init__()
+
+    def _format_phase(self, phase):
+        phase['ep'] = listify(phase['ep'])
+        phase['lr'] = listify(phase['lr'])
+        phase['mom'] = listify(phase.get('mom', None)) # optional
+        if len(phase['lr']) == 2 or len(phase['mom']) == 2:
+            phase['mode'] = phase.get('mode', 'linear') 
+            assert (len(phase['ep']) == 2), 'Linear learning rates must contain end epoch'
+        return phase
+
+    @staticmethod
+    def _schedule(start, end, pct, mode):
+        """anneal from `start` to `end` as pct goes from 0.0 to 1.0."""
+        if mode == 'linear':
+            return start + (end - start) * pct
+        elif mode == 'cos':
+            return end + (start - end)/2 * (math.cos(math.pi * pct) + 1)
+
+    def _get_lr_mom(self, batch_curr):
+        phase = self.phase
+        batch_tot = self.runner.ep_size
+        if len(phase['ep']) == 1:
+            perc = 0
+        else:
+            ep_start, ep_end = phase['ep']
+            ep_curr, ep_tot = self.epoch - ep_start, ep_end - ep_start
+            perc = (ep_curr * batch_tot + batch_curr) / (ep_tot * batch_tot)
+        if len(phase['lr']) == 1:
+            new_lr = phase['lr'][0] # constant learning rate
+        else:
+            lr_start, lr_end = phase['lr']
+            new_lr = self._schedule(lr_start, lr_end, perc, phase['mode'])
+            
+        if len(phase['mom']) == 0:
+            new_mom = self.current_mom
+        elif len(phase['mom']) == 1:
+            new_mom = phase['mom'][0]
+        else:
+            mom_start, mom_end = phase['mom']
+            new_mom = self._schedule(mom_start, mom_end, perc, phase['mode'])
+
+        return new_lr, new_mom
+
+    def on_epoch_begin(self, epoch):
+        self.epoch = epoch
+        for phase in reversed(self.phases):
+            if (epoch >= phase['ep'][0]):
+                self.phase = phase
+        raise Exception('Epoch out of range')
+    
+    def on_batch_end(self, i):
+        lr, mom = self._get_lr_mom(i)
+        if self.current_lr == lr and self.current_mom == mom:
+            return
+
+        self.current_lr = lr
+        self.current_mom = mom
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = lr
+            param_group['momentum'] = mom
+
+
 # class CheckpointSaver(Callback):
 #     def __init__(self, save_dir, save_name, mode='min', monitor='val_loss'):
 #         super().__init__()
@@ -161,52 +244,45 @@ class Callbacks(Callback):
 #         self.writer.close()
 
 
-# class Logger(Callback):
-#     def __init__(self, log_dir):
-#         super().__init__()
-#         self.log_dir = log_dir
-#         self.logger = None
+class Logger(Callback):
+    def __init__(self, log_dir, logger=None):
+        # logger - already created instance of logger
+        super().__init__()
+        self.logger = logger or self._get_logger(os.path.join(log_dir, 'logs.txt'))
 
-#     def on_train_begin(self):
-#         os.makedirs(self.log_dir, exist_ok=True)
-#         self.logger = self._get_logger(str(self.log_dir / 'logs.txt'))
-#         self.logger.info(f'Starting training with params:\n{self.runner.factory.params}\n\n')
+    def on_epoch_begin(self, epoch):
+        self.logger.info(
+            'Epoch {} | '.format(epoch)
+            'lr {}'.format(self.current_lr))
 
-#     def on_epoch_begin(self, epoch):
-#         self.logger.info(
-#             f'Epoch {epoch} | '
-#             f'optimizer "{self.runner.optimizer.__class__.__name__}" | '
-#             f'lr {self.current_lr}')
+    def on_epoch_end(self, epoch):
+        loss, metrics = self.runner.loss_meter.avg, self.runner.metric_meters
+        has_val = bool(getattr(self.runner._train_metrics, None))
+        trn_loss, trn_metrics = self.runner._train_metrics if has_val else (loss, metrics)
+        self.logger.info('Train ' + self._format_meters(trn_loss, trn_metrics))
+        if has_val:
+            self.logger.info('Val ' + self._format_meters(loss, metrics))
 
-#     def on_epoch_end(self, epoch):
-#         self.logger.info(
-#             "Train metrics: " + self._get_metrics_string(self.metrics.train_metrics))
-#         self.logger.info(
-#             "Valid metrics: " + self._get_metrics_string(self.metrics.val_metrics) + "\n")
+    @staticmethod
+    def _get_logger(log_path):
+        logger = logging.getLogger(log_path)
+        logger.setLevel(logging.DEBUG)
+        fh = logging.FileHandler(log_path)
+        fh.setLevel(logging.INFO)
+        formatter = logging.Formatter('[%(asctime)s] %(message)s')
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+        return logger
 
-#     def on_stage_begin(self):
-#         self.logger.info(f'Starting stage:\n{self.runner.current_stage}\n')
+    @property
+    def current_lr(self):
+        res = []
+        for param_group in self.runner.optimizer.param_groups:
+            res.append(param_group['lr'])
+        if len(res) == 1:
+            return res[0]
+        return res
 
-#     @staticmethod
-#     def _get_logger(log_path):
-#         logger = logging.getLogger(log_path)
-#         logger.setLevel(logging.DEBUG)
-#         fh = logging.FileHandler(log_path)
-#         fh.setLevel(logging.INFO)
-#         formatter = logging.Formatter('[%(asctime)s] %(message)s')
-#         fh.setFormatter(formatter)
-#         logger.addHandler(fh)
-#         return logger
-
-#     @property
-#     def current_lr(self):
-#         res = []
-#         for param_group in self.runner.optimizer.param_groups:
-#             res.append(param_group['lr'])
-#         if len(res) == 1:
-#             return res[0]
-#         return res
-
-#     @staticmethod
-#     def _get_metrics_string(metrics):
-#         return " | ".join("{}: {:.5f}".format(k, v) for k, v in metrics.items())
+    @staticmethod
+    def _format_meters(loss, metrics):
+        return 'loss: {} | '.format(loss) +  " | ".join("{}: {:.5f}".format(k, v) for k, v in metrics.items())
