@@ -71,7 +71,6 @@ class SGDW(Optimizer):
             loss = closure()
 
         for group in self.param_groups:
-            weight_decay = group['weight_decay']
             momentum = group['momentum']
             dampening = group['dampening']
             nesterov = group['nesterov']
@@ -80,8 +79,6 @@ class SGDW(Optimizer):
               if p.grad is None:
                   continue
               d_p = p.grad.data
-              if group['weight_decay'] != 0:
-                    p.data.mul_(1 - group['lr'] * weight_decay)
               if momentum != 0:
                   param_state = self.state[p]
                   if 'momentum_buffer' not in param_state:
