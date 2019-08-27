@@ -23,6 +23,7 @@ class Runner:
         self.criterion = criterion
         self.metrics = listify(metrics)
         self.callbacks = Callbacks(callbacks)
+        self.callbacks.set_runner(self)
         self.metric_meters = [AverageMeter(name=m.name) for m in self.metrics]
         self.loss_meter = AverageMeter('loss')
         self.timer = TimeMeter()
@@ -39,9 +40,9 @@ class Runner:
         self.callbacks.on_train_begin()
         for epoch in range(start_epoch, epochs):
             self.callbacks.on_epoch_begin(epoch)
-
+            self.epoch = epoch
             self.model.train()
-            self._run_one_epoch(epoch, train_loader, is_train=True, steps=steps_per_epoch)
+            self._run_one_epoch(train_loader, is_train=True, steps=steps_per_epoch)
             
             if val_loader is not None:
                 # useful in callbacks
@@ -52,11 +53,12 @@ class Runner:
         self.callbacks.on_train_end()
 
     #TODO add predict_generators
-    def evaluate(self, loader):
+    def evaluate(self, loader, steps=None):
         if not hasattr(self, 'n_epoch'):
             self.n_epoch = 1
+            self.epoch = 1
         self.model.eval()
-        self._run_one_epoch(1, loader, is_train=False)
+        self._run_one_epoch(loader, is_train=False, steps=steps)
         return self.loss_meter.avg, [m.avg for m in self.metric_meters]
 
     def _make_step(self, batch, is_train):
@@ -78,7 +80,7 @@ class Runner:
 
         return None # or smth? 
 
-    def _run_one_epoch(self, epoch, loader, is_train=True, steps=None):
+    def _run_one_epoch(self, loader, is_train=True, steps=None):
         self.loss_meter.reset()
         self.timer.reset()
         for m in self.metric_meters:
@@ -86,7 +88,7 @@ class Runner:
         self.ep_size = len(loader) # useful in callbacks
         pbar = tqdm(enumerate(loader), total=steps or self.ep_size, ncols=0) #, ncols=0
         pbar.set_description("Epoch {:2d}/{}. {}ing:".format(
-            epoch, self.n_epoch, ['validat', 'train'][is_train]))
+            self.epoch, self.n_epoch, ['validat', 'train'][is_train]))
         with torch.set_grad_enabled(is_train):
             for i, batch in pbar:
                 if steps and i == steps:

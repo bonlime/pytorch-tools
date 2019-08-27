@@ -4,6 +4,7 @@ import logging
 from queue import PriorityQueue
 from tensorboardX import SummaryWriter
 from ..utils.misc import listify
+import math
 
 
 class Callback(object):
@@ -104,6 +105,7 @@ class PhasesScheduler(Callback):
         self.current_lr = None
         self.current_mom = None
         self.phases = [self._format_phase(p) for p in phases]
+        self.phase = self.phases[0]
         self.tot_epochs = max([max(p['ep']) for p in self.phases])
         super(PhasesScheduler, self).__init__()
 
@@ -151,16 +153,20 @@ class PhasesScheduler(Callback):
 
     def on_epoch_begin(self, epoch):
         self.epoch = epoch
+        new_phase = None
         for phase in reversed(self.phases):
             if (epoch >= phase['ep'][0]):
-                self.phase = phase
-        raise Exception('Epoch out of range')
-    
-    def on_batch_end(self, i):
+                new_phase = phase
+                break
+        if new_phase is None:
+            raise Exception('Epoch out of range')
+        else:
+            self.phase = new_phase
+
+    def on_batch_begin(self, i):
         lr, mom = self._get_lr_mom(i)
         if self.current_lr == lr and self.current_mom == mom:
-            return
-
+            return 
         self.current_lr = lr
         self.current_mom = mom
         for param_group in self.optimizer.param_groups:
@@ -252,12 +258,11 @@ class Logger(Callback):
 
     def on_epoch_begin(self, epoch):
         self.logger.info(
-            'Epoch {} | '.format(epoch)
-            'lr {}'.format(self.current_lr))
+            'Epoch {} | '.format(epoch) + 'lr {:.3f}'.format(self.current_lr))
 
     def on_epoch_end(self, epoch):
         loss, metrics = self.runner.loss_meter.avg, self.runner.metric_meters
-        has_val = bool(getattr(self.runner._train_metrics, None))
+        has_val = bool(getattr(self.runner, '_train_metrics', None))
         trn_loss, trn_metrics = self.runner._train_metrics if has_val else (loss, metrics)
         self.logger.info('Train ' + self._format_meters(trn_loss, trn_metrics))
         if has_val:
@@ -285,4 +290,4 @@ class Logger(Callback):
 
     @staticmethod
     def _format_meters(loss, metrics):
-        return 'loss: {} | '.format(loss) +  " | ".join("{}: {:.5f}".format(k, v) for k, v in metrics.items())
+        return 'loss: {:.4f} | '.format(loss) +  " | ".join("{}: {:.4f}".format(m.name, m.avg) for m in metrics)
