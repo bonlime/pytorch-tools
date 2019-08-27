@@ -90,7 +90,8 @@ class DenseNet(nn.Module):
         self.num_init_features = num_init_features
         self.drop_rate = drop_rate
         self.norm_layer = bn_from_name(norm_layer)
-        self.norm_act = activation_from_name(norm_act, activation_param)
+        # self.norm_act = activation_from_name(norm_act, activation_param)
+        self.norm_act = norm_act
         self.activation_param = activation_param
         super(DenseNet, self).__init__()
 

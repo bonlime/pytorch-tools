@@ -2,9 +2,7 @@ import torch
 import torch.nn as nn
 from inplace_abn import ABN
 from pytorch_tools.modules import BlurPool, GlobalPool2d
-from ..utils.misc import listify  # just for test
-from ..utils.misc import activation_from_name
-import math
+from pytorch_tools.utils.misc import activation_from_name
 
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
