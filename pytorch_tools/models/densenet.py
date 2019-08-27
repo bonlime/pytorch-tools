@@ -14,7 +14,7 @@ from torchvision.models.utils import load_state_dict_from_url
 import torch.utils.checkpoint as cp
 
 from pytorch_tools.modules import BasicBlock, Bottleneck, SEModule, Flatten
-from pytorch_tools.modules import GlobalPool2d, BlurPool, Transition
+from pytorch_tools.modules import GlobalPool2d, BlurPool, Transition, DenseLayer
 from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.utils.misc import activation_from_name, bn_from_name
 from pytorch_tools.utils.misc import add_docs_for
@@ -23,61 +23,6 @@ from collections import OrderedDict
 from functools import wraps, partial
 from copy import deepcopy
 import logging
-
-def _bn_function_factory(norm, relu, conv):
-    def bn_function(*inputs):
-        concated_features = torch.cat(inputs, 1)
-        bottleneck_output = conv(relu(norm(concated_features)))
-        return bottleneck_output
-
-    return bn_function
-
-
-class _DenseLayer(nn.Module):
-    def __init__(self, num_input_features, growth_rate, bn_size, drop_rate, efficient=False):
-        super(_DenseLayer, self).__init__()
-        self.add_module('norm1', nn.BatchNorm2d(num_input_features)),
-        self.add_module('relu1', nn.ReLU(inplace=True)),
-        self.add_module('conv1', nn.Conv2d(num_input_features, bn_size * growth_rate,
-                        kernel_size=1, stride=1, bias=False)),
-        self.add_module('norm2', nn.BatchNorm2d(bn_size * growth_rate)),
-        self.add_module('relu2', nn.ReLU(inplace=True)),
-        self.add_module('conv2', nn.Conv2d(bn_size * growth_rate, growth_rate,
-                        kernel_size=3, stride=1, padding=1, bias=False)),
-        self.drop_rate = drop_rate
-        self.efficient = efficient
-
-    def forward(self, *prev_features):
-        bn_function = _bn_function_factory(self.norm1, self.relu1, self.conv1)
-        if self.efficient and any(prev_feature.requires_grad for prev_feature in prev_features):
-            bottleneck_output = cp.checkpoint(bn_function, *prev_features)
-        else:
-            bottleneck_output = bn_function(*prev_features)
-        new_features = self.conv2(self.relu2(self.norm2(bottleneck_output)))
-        if self.drop_rate > 0:
-            new_features = F.dropout(new_features, p=self.drop_rate, training=self.training)
-        return new_features
-
-class _DenseBlock(nn.Module):
-    def __init__(self, num_layers, num_input_features, bn_size, growth_rate, drop_rate, memory_efficient=False):
-        super(_DenseBlock, self).__init__()
-        for i in range(num_layers):
-            layer = _DenseLayer(
-                num_input_features + i * growth_rate,
-                growth_rate=growth_rate,
-                bn_size=bn_size,
-                drop_rate=drop_rate,
-                memory_efficient=memory_efficient,
-            )
-            self.add_module('denselayer%d' % (i + 1), layer)
-
-    def forward(self, init_features):
-        features = [init_features]
-        for name, layer in self.named_children():
-            new_features = layer(*features)
-            features.append(new_features)
-        return torch.cat(features, 1)
-
 
 
 class DenseNet(nn.Module):
@@ -106,6 +51,8 @@ class DenseNet(nn.Module):
         Decrease number of feature maps in transition layer. 'theta' in paper
     antialias: bool, default False
         Use antialias
+    bottle_neck: bool, default True
+        Use bottleneck in DenseLayer with default expansion rate 4. (Width = 4 * growth_rate)
     drop_rate : float, default 0.
         Dropout probability before classifier, for training
     norm_layer : str, default 'bn'
@@ -132,6 +79,7 @@ class DenseNet(nn.Module):
                  compression=0.,
                  antialias=False,
                 #  encoder=False,
+                 bottleneck=True,
                  norm_layer='bn',
                  norm_act='relu',
                  global_pool='avg',
@@ -158,64 +106,95 @@ class DenseNet(nn.Module):
         else:
             self.conv0 = nn.Conv2d(in_chans, num_init_features, kernel_size=7, stride=2,
                                    padding=3, bias=False)
+
         self.norm0 = norm_layer(num_init_features)  # vanilla BatchNorm by default
         self.relu0 = self.norm_act
         if antialias:
             self.pool0 = nn.Sequential(nn.MaxPool2d(kernel_size=3, stride=1, padding=1),
-                                         BlurPool())
+                                       BlurPool())
         else:
             self.pool0 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1, ceil_mode=False)
 
         self.global_pool = GlobalPool2d(global_pool)
-        # Each denseblock
+
+        largs = dict(compression=compression, norm_layer=norm_layer,
+                     norm_act=norm_act, antialias=antialias)
+
         num_features = num_init_features
-        for i, num_layers in enumerate(block_config):
-            block = _DenseBlock(
-                num_layers=num_layers,
-                num_input_features=num_features,
-                bn_size=bn_size,
-                growth_rate=growth_rate,
-                drop_rate=drop_rate,
-                memory_efficient=memory_efficient
-            )
-            self.features.add_module('denseblock%d' % (i + 1), block)
-            num_features = num_features + num_layers * growth_rate
-            if i != len(block_config) - 1:
-                trans = _Transition(num_input_features=num_features,
-                                    num_output_features=num_features // 2)
-                self.features.add_module('transition%d' % (i + 1), trans)
-                num_features = num_features // 2
+        self.denseblock1, self.transition1 = self._make_layer(block_config[0],
+                                                              growth_rate,
+                                                              norm_act=norm_act,
+                                                              norm_layer=norm_layer,
+                                                              drop_rate=drop_rate,
+                                                              compression,
+                                                              transition=True)
+        num_features = int((num_features + block_config[0] * growth_rate) * compression)
+        self.denseblock2, self.transition2 = self._make_layer(block_config[1],
+                                                              growth_rate,
+                                                              norm_act=norm_act,
+                                                              norm_layer=norm_layer,
+                                                              drop_rate=drop_rate,
+                                                              compression,
+                                                              transition=True)
+        num_features = int((num_features + block_config[0] * growth_rate) * compression)
+        self.denseblock3, self.transition3 = self._make_layer(block_config[2],
+                                                              growth_rate,
+                                                              norm_act=norm_act,
+                                                              norm_layer=norm_layer,
+                                                              drop_rate=drop_rate,
+                                                              compression=compression,
+                                                              transition=True)
+        num_features = int((num_features + block_config[0] * growth_rate) * compression)
+        self.denseblock4 = self._make_layer(block_config[0],
+                                            growth_rate,
+                                            norm_act=norm_act,
+                                            norm_layer=norm_layer,
+                                            drop_rate=drop_rate,
+                                            transition=False)
+
+        num_features = int(num_features + block_config[0] * growth_rate)
 
         # Final normalization
-        self.norm5 = norm_layer(self.num_features)  # Define num_features!!!
-
-        largs = dict(use_se=use_se, norm_layer=norm_layer,
-                     norm_act=norm_act, antialias=antialias)
-        self.denseblock1 = self._make_layer(64, layers[0], stride=1, **largs)
-        self.transition1 = 0
-        self.denseblock2 = 0
-        self.transition2 = 0
-        self.denseblock3 = 0
-        self.transition3 = 0
-        self.denseblock4 = 0
-
-
-        self.layer2 = self._make_layer(128, layers[1], stride=2, **largs)
-        self.layer3 = self._make_layer(256, layers[2], stride=stride_3_4, dilation=dilation_3, **largs)
-        self.layer4 = self._make_layer(512, layers[3], stride=stride_3_4, dilation=dilation_4, **largs)
-        self.global_pool = GlobalPool2d(global_pool)
-        self.num_features = 512 * self.expansion
-        self.encoder = encoder
+        self.norm5 = norm_layer(num_features) 
 
         # Linear layer
         if not encoder:
-            self.classifier = nn.Linear(self.num_features, num_classes)
-            self.last_linear = nn.Linear(self.num_features * self.global_pool.feat_mult(), num_classes)
+            self.classifier = nn.Linear(num_features, num_classes)
         else:
             self.forward = self.encoder_features
         self.classifier = nn.Linear(num_features, num_classes)
 
         self._initialize_weights(init_bn0)
+
+    def _make_layer(self, in_planes, blocks, growth_rate,
+                    norm_layer,
+                    norm_act,
+                    drop_rate,
+                    compression,
+                    transition):
+        """
+        Returns DenseBlock
+        """
+        layers = nn.Sequential()
+        for i in range(blocks):
+            layer = DenseLayer(in_planes + i * growth_rate,
+                               growth_rate=growth_rate,
+                               norm_layer=norm_layer,
+                               norm_act=norm_act,
+                               drop_rate=drop_rate,
+                               global_pool)
+            layers.add_module("denselayer{}".format(i + 1), layer)
+        in_planes = in_planes + blocks * growth_rate
+        if transition:
+            trans = Transition(in_planes=in_planes,
+                               out_planes=int(in_planes * compression),
+                               drop_rate=drop_rate,
+                               norm_act=norm_act,
+                               norm_layer=norm_layer,
+                               global_pool=global_pool)
+            return layers, trans
+        else:
+            return layers
 
     def features(self, x):
         x = self.relu0(self.norm0(self.conv0(x)))
@@ -226,6 +205,17 @@ class DenseNet(nn.Module):
         x = self.denseblock4(x)
         x = self.norm5(x)
         return x
+
+    # def encoder_features(self, x):
+    #     """
+    #     Return 5 feature maps before maxpooling layers
+    #     """
+    #     x0 = self.relu0(self.norm0(self.conv0(x)))
+    #     x1 = self.denseblock1(self.pool0(x0))
+    #     x2 = self.denseblock2(self.transition1(x1))
+    #     x3 = self.denseblock3(self.transition2(x1))
+    #     x4 = self.norm5(self.denseblock4(self.transition3(x1)))
+    #     return [x4, x3, x2, x1, x0]
 
     def forward(self, x):
         x = self.features(x)
@@ -246,7 +236,7 @@ class DenseNet(nn.Module):
 CFGS = {
     'densenet121': {
         'default': {
-            'params': {'growth_rate': 32, 'layers': (6, 12, 24, 16), norm_layer='bn', },
+            'params': {'growth_rate': 32, 'block_config': (6, 12, 24, 16), norm_layer='bn', },
             **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url': 'https://download.pytorch.org/models/densenet121-a639ec97.pth'},

@@ -146,7 +146,7 @@ class Transition(nn.Module):
                  norm_act=nn.ReLU(inplace=True),
                  global_pool=nn.AvgPool2d(kernel_size=2, stride=2, padding=0)):
 
-        super(_Transition, self).__init__()
+        super(Transition, self).__init__()
         self.norm = norm_layer(in_planes)
         self.relu = norm_act
         self.conv = conv1x1(in_planes, out_planes)
@@ -156,5 +156,35 @@ class Transition(nn.Module):
     def forward(self, x):
         out = self.conv(self.relu(self.norm(x)))
         if self.drop_rate > 0:
-            out = F.dropout(out, p=self.drop_rate, inplace=False)
-        out = self.global_pool(out)
+            out = F.dropout(out, p=self.drop_rate, inplace=True)
+        out = self.pool(out)
+
+
+class DenseLayer(nn.Module):
+    expansion = 4
+
+    def __init__(self, in_planes, growth_rate, 
+                 norm_layer=ABN,
+                 norm_act='relu',
+                 drop_rate=0.0):
+        super(DenseLayer, self).__init__()
+        
+        width = growth_rate * expansion
+
+        self.norm1 = norm_layer(in_planes, activation=norm_act)
+        self.conv1 = conv1x1(inplanes, width)
+
+        self.norm2 = norm_layer(width, activation=norm_act)
+        self.conv2 = conv3x3(width, growth_rate)
+        self.drop_rate = drop_rate
+
+    def forward(self, x):
+
+        bottleneck_out = self.norm1(self.conv1(x))
+        out = self.conv2(self.norm2(bottleneck_output))
+        
+        if self.drop_rate > 0:
+            out = F.dropout(out, p=self.drop_rate, training=self.training)
+    
+        return torch.cat([x, out], 1)
+
