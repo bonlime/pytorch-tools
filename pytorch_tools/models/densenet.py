@@ -126,7 +126,7 @@ class DenseNet(nn.Module):
                                                               norm_act=norm_act,
                                                               norm_layer=norm_layer,
                                                               drop_rate=drop_rate,
-                                                              compression,
+                                                              compression=compression,
                                                               transition=True)
         num_features = int((num_features + block_config[0] * growth_rate) * compression)
         self.denseblock2, self.transition2 = self._make_layer(block_config[1],
@@ -134,7 +134,7 @@ class DenseNet(nn.Module):
                                                               norm_act=norm_act,
                                                               norm_layer=norm_layer,
                                                               drop_rate=drop_rate,
-                                                              compression,
+                                                              compression=compression,
                                                               transition=True)
         num_features = int((num_features + block_config[0] * growth_rate) * compression)
         self.denseblock3, self.transition3 = self._make_layer(block_config[2],
@@ -171,7 +171,8 @@ class DenseNet(nn.Module):
                     norm_act,
                     drop_rate,
                     compression,
-                    transition):
+                    transition,
+                    global_pool):
         """
         Returns DenseBlock
         """
@@ -181,8 +182,7 @@ class DenseNet(nn.Module):
                                growth_rate=growth_rate,
                                norm_layer=norm_layer,
                                norm_act=norm_act,
-                               drop_rate=drop_rate,
-                               global_pool)
+                               drop_rate=drop_rate)
             layers.add_module("denselayer{}".format(i + 1), layer)
         in_planes = in_planes + blocks * growth_rate
         if transition:

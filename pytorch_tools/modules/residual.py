@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 from inplace_abn import ABN
 from pytorch_tools.modules import BlurPool, GlobalPool2d
-from ..utils.misc import activation_from_name
 from ..utils.misc import listify  # just for test
+from ..utils.misc import activation_from_name
 import math
 
 
