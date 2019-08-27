@@ -236,7 +236,7 @@ class DenseNet(nn.Module):
 CFGS = {
     'densenet121': {
         'default': {
-            'params': {'growth_rate': 32, 'block_config': (6, 12, 24, 16), norm_layer='bn', },
+            'params': {'growth_rate': 32, 'block_config': (6, 12, 24, 16), 'num_init_features': 64, 'norm_layer': 'bn'},
             **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url': 'https://download.pytorch.org/models/densenet121-a639ec97.pth'},
