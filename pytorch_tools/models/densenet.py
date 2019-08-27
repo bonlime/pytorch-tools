@@ -14,15 +14,74 @@ from torchvision.models.utils import load_state_dict_from_url
 import torch.utils.checkpoint as cp
 
 from pytorch_tools.modules import BasicBlock, Bottleneck, SEModule, Flatten
-from pytorch_tools.modules import GlobalPool2d, BlurPool, Transition, DenseLayer
+from pytorch_tools.modules import GlobalPool2d, BlurPool
 from pytorch_tools.modules.residual import conv1x1, conv3x3
-from pytorch_tools.utils.misc import activation_from_name, bn_from_name
+from pytorch_tools.utils.misc import bn_from_name  # activation_from_name
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from collections import OrderedDict
 from functools import wraps, partial
 from copy import deepcopy
 import logging
+
+from inplace_abn import ABN
+
+class Transition(nn.Module):
+    r"""
+    Transition Block as described in [DenseNet](https://arxiv.org/abs/1608.06993)
+    
+    - Activation
+    - 1x1 Convolution (with optional compression of the number of channels)
+    - 2x2 Average Pooling
+    """
+    def __init__(self, in_planes, out_planes,
+                 drop_rate=0.0,
+                 norm_layer=ABN,
+                 norm_act='relu',
+                 global_pool=nn.AvgPool2d(kernel_size=2, stride=2, padding=0)):
+
+        super(Transition, self).__init__()
+        self.norm = norm_layer(in_planes, activation=norm_act)
+        self.conv = conv1x1(in_planes, out_planes)
+        self.pool = global_pool
+        self.drop_rate = drop_rate
+
+    def forward(self, x):
+        out = self.norm(x)
+        out = self.conv(out)
+        if self.drop_rate > 0:
+            out = F.dropout(out, p=self.drop_rate, inplace=True)
+        out = self.pool(out)
+
+
+class DenseLayer(nn.Module):
+    expansion = 4
+
+    def __init__(self, in_planes, growth_rate,
+                 norm_layer=ABN,
+                 norm_act='relu',
+                 drop_rate=0.0):
+        super(DenseLayer, self).__init__()
+
+        width = growth_rate * self.expansion
+        self.norm1 = norm_layer(in_planes, activation=norm_act)
+        self.conv1 = conv1x1(in_planes, width)
+
+        self.norm2 = norm_layer(width, activation=norm_act)
+        self.conv2 = conv3x3(width, growth_rate)
+
+        self.drop_rate = drop_rate
+
+    def forward(self, x):
+
+        bottleneck_out = self.conv1(self.norm1(x))
+        out = self.conv2(self.norm2(bottleneck_output))
+        
+        if self.drop_rate > 0:
+            out = F.dropout(out, p=self.drop_rate, training=self.training)
+    
+        return torch.cat([x, out], 1)
+
 
 
 class DenseNet(nn.Module):
@@ -80,16 +139,16 @@ class DenseNet(nn.Module):
                  antialias=False,
                 #  encoder=False,
                  bottleneck=True,
-                 norm_layer='bn',
+                 norm_layer='abn',
                  norm_act='relu',
                  global_pool='avg',
                  activation_param=None,
                  memory_efficient=False):
 
+        norm_layer = bn_from_name(norm_layer)
         self.num_classes = num_classes
         self.num_init_features = num_init_features
         self.drop_rate = drop_rate
-        self.norm_layer = bn_from_name(norm_layer)
         # self.norm_act = activation_from_name(norm_act, activation_param)
         self.norm_act = norm_act
         self.activation_param = activation_param
@@ -108,8 +167,8 @@ class DenseNet(nn.Module):
             self.conv0 = nn.Conv2d(in_chans, num_init_features, kernel_size=7, stride=2,
                                    padding=3, bias=False)
 
-        self.norm0 = norm_layer(num_init_features)  # vanilla BatchNorm by default
-        self.relu0 = self.norm_act
+        self.norm0 = norm_layer(num_init_features, activation=norm_act)  # ABN
+        # self.relu0 = self.norm_act
         if antialias:
             self.pool0 = nn.Sequential(nn.MaxPool2d(kernel_size=3, stride=1, padding=1),
                                        BlurPool())
@@ -122,41 +181,46 @@ class DenseNet(nn.Module):
                      norm_act=norm_act, antialias=antialias)
 
         num_features = num_init_features
-        self.denseblock1, self.transition1 = self._make_layer(block_config[0],
+        self.denseblock1, self.transition1 = self._make_layer(num_features, block_config[0],
                                                               growth_rate,
                                                               norm_act=norm_act,
                                                               norm_layer=norm_layer,
                                                               drop_rate=drop_rate,
                                                               compression=compression,
+                                                              global_pool=global_pool,
                                                               transition=True)
         num_features = int((num_features + block_config[0] * growth_rate) * compression)
-        self.denseblock2, self.transition2 = self._make_layer(block_config[1],
+        self.denseblock2, self.transition2 = self._make_layer(num_features, block_config[1],
                                                               growth_rate,
                                                               norm_act=norm_act,
                                                               norm_layer=norm_layer,
                                                               drop_rate=drop_rate,
                                                               compression=compression,
+                                                              global_pool=global_pool,
                                                               transition=True)
-        num_features = int((num_features + block_config[0] * growth_rate) * compression)
-        self.denseblock3, self.transition3 = self._make_layer(block_config[2],
+        num_features = int((num_features + block_config[1] * growth_rate) * compression)
+        self.denseblock3, self.transition3 = self._make_layer(num_features, block_config[2],
                                                               growth_rate,
                                                               norm_act=norm_act,
                                                               norm_layer=norm_layer,
                                                               drop_rate=drop_rate,
                                                               compression=compression,
+                                                              global_pool=global_pool,
                                                               transition=True)
-        num_features = int((num_features + block_config[0] * growth_rate) * compression)
-        self.denseblock4 = self._make_layer(block_config[0],
+        num_features = int((num_features + block_config[1] * growth_rate) * compression)
+        self.denseblock4 = self._make_layer(num_features, block_config[3],
                                             growth_rate,
                                             norm_act=norm_act,
                                             norm_layer=norm_layer,
                                             drop_rate=drop_rate,
+                                            global_pool=global_pool,
+                                            compression=compression,
                                             transition=False)
 
-        num_features = int(num_features + block_config[0] * growth_rate)
+        num_features = int(num_features + block_config[3] * growth_rate)
 
         # Final normalization
-        self.norm5 = norm_layer(num_features) 
+        self.norm5 = self.norm_layer(num_features, activation='identity')
 
         # Linear layer
         if not encoder:
@@ -186,6 +250,7 @@ class DenseNet(nn.Module):
                                drop_rate=drop_rate)
             layers.add_module("denselayer{}".format(i + 1), layer)
         in_planes = in_planes + blocks * growth_rate
+        
         if transition:
             trans = Transition(in_planes=in_planes,
                                out_planes=int(in_planes * compression),
@@ -198,7 +263,7 @@ class DenseNet(nn.Module):
             return layers
 
     def features(self, x):
-        x = self.relu0(self.norm0(self.conv0(x)))
+        x = self.norm0(self.conv0(x))
         x = self.pool0(x)
         x = self.transition1(self.denseblock1(x))
         x = self.transition2(self.denseblock2(x))
@@ -211,7 +276,7 @@ class DenseNet(nn.Module):
     #     """
     #     Return 5 feature maps before maxpooling layers
     #     """
-    #     x0 = self.relu0(self.norm0(self.conv0(x)))
+    #     x0 = self.norm0(self.conv0(x))
     #     x1 = self.denseblock1(self.pool0(x0))
     #     x2 = self.denseblock2(self.transition1(x1))
     #     x3 = self.denseblock3(self.transition2(x1))
@@ -237,7 +302,7 @@ class DenseNet(nn.Module):
 CFGS = {
     'densenet121': {
         'default': {
-            'params': {'growth_rate': 32, 'block_config': (6, 12, 24, 16), 'num_init_features': 64, 'norm_layer': 'bn'},
+            'params': {'growth_rate': 32, 'block_config': (6, 12, 24, 16), 'num_init_features': 64, },
             **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url': 'https://download.pytorch.org/models/densenet121-a639ec97.pth'},

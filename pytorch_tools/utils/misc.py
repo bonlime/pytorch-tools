@@ -50,7 +50,7 @@ def bn_from_name(norm_name):
     elif norm_name == 'inplaceabnsync':
         return InPlaceABNSync
     elif norm_name == "bn":
-        return BatchNorm2d
+        return nn.BatchNorm2d
     else:
         raise ValueError("Normalization {} not supported".format(norm_name))
 
