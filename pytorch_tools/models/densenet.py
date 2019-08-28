@@ -11,13 +11,13 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as cp
 from collections import OrderedDict
 from torchvision.models.utils import load_state_dict_from_url
-
 from functools import wraps, partial
 from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.modules import GlobalPool2d
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from copy import deepcopy
+import re
 import logging
 
 class _Transition(nn.Module):
@@ -204,12 +204,17 @@ class DenseNet(nn.Module):
     #     x4 = self.norm5(self.denseblock4(self.transition3(x1)))
     #     return [x4, x3, x2, x1, x0]
 
-    def forward(self, x):
-        x = self.features(x)
+    def logits(self, x):
         x = F.relu(x, inplace=True)
         x = self.global_pool(x)
         x = torch.flatten(x, 1)
         x = self.classifier(x)
+        return x
+
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.logits(x)
         return x   
 
     def _initialize_weights(self):
@@ -220,6 +225,16 @@ class DenseNet(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
+
+    def load_state_dict(self, state_dict, **kwargs):
+        pattern = re.compile(
+        r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$')
+        for key in list(state_dict.keys()):
+            res = pattern.match(key)
+            if res:
+                new_key = res.group(1) + res.group(2)
+                state_dict[new_key] = state_dict.pop(key)
+        super().load_state_dict(state_dict, **kwargs)
 
 CFGS = {
     'densenet121': {
@@ -311,8 +326,8 @@ def _densenet(arch, pretrained=None, progress=True, **kwargs):
             logging.warning('Using model pretrained for {} classes with {} classes. Last layer is initialized randomly'.format(
                 cfg_settings['num_classes'], kwargs_cls))
             # if there is last_linear in state_dict, it's going to be overwritten
-            state_dict['fc.weight'] = model.state_dict()['last_linear.weight']
-            state_dict['fc.bias'] = model.state_dict()['last_linear.bias']
+            #state_dict['fc.weight'] = model.state_dict()['last_linear.weight']
+            #state_dict['fc.bias'] = model.state_dict()['last_linear.bias']
         model.load_state_dict(state_dict)
 
     setattr(model, 'pretrained_settings', cfg_settings)
