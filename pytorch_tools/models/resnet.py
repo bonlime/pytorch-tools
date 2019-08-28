@@ -96,12 +96,12 @@ class ResNet(nn.Module):
                  block_reduce_first=1, down_kernel_size=1,
                  dilated=False,
                  norm_layer='abn',
+                 norm_act='relu',
+                 activation_param=None,
                  antialias=False,
                  encoder=False,
                  drop_rate=0.0,
                  global_pool='avg',
-                 norm_act='relu',
-                 activation_param=None,
                  init_bn0=True):
 
         stem_width = 64

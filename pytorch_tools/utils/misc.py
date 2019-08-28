@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from functools import partial
 
 from inplace_abn import ABN, InPlaceABN, InPlaceABNSync
-from ..modules import SiLU, SoftExponential
+#from ..modules import SiLU, SoftExponential
 
 
 def initialize(model):
