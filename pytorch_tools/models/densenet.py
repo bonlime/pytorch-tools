@@ -75,7 +75,7 @@ class DenseLayer(nn.Module):
     def forward(self, x):
 
         bottleneck_out = self.conv1(self.norm1(x))
-        out = self.conv2(self.norm2(bottleneck_output))
+        out = self.conv2(self.norm2(bottleneck_out))
         
         if self.drop_rate > 0:
             out = F.dropout(out, p=self.drop_rate, training=self.training)
