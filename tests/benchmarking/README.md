@@ -6,6 +6,21 @@ Mean of 10 runs 50 iters each BS=128:
 VGG 16 InplaceABN:
 Mean of 10 runs 50 iters each BS=128:
          727.05+-0.73 msecs gpu. Max memory: 11857.39Mb
+
+VGG 16 Naive PostAct:
+Mean of 10 runs 10 iters each BS=128:
+         652.89+-0.98 msecs gpu. Max memory: 17585.80Mb
+VGG 16 Chpnt PostAct:
+Mean of 10 runs 10 iters each BS=128:
+         847.33+-10.08 msecs gpu. Max memory: 13423.22Mb
+
+VGG 16 Naive PreAct:
+Mean of 10 runs 10 iters each BS=128:
+         641.53+-1.29 msecs gpu. Max memory: 17585.80Mb
+VGG 16 Chpnt PreAct:
+Mean of 10 runs 10 iters each BS=128:
+         841.74+-12.48 msecs gpu. Max memory: 13423.22Mb
+
 Resnet50 ABN:
 Mean of 10 runs 50 iters each BS=128:
          447.21+-0.61 msecs gpu. Max memory: 10884.15Mb
