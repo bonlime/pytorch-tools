@@ -18,7 +18,6 @@ def test_model(model):
     optimizer = torch.optim.SGD(model.parameters(), 0.01, momentum=0.9, weight_decay=1e-4)
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
-    cpu_results = []
     gpu_results = []
     torch.cuda.reset_max_memory_allocated()
     with cudnn.flags(enabled=True, benchmark=False):
@@ -28,25 +27,20 @@ def test_model(model):
             if i == 1: 
                 torch.cuda.reset_max_memory_allocated()
             start.record()
-            start_cpu = time.time()
             for j in range(RUN_ITERS):
                 output = model(INP)
                 loss = criterion(output, TARGET)
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-            end_cpu = time.time()
             end.record()
             torch.cuda.synchronize()
             gpu_time = start.elapsed_time(end)
-            cpu_time = (end_cpu - start_cpu)*1e3
-            cpu_results.append(cpu_time)
             gpu_results.append(gpu_time)
         # mean without first ot drop benchmarking stage which is ~3x slower
-        print("Mean of {} runs {} iters each BS={}: \n\t {:.2f}+-{:.2f} msecs gpu. {:.2f}+-{:.2f} msecs cpu. Max memory: {:.2f}Mb".format(
+        print("Mean of {} runs {} iters each BS={}: \n\t {:.2f}+-{:.2f} msecs gpu. Max memory: {:.2f}Mb".format(
             N_RUNS, RUN_ITERS, BS,
             np.mean(gpu_results[1:])/RUN_ITERS, np.std(gpu_results[1:])/RUN_ITERS, 
-            np.mean(cpu_results[1:])/RUN_ITERS, np.std(cpu_results[1:])/RUN_ITERS, 
             torch.cuda.max_memory_allocated() / 2**20
         ))
     del optimizer
