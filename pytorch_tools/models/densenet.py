@@ -40,6 +40,7 @@ class _Transition(nn.Module):
         out = self.act(x)
         out = self.conv(out)
         out = self.pool(out)
+        return out
 
 def _bn_function_factory(norm, relu, conv):
     def bn_function(*inputs):
@@ -64,13 +65,13 @@ class _DenseLayer(nn.Module):
         self.drop_rate = drop_rate
         self.memory_efficient = memory_efficient
 
-    def forward(self, inputs):
-        bn_function = _bn_function_factory(self.norm1, self.relu1, self.conv1)
+    def forward(self, *inputs):
+        bn_function = _bn_function_factory(self.norm1, self.act1, self.conv1)
         if self.memory_efficient and any(x.requires_grad for x in inputs):
             out = cp.checkpoint(bn_function, *inputs)
         else:
             out = bn_function(*inputs)
-        out = self.conv2(self.relu2(self.norm2(out)))
+        out = self.conv2(self.act2(self.norm2(out)))
         if self.drop_rate > 0:
             out = F.dropout(out, p=self.drop_rate, training=self.training)
         return out
@@ -87,7 +88,7 @@ class _DenseBlock(nn.Module):
     def forward(self, x):
         out = [x]
         for name, layer in self.named_children():
-            new_out = layer(*features)
+            new_out = layer(*out)
             out.append(new_out)
         return torch.cat(out, 1)
 
