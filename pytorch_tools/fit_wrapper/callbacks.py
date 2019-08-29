@@ -257,8 +257,9 @@ class Logger(Callback):
         self.logger = logger or self._get_logger(os.path.join(log_dir, 'logs.txt'))
 
     def on_epoch_begin(self, epoch):
+        print(epoch, self.current_lr)
         self.logger.info(
-            'Epoch {} | '.format(epoch) + 'lr {:.3f}'.format(self.current_lr))
+            'Epoch {} | '.format(epoch) + 'lr {:.3f}'.format(self.current_lr[0]))
 
     def on_epoch_end(self, epoch):
         loss, metrics = self.runner.loss_meter.avg, self.runner.metric_meters
@@ -284,8 +285,8 @@ class Logger(Callback):
         res = []
         for param_group in self.runner.optimizer.param_groups:
             res.append(param_group['lr'])
-        if len(res) == 1:
-            return res[0]
+        # if len(res) == 1:
+        #     return res[0]
         return res
 
     @staticmethod
