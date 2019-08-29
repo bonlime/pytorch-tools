@@ -2,63 +2,73 @@ import sys
 import time
 import torch
 #import torch.nn as nn
+from pytorch_tools.utils.misc import AverageMeter
 import torch.backends.cudnn as cudnn
 from pytorch_tools import models
 import numpy as np
 
+def test_model(model):
+    model = model.cuda(0)
+    optimizer = torch.optim.SGD(model.parameters(), 0.01, momentum=0.9, weight_decay=1e-4)
+    f_times = []
+    fb_times = []
+    with cudnn.flags(enabled=True, benchmark=True):
+        start = torch.cuda.Event(enable_timing=True)
+        f_end = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+        def run_once():
+            start.record()
+            output = model(INP)
+            loss = criterion(output, TARGET)
+            f_end.record()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            end.record()
+            torch.cuda.synchronize()
+            return start.elapsed_time(f_end), start.elapsed_time(end)
+        # benchmark runs. usually much slower than following ones
+        for _ in range(2):
+            run_once()
+        # during cudnn benchmarking a lot of memory is used. we need to reset
+        # in order to get max mem alloc by the fastest algorithm
+        torch.cuda.reset_max_memory_allocated(0)
+        for _ in range(N_RUNS):
+            f_meter = AverageMeter('F time')
+            fb_meter = AverageMeter('FB time')
+            for _ in range(RUN_ITERS):
+                f_t, fb_t = run_once()
+                f_meter.update(f_t)
+                fb_meter.update(fb_t)
+            f_times.append(f_meter.avg)
+            fb_times.append(fb_meter.avg)
+        f_times = np.array(f_times)
+        fb_times = np.array(fb_times)
+        print("Mean of {} runs {} iters each BS={}:\n\t {:.2f}+-{:.2f} msecs Forward. {:.2f}+-{:.2f} msecs Backward. Max memory: {:.2f}Mb".format(
+            N_RUNS, RUN_ITERS, BS,
+            f_times.mean(), f_times.std(), 
+            (fb_times - f_times).mean(), (fb_times - f_times).std(), 
+            torch.cuda.max_memory_allocated(0) / 2**20
+        ))
+    del optimizer
+    del model
+
+# all models are first init to cpu memory to find errors earlier
+models_dict = {
+    # 'VGG16 ABN' : models.vgg16_bn(norm_layer='abn'),
+    # 'VGG 16 InplaceABN:': models.vgg16_bn(norm_layer='inplaceabn'),
+    'Resnet50 No Antialias:' : models.resnet50(antialias=False), #norm_layer='abn', 
+    'Resnet50 Antialias:': models.resnet50(antialias=True), #norm_layer='inplaceabn', ),
+    # 'SE Resnext50_32x4 ABN:' : models.se_resnext50_32x4d(norm_layer='abn'),
+    # 'SE Resnext50_32x4 InplaceABN:' : models.se_resnext50_32x4d(norm_layer='inplaceabn')
+}
+print('Initialized models')
 BS = 64
 N_RUNS = 10
 RUN_ITERS = 10
 INP = torch.ones((BS, 3, 224, 224), requires_grad=True).cuda(0)
 TARGET = torch.ones(BS).long().cuda(0)
 criterion = torch.nn.CrossEntropyLoss().cuda(0)
-
-def test_model(model):
-    optimizer = torch.optim.SGD(model.parameters(), 0.01, momentum=0.9, weight_decay=1e-4)
-    start = torch.cuda.Event(enable_timing=True)
-    end = torch.cuda.Event(enable_timing=True)
-    gpu_results = []
-    with cudnn.flags(enabled=True, benchmark=True):
-        for i in range(N_RUNS):
-            # during cudnn benchmarking a lot of memory is used. we need to reset
-            # in order to get max mem alloc by the fastest algorithm
-            if i == 1: 
-                torch.cuda.reset_max_memory_allocated()
-            start.record()
-            for j in range(RUN_ITERS):
-                output = model(INP)
-                loss = criterion(output, TARGET)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-            end.record()
-            torch.cuda.synchronize()
-            gpu_time = start.elapsed_time(end)
-            gpu_results.append(gpu_time)
-        # mean without first to drop benchmarking stage which is usually much slower
-        print("Mean of {} runs {} iters each BS={}:\n\t {:.2f}+-{:.2f} msecs gpu. Max memory: {:.2f}Mb".format(
-            N_RUNS, RUN_ITERS, BS,
-            np.mean(gpu_results[1:])/RUN_ITERS, np.std(gpu_results[1:])/RUN_ITERS, 
-            torch.cuda.max_memory_allocated() / 2**20
-        ))
-    del optimizer
-    del model
-
-
-print('VGG 16 ABN:')
-test_model(models.vgg16_bn(norm_layer='abn').cuda(0))
-
-print('VGG 16 InplaceABN:')
-test_model(models.vgg16_bn(norm_layer='inplaceabn').cuda(0))
-
-print('Resnet50 ABN:')
-test_model(models.resnet50(norm_layer='abn').cuda(0))
-
-print('Resnet50 InplaceABN:')
-test_model(models.resnet50(norm_layer='inplaceabn').cuda(0))
-
-print('SE Resnext50_32x4 ABN:')
-test_model(models.se_resnext50_32x4d(norm_layer='abn').cuda(0))
-
-print('SE Resnext50_32x4 InplaceABN:')
-test_model(models.se_resnext50_32x4d(norm_layer='inplaceabn').cuda(0))
+for name, model in models_dict.items():
+    print(name)
+    test_model(model)
