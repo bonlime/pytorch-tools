@@ -22,7 +22,7 @@ print("Peak memory: {}Mb".format(torch.cuda.max_memory_allocated(0) / 2**10 / 2*
 print("Current memory: {}Mb".format(torch.cuda.memory_allocated(0) / 2**10 / 2**10))
 torch.backends.cudnn.benchmark = False
 #### SPEED ####
-x = Variable(torch.ones((8, 3, 32, 32)), requires_grad=True).cuda(0)
+x = torch.ones((8, 3, 32, 32), requires_grad=True).cuda(0)
 conv = torch.nn.Conv2d(3,64, 5).cuda(0)
 start = torch.cuda.Event(enable_timing=True)
 end = torch.cuda.Event(enable_timing=True)
