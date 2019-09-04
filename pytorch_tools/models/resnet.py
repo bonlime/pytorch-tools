@@ -28,76 +28,63 @@ wraps = partial(wraps, assigned=('__module__', '__name__', '__qualname__', '__an
 class ResNet(nn.Module):
     """ResNet / ResNeXt / SE-ResNeXt / SE-Net
 
-    This class implements all variants of ResNet, ResNeXt, SE-ResNeXt, and SENet that
+    This class implements all variants of ResNet, ResNeXt and SE-ResNeXt that
       * have > 1 stride in the 3x3 conv layer of bottleneck
       * have conv-bn-act ordering
 
-    This ResNet impl supports a number of stem and downsample options based on the v1c, v1d, v1e, and v1s
-    variants included in the MXNet Gluon ResNetV1b model. The C and D variants are also discussed in the
-    'Bag of Tricks' paper: https://arxiv.org/pdf/1812.01187. The B variant is equivalent to torchvision default.
+    This ResNet impl supports a number of stem and downsample options based on 'Bag of Tricks' paper: 
+    https://arxiv.org/pdf/1812.01187. 
 
-    ResNet variants:
-      * normal, b - 7x7 stem, stem_width = 64, same as torchvision ResNet, NVIDIA ResNet 'v1.5', Gluon v1b
-      * c - 3 layer deep 3x3 stem, stem_width = 32
-      * d - 3 layer deep 3x3 stem, stem_width = 32, average pool in downsample
-      * e - 3 layer deep 3x3 stem, stem_width = 64, average pool in downsample
-      * s - 3 layer deep 3x3 stem, stem_width = 64
 
-    ResNeXt
-      * normal - 7x7 stem, stem_width = 64, standard groups and base widths
-      * same c,d, e, s variants as ResNet can be enabled
-
-    SE-ResNeXt
-      * normal - 7x7 stem, stem_width = 64
-      * same c, d, e, s variants as ResNet can be enabled
-
-    SENet-154 - 3 layer deep 3x3 stem (same as v1c-v1s), stem_width = 64, groups=64,
-        reduction by 2 on width of first bottleneck convolution, 3x3 downsample convs after first block
-
-    Parameters
-    ----------
-    block : Block
-        Class for the residual block. Options are BasicBlock, Bottleneck.
-    layers : list of int
-        Numbers of layers in each block
-    num_classes : int, default 1000
-        Number of classification classes.
-    in_chans : int, default 3
-        Number of input (color) channels.
-    use_se : bool, default False
-        Enable Squeeze-Excitation module in blocks
-    groups : int, default 1
-        Number of convolution groups for 3x3 conv in Bottleneck.
-    base_width : int, default 64
-        Factor determining bottleneck channels. `planes * base_width / 64 * groups`
-    deep_stem : bool, default False
-        Whether to replace the 7x7 conv1 with 3 3x3 convolution layers.
-    stem_width : int, default 64
-        Number of channels in stem convolutions
-    antialias: bool, default False
-        Use antialias
-    dilated : bool, default False
-        Applying dilation strategy to pretrained ResNet yielding a stride-8 model,
-        typically used in Semantic Segmentation.
-    drop_rate : float, default 0.
-        Dropout probability before classifier, for training
-    global_pool : str, default 'avg'
-        Global pooling type. One of 'avg', 'max', 'avgmax', 'catavgmax'
-    init_bn0 : bool, default True
-        Zero-initialize the last BN in each residual branch,
-        so that the residual branch starts with zeros, and each residual block behaves like an identity.
-        This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
+    Args:
+        block (Block): 
+            Class for the residual block. Options are BasicBlock, Bottleneck.
+        layers (List[int]): 
+            Numbers of layers in each block.
+        pretrained ([type], optional): 
+            [description]. Defaults to None.
+        num_classes (int): 
+            Number of classification classes. Defaults to 1000.
+        in_chans (int): 
+            Number of input (color) channels. Defaults to 3.
+        use_se (bool): 
+            Enable Squeeze-Excitation module in blocks.
+        groups (int): 
+            Number of convolution groups for 3x3 conv in Bottleneck. Defaults to 1.
+        base_width (int): 
+            Factor determining bottleneck channels. `planes * base_width / 64 * groups`. Defaults to 64.
+        deep_stem (bool): 
+            Whether to replace the 7x7 conv1 with 3 3x3 convolution layers. Defaults to False.
+        dilated (bool): 
+            Applying dilation strategy to pretrained ResNet yielding a stride-8 model, 
+            typically used in Semantic Segmentation. Defaults to False.
+        norm_layer (str): 
+            Nomaliztion layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory footprint. 
+            But increases backward time. Defaults to 'abn'.
+        norm_act (str): 
+            Activation for normalizion layer. It's reccomended to use `relu` with `abn`.
+        antialias (bool): 
+            Flag to turn on Rect-2 antialiasing from https://arxiv.org/abs/1904.11486. Defaults to False.
+        encoder (bool): 
+            Flag to overwrite forward pass to return 5 tensors with different resolutions. Defaults to False.
+        drop_rate (float): 
+            Dropout probability before classifier, for training. Defaults to 0.0.
+        global_pool (str): 
+            Global pooling type. One of 'avg', 'max', 'avgmax', 'catavgmax'. Defaults to 'avg'.
+        init_bn0 (bool): 
+            Zero-initialize the last BN in each residual branch, so that the residual 
+            branch starts with zeros, and each residual block behaves like an identity.
+            This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677. Defaults to True.
+        
     """
     def __init__(self, block=None, layers=None,
                  pretrained=None,
                  num_classes=1000, in_chans=3, use_se=False,
                  groups=1, base_width=64,
                  deep_stem=False,
-                 block_reduce_first=1, down_kernel_size=1,
                  dilated=False,
                  norm_layer='abn',
                  norm_act='relu',
-                 activation_param=None,
                  antialias=False,
                  encoder=False,
                  drop_rate=0.0,
@@ -107,7 +94,6 @@ class ResNet(nn.Module):
         stem_width = 64
         if norm_layer.lower() == 'abn':
             norm_act = 'relu'
-            activation_param = None
 
         norm_layer = bn_from_name(norm_layer)
         self.inplanes = stem_width
@@ -119,7 +105,6 @@ class ResNet(nn.Module):
         self.expansion = block.expansion
         self.dilated = dilated
         self.norm_act = norm_act
-        self.activation_param = activation_param
         super(ResNet, self).__init__()
 
         
