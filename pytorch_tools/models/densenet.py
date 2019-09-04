@@ -94,62 +94,42 @@ class _DenseBlock(nn.Module):
 
 
 class DenseNet(nn.Module):
-    r"""DenseNet model class, based on
-    `"Densely Connected Convolutional Networks" <https://arxiv.org/pdf/1608.06993.pdf>`_
-    
-    DenseNet variants:
-      * normal - 7x7 stem, stem_width = 64 (96 for densenet161), same as torchvision DenseNet
-      * bc - added compression and bottleneck layers
+    r"""
 
-    Parameters
-    ----------
-    growth_rate :  int
-        How many filters to add each layer (`k` in paper)
-    block_config : (list of 4 ints) 
-        How many layers in each pooling block
-    stem_width : int, default 64
-        Number of filters to learn in the first convolution layer
-    num_classes : int, default 1000
-        Number of classification classes.
-    in_chans : int, default 3
-        Number of input (color) channels.
-    deep_stem : bool, default False
-        Whether to replace the 7x7 conv1 with 3 3x3 convolution layers.
-    compression: float, default 0.
-        Decrease number of feature maps in transition layer. 'theta' in paper
-    antialias: bool, default False
-        Use antialias
-    bottle_neck: bool, default True
-        Use bottleneck in DenseLayer with default expansion rate 4. (Width = 4 * growth_rate)
-    drop_rate : float, default 0.
-        Dropout probability before classifier, for training
-    norm_layer : str, default 'bn'
-        Normalization layer type. One of 'bn', 'abn', 'inplaceabn'
-    norm_act : str, default 'relu'
-        Normalization activation type. 
-    global_pool : str, default 'avg'
-        Global pooling type. One of 'avg', 'max', 'avgmax', 'catavgmax'
-    init_bn0 : bool, default True
-        Zero-initialize the last BN in each residual branch,
-        so that the residual branch starts with zeros, and each residual block behaves like an identity.
-        This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
-    memory_efficient : bool, default True
-        Use checkpointing. Much more memory efficient, but slower.
-        See `"paper" <https://arxiv.org/pdf/1707.06990.pdf>`_
+    Args:
+        growth_rate (int): 
+            How many filters to add each layer (`k` in paper).
+        block_config (List[int]): 
+            How many layers in each pooling block.
+        num_classes (int): 
+            Number of classification classes. Defaults to 1000.
+        drop_rate (float): 
+            Dropout probability after each DenseLayer. Defaults to 0.0.
+        in_chans (int): 
+            Number of input (color) channels. Defaults to 3.
+        deep_stem (bool): 
+            Whether to replace the 7x7 conv1 with 3 3x3 convolution layers. Defaults to False.
+        stem_width (int):
+            Number of filters in the input stem
+        encoder (bool): 
+            Flag to overwrite forward pass to return 5 tensors with different resolutions. Defaults to False.
+        global_pool (str): 
+            Global pooling type. One of 'avg', 'max', 'avgmax', 'catavgmax'. Defaults to 'avg'.
+        memory_efficient (bool):
+            Use checkpointing. Much more memory efficient, but slower.
+            See `"paper" <https://arxiv.org/pdf/1707.06990.pdf>`_. Defaults to True.
     """
 
     def __init__(self, growth_rate=None, block_config=None,
                  num_classes=1000,
-                 stem_width=64,
                  drop_rate=0.0,
                  in_chans=3,
-                 deep_stem=False,
+                 deep_stem=False, stem_width=64,
                  encoder=False,
                  global_pool='avg',
-                 memory_efficient=False):
+                 memory_efficient=True):
 
         self.num_classes = num_classes
-        self.stem_width = stem_width
         super(DenseNet, self).__init__()
         layers_dict = OrderedDict()
         if deep_stem:
