@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 from inplace_abn import ABN
+import math
 from pytorch_tools.modules import BlurPool, GlobalPool2d
 from pytorch_tools.utils.misc import activation_from_name
-import math
+
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
@@ -131,4 +132,3 @@ class Bottleneck(nn.Module):
         else:
             out = self.bn3(out) + residual
         return self.final_act(out)
-

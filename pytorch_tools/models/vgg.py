@@ -25,7 +25,7 @@ class VGG(nn.Module):
             from https://arxiv.org/abs/1904.11486. Defaults to False.
     """
 
-    def __init__(self, 
+    def __init__(self,
                  layers,
                  pretrained=None, # not used. here for proper signature.
                  num_classes=1000, 
@@ -150,7 +150,13 @@ CFGS = {
     }
 }
 
-def _vgg(arch, pretrained=None, **kwargs):
+
+def _vgg(arch, pretrained=None, progress=True, **kwargs):
+    """
+    Args:
+        pretrained (str or None): if present, returns a model pre-trained on 'str' dataset
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
     cfgs = deepcopy(CFGS)
     cfg_settings = cfgs[arch]['default']
     cfg_params = cfg_settings.pop('params')
@@ -164,7 +170,7 @@ def _vgg(arch, pretrained=None, **kwargs):
     kwargs.update(cfg_params)
     model = VGG(**kwargs)
     if pretrained:
-        state_dict = load_state_dict_from_url(cfgs[arch][pretrained]['url'])
+        state_dict = load_state_dict_from_url(cfgs[arch][pretrained]['url'], progress)
         model.load_state_dict(state_dict)
     setattr(model, 'pretrained_settings', cfg_settings)
     return model

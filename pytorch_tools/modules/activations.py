@@ -18,7 +18,7 @@ def silu(input, beta=1):
 
 class SiLU(nn.Module):
     '''
-    Applies the Sigmoid Linear Unit (SiLU) function element-wise:
+    Applies the Sigmoid Linear Unit (SiLU, Swish) function element-wise:
         SiLU(x) = x * sigmoid(beta * x)
     Shape:
         - Input: (N, *) where * means, any number of additional
@@ -67,7 +67,7 @@ class SoftExponential(nn.Module):
         >>> x = torch.randn(256)
         >>> x = a1(x)
     '''
-    def __init__(self, in_features, alpha = None):
+    def __init__(self, in_features, alpha=None):
         '''
         Initialization.
         INPUT:
