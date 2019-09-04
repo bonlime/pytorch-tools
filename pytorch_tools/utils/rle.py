@@ -53,5 +53,5 @@ def rle_decode(rle_str, shape, fill_value=1, dtype=int, relative=False):
         starts -= 1
         ends = starts + lengths
         for lo, hi in zip(starts, ends):
-            mask[lo:hi] = 1
+            mask[lo:hi] = fill_value
         return mask.reshape(shape[::-1]).T
