@@ -8,6 +8,7 @@ from .functional import soft_dice_score
 
 class BinaryDiceLoss(_Loss):
     """Implementation of Dice loss for binary image segmentation task
+    NOTE: Take care that y_pred and y_true has the correct shape
     """
 
     def __init__(self, from_logits=True, smooth=1e-3):
@@ -17,12 +18,12 @@ class BinaryDiceLoss(_Loss):
 
     def forward(self, y_pred, y_true):
         """
-
-        :param y_pred: NxCxHxW
+        :param y_pred: Nx1xHxW
         :param y_true: NxHxW
         :return: scalar
         """
-        dice = soft_dice_score(y_pred, y_true, from_logits=self.from_logits, smooth=self.smooth)
+        assert y_pred.size(1) == 1 # make sure it's binary case
+        dice = soft_dice_score(y_pred.squeeze(), y_true, from_logits=self.from_logits, smooth=self.smooth)
         loss = (1.0 - dice)
 
         return loss
@@ -39,11 +40,12 @@ class BinaryDiceLogLoss(_Loss):
 
     def forward(self, y_pred, y_true):
         """
-        :param y_pred: NxCxHxW
+        :param y_pred: Nx1xHxW
         :param y_true: NxHxW
         :return: scalar
         """
-        iou = soft_dice_score(y_pred, y_true, from_logits=self.from_logits, smooth=self.smooth)
+        assert y_pred.size(1) == 1 # make sure it's binary case
+        iou = soft_dice_score(y_pred.squeeze(), y_true, from_logits=self.from_logits, smooth=self.smooth)
         loss = - torch.log(iou)
         return loss
 
