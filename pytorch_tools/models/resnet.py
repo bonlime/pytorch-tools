@@ -41,8 +41,9 @@ class ResNet(nn.Module):
             Class for the residual block. Options are BasicBlock, Bottleneck.
         layers (List[int]): 
             Numbers of layers in each block.
-        pretrained ([type], optional): 
-            [description]. Defaults to None.
+        pretrained (str, optional): 
+            If not, returns a model pre-trained on 'str' dataset. `imagenet` is available 
+            for every model but some have more. Check the code to find out.
         num_classes (int): 
             Number of classification classes. Defaults to 1000.
         in_chans (int): 
@@ -78,7 +79,7 @@ class ResNet(nn.Module):
         
     """
     def __init__(self, block=None, layers=None,
-                 pretrained=None,
+                 pretrained=None, # not used. here for proper signature
                  num_classes=1000, in_chans=3, use_se=False,
                  groups=1, base_width=64,
                  deep_stem=False,
@@ -377,12 +378,7 @@ CFGS = {
 }
 
 
-def _resnet(arch, pretrained=None, progress=True, **kwargs):
-    """
-    Args:
-        pretrained (str or None): if present, returns a model pre-trained on 'str' dataset
-        progress (bool): If True, displays a progress bar of the download to stderr
-    """
+def _resnet(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)
     cfg_settings = cfgs[arch]['default']
     cfg_params = cfg_settings.pop('params')
@@ -396,7 +392,7 @@ def _resnet(arch, pretrained=None, progress=True, **kwargs):
     kwargs.update(cfg_params)
     model = ResNet(**kwargs)
     if pretrained:
-        state_dict = load_state_dict_from_url(cfgs[arch][pretrained]['url'], progress)
+        state_dict = load_state_dict_from_url(cfgs[arch][pretrained]['url'])
         kwargs_cls = kwargs.get('num_classes', None)
         if kwargs_cls and kwargs_cls != cfg_settings['num_classes']:
             logging.warning('Using model pretrained for {} classes with {} classes. Last layer is initialized randomly'.format(

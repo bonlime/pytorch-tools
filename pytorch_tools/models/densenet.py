@@ -19,6 +19,9 @@ from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from copy import deepcopy
 import re
 import logging
+# avoid overwriting doc string
+wraps = partial(wraps, assigned=('__module__', '__name__', '__qualname__', '__annotations__'))
+
 
 class _Transition(nn.Module):
     r"""
@@ -101,6 +104,8 @@ class DenseNet(nn.Module):
             How many filters to add each layer (`k` in paper).
         block_config (List[int]): 
             How many layers in each pooling block.
+        pretrained (str): 
+            if present, returns a model pre-trained on 'str' dataset
         num_classes (int): 
             Number of classification classes. Defaults to 1000.
         drop_rate (float): 
@@ -121,6 +126,7 @@ class DenseNet(nn.Module):
     """
 
     def __init__(self, growth_rate=None, block_config=None,
+                 pretrained=None, # not used. here for proper signature
                  num_classes=1000,
                  drop_rate=0.0,
                  in_chans=3,
@@ -280,12 +286,7 @@ CFGS = {
 }
 
 
-def _densenet(arch, pretrained=None, progress=True, **kwargs):
-    """
-        Args:
-        pretrained (str or None): if present, returns a model pre-trained on 'str' dataset
-        progress (bool): If True, displays a progress bar of the download to stderr
-    """
+def _densenet(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)
     cfg_settings = cfgs[arch]['default']
     cfg_params = cfg_settings.pop('params')
@@ -315,27 +316,32 @@ def _densenet(arch, pretrained=None, progress=True, **kwargs):
     return model
 
 
+@wraps(DenseNet)
+@add_docs_for(DenseNet)
 def densenet121(**kwargs):
     r"""Densenet-121 model from
     `"Densely Connected Convolutional Networks" <https://arxiv.org/pdf/1608.06993.pdf>`_
     """
     return _densenet('densenet121', **kwargs)
 
-
+@wraps(DenseNet)
+@add_docs_for(DenseNet)
 def densenet161(**kwargs):
     r"""Densenet-161 model from
     `"Densely Connected Convolutional Networks" <https://arxiv.org/pdf/1608.06993.pdf>`_
     """
     return _densenet('densenet161', **kwargs)
 
-
+@wraps(DenseNet)
+@add_docs_for(DenseNet)
 def densenet169(**kwargs):
     r"""Densenet-169 model from
     `"Densely Connected Convolutional Networks" <https://arxiv.org/pdf/1608.06993.pdf>`_
     """
     return _densenet('densenet169', **kwargs)
 
-
+@wraps(DenseNet)
+@add_docs_for(DenseNet)
 def densenet201(**kwargs):
     r"""Densenet-201 model from
     `"Densely Connected Convolutional Networks" <https://arxiv.org/pdf/1608.06993.pdf>`_

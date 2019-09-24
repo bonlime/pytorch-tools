@@ -7,13 +7,12 @@ from functools import wraps, partial
 from copy import deepcopy
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=('__module__', '__name__', '__qualname__', '__annotations__'))
-from decorator import decorator
 
 
 class VGG(nn.Module):
     """
     Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        pretrained (str): if present, returns a model pre-trained on 'str' dataset
         num_classes (int, optional): [description]. Defaults to 1000.
         norm_layer (ABN, optional): Which version of ABN to use. Choices are:
             'ABN' - dropin replacement for BN+Relu.
@@ -151,12 +150,7 @@ CFGS = {
 }
 
 
-def _vgg(arch, pretrained=None, progress=True, **kwargs):
-    """
-    Args:
-        pretrained (str or None): if present, returns a model pre-trained on 'str' dataset
-        progress (bool): If True, displays a progress bar of the download to stderr
-    """
+def _vgg(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)
     cfg_settings = cfgs[arch]['default']
     cfg_params = cfg_settings.pop('params')
@@ -170,7 +164,7 @@ def _vgg(arch, pretrained=None, progress=True, **kwargs):
     kwargs.update(cfg_params)
     model = VGG(**kwargs)
     if pretrained:
-        state_dict = load_state_dict_from_url(cfgs[arch][pretrained]['url'], progress)
+        state_dict = load_state_dict_from_url(cfgs[arch][pretrained]['url'])
         model.load_state_dict(state_dict)
     setattr(model, 'pretrained_settings', cfg_settings)
     return model
