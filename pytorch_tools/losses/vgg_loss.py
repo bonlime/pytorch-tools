@@ -6,6 +6,7 @@ from pytorch_tools import models
 import torch
 import torch.nn as nn
 from torch.nn.modules.loss import _Loss
+from ..utils.misc import listify
 
 class ContentLoss(_Loss):
     """
@@ -16,28 +17,21 @@ class ContentLoss(_Loss):
     """
     models_list = ['vgg11_bn', 'vgg13_bn', 'vgg16_bn', 'vgg19_bn']
 
-    def __init__(self, model="vgg19_bn", layers=["21"],
+    def __init__(self, model="vgg19_bn", pretrained='imagenet', layers=["21"],
                  weights=1, loss="mse", device="cuda", **args):
         super().__init__()
         try:
-            self.model = models.__dict__[arch](pretrained=True, **args)
-            self.model.eval().to(device)
+            self.model = models.__dict__[model](pretrained=pretrained, **args)
+            self.model.eval().to(device) 
         except KeyError:
             print("Model architecture not found in {}".format(models_list))
         
-        if isinstance(layers, str):
-            layers = [layers]
-        assert isinstance(layers, list), "Should be the list of weights or one str name"
-        self.layers = layers
+        self.layers = listify(layers)
+        self.weights = listify(weights)
 
-        if isinstance(weights, float) or isinstance(weights, int):
-            weights = [weights]
-        assert isinstance(weights, list), "Should be the list of weights or one number"
-        self.weights = weights
-
-        if criterion == "mse":
+        if loss == "mse":
             self.criterion = nn.MSELoss()
-        elif criterion == "mae":
+        elif loss == "mae":
             self.criterion = nn.L1Loss()
         else:
             raise KeyError
@@ -46,23 +40,27 @@ class ContentLoss(_Loss):
         """
         Measure distance between feature representations of input and content images
         """
-        input_features = get_features(input, self.model, self.layers)
-        content_features = get_features(content, self.model, self.layers)
+        input_features = torch.stack(self.get_features(input))
+        content_features = torch.stack(self.get_features(content))
         loss = self.criterion(input_features, content_features)
+
+        # Solve big memory consumption
+        torch.cuda.empty_cache()
         return loss
 
-    def get_features(x, model, layers=None):
+    def get_features(self, x):
         """
-        Extract features from the intermediate layers.
+        Extract feature maps from the intermediate layers.
         """
-        if layers is None:
-            layers = ["21"]
+        if self.layers is None:
+            self.layers = ["21"]
 
         features = []
-        for name, module in model.features._modules.items():
+        for name, module in self.model.features._modules.items():
             x = module(x)
-            if name in layers:
+            if name in self.layers:
                 features.append(x)
+        print(len(features))
         return features
 
     
@@ -73,28 +71,26 @@ class StyleLoss(_Loss):
     """
     models_list = ['vgg11_bn', 'vgg13_bn', 'vgg16_bn', 'vgg19_bn']
 
-    def __init__(self, model="vgg19_bn", layers=["0", "5", "10", "19", "28"],
+    def __init__(self, model="vgg19_bn", pretrained='imagenet', layers=["0", "5", "10", "19", "28"],
                  weights=[0.75, 0.5, 0.2, 0.2, 0.2], loss="mse", device="cuda", **args):
         super().__init__()
         try:
-            self.model = models.__dict__[arch](pretrained=True, **args)
+            self.model = models.__dict__[model](pretrained=pretrained, **args)
             self.model.eval().to(device)
         except KeyError:
             print("Model architecture not found in {}".format(models_list))
         
-        if isinstance(layers, str):
-            layers = [layers]
-        assert isinstance(layers, list), "Should be the list of weights or one str name"
-        self.layers = layers
+        self.layers = listify(layers)
+        self.weights = listify(weights)
 
-        if isinstance(weights, float) or isinstance(weights, int):
-            weights = [weights]
-        assert isinstance(weights, list), "Should be the list of weights or one number"
-        self.weights = weights
+        # if isinstance(weights, float) or isinstance(weights, int):
+        #     weights = [weights]
+        # assert isinstance(weights, list), "Should be the list of weights or one number"
+        # self.weights = weights
 
-        if criterion == "mse":
+        if loss == "mse":
             self.criterion = nn.MSELoss()
-        elif criterion == "mae":
+        elif loss == "mae":
             self.criterion = nn.L1Loss()
         else:
             raise KeyError
@@ -103,28 +99,34 @@ class StyleLoss(_Loss):
         """
         Measure distance between feature representations of input and content images
         """
-        input_features = get_features(input, self.model, self.layers)
-        style_features = get_features(content, self.model, self.layers)
-        input_gram = gram_matrix(input_features)
-        style_gram = gram_matrix(style_features)
-        loss = self.criterion(input_gram, style_gram)
+        input_features = self.get_features(input)
+        style_features = self.get_features(style)
+        print(style_features[0].size(), len(style_features))
+
+        input_gram = [self.gram_matrix(x) for x in input_features]
+        style_gram = [self.gram_matrix(x) for x in style_features]
+
+        loss = 0
+        for i_g, s_g in zip(input_gram, style_gram):
+            
+        loss = [self.criterion(torch.stack(i_g), torch.stack(s_g)) for i_g, s_g in zip(input_gram, style_gram)]
         return loss
 
-    def get_features(x, model, layers=None):
+    def get_features(self, x):
         """
-        Extract features from the intermediate layers.
+        Extract feature maps from the intermediate layers.
         """
-        if layers is None:
-            layers = ["0", "5", "10", "19", "28"]
+        if self.layers is None:
+            self.layers = ["0", "5", "10", "19", "28"]
 
         features = []
-        for name, module in model.features._modules.items():
+        for name, module in self.model.features._modules.items():
             x = module(x)
-            if name in layers:
+            if name in self.layers:
                 features.append(x)
         return features
 
-    def gram_matrix(input):
+    def gram_matrix(self, input):
         """
         Compute Gram matrix for each image in batch
         input: Tensor of shape BxCxHxW
