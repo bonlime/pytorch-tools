@@ -1,12 +1,13 @@
 import sys
 import time
 import torch
-#import torch.nn as nn
-from pytorch_tools.utils.misc import AverageMeter
+import pytest
+import numpy as np
 import torch.backends.cudnn as cudnn
 from pytorch_tools import models
-import numpy as np
+from pytorch_tools.utils.misc import AverageMeter
 
+@pytest.mark.skip(reason="Not meant for tests pytest")
 def test_model(model):
     model = model.cuda(0)
     optimizer = torch.optim.SGD(model.parameters(), 0.01, momentum=0.9, weight_decay=1e-4)

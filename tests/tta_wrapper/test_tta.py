@@ -1,7 +1,7 @@
 import torch
 import pytest
 from pytorch_tools.tta_wrapper import functional as F
-from .wrapper import TTA
+from pytorch_tools.tta_wrapper.wrapper import TTA
 from torch import nn
 
 
