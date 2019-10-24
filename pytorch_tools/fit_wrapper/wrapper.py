@@ -1,103 +1,114 @@
 
+from copy import copy
+from enum import Enum
+from collections import OrderedDict
+from tqdm.auto import tqdm
+import torch
+from apex import amp
 from ..utils.misc import AverageMeter
 from ..utils.misc import TimeMeter
 from ..utils.misc import to_numpy
 from ..utils.misc import listify
-from collections import OrderedDict
-import torch
-from tqdm.auto import tqdm
-from torch import nn
-from apex import amp
 from .callbacks import Callbacks
-from copy import copy
 
 
 class Runner:
-    def __init__(self, model):
+    def __init__(self, model, optimizer, criterion, metrics=None, callbacks=None, verbose=True):
         super(Runner, self).__init__()
-        self.model = model
-
-    def compile(self, optimizer, criterion, metrics=None, callbacks=None):
         # TODO move amp logic here
+        self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
-        self.metrics = listify(metrics)
         self.callbacks = Callbacks(callbacks)
         self.callbacks.set_runner(self)
-        self.metric_meters = [AverageMeter(name=m.name) for m in self.metrics]
-        self.loss_meter = AverageMeter('loss')
-        self.timer = TimeMeter()
+        self._metrics = listify(metrics)
+        self._metric_meters = [AverageMeter(name=m.name) for m in self._metrics]
+        self._loss_meter = AverageMeter('loss')
+        self._timer = TimeMeter()
+        self._epochs = 1
+        self._epoch = 1
+        self._verbose = verbose
+        self._train_metrics = None
+        self._val_metrics = None
+        self._is_train = None
+        self._ep_size = None
+        self._step = None
 
-    def fit(self, 
-            train_loader, 
+    def fit(self,
+            train_loader,
             steps_per_epoch=None,
             val_loader=None,
-            val_steps=None, 
-            epochs=1, 
-            start_epoch=0):
-    
-        self.n_epoch = epochs
-        self.callbacks.on_train_begin()
-        for epoch in range(start_epoch, epochs):
-            self.callbacks.on_epoch_begin(epoch)
-            self.epoch = epoch
-            self.model.train()
-            self._run_one_epoch(train_loader, is_train=True, steps=steps_per_epoch)
-            
-            if val_loader is not None:
-                # useful in callbacks
-                self._train_metrics = self.loss_meter.avg, [copy(m) for m in self.metric_meters]
-                self.evaluate(val_loader, steps=val_steps)
+            val_steps=None,
+            epochs=2,
+            start_epoch=1):
 
-            self.callbacks.on_epoch_end(epoch)
+        self._epochs = epochs
+        self.callbacks.on_train_begin()
+        for epoch in range(start_epoch, epochs+1):
+            self._is_train = True  # added to always know the state
+            self._epoch = epoch
+            self.callbacks.on_epoch_begin()
+            self.model.train()
+            self._run_one_epoch(train_loader, steps=steps_per_epoch)
+            self._train_metrics = self._loss_meter, [copy(m) for m in self._metric_meters]
+
+            if val_loader is not None:
+                self.evaluate(val_loader, steps=val_steps)
+                self._val_metrics = self._loss_meter, [copy(m) for m in self._metric_meters]
+
+            self.callbacks.on_epoch_end()
         self.callbacks.on_train_end()
 
-    #TODO add predict_generators
     def evaluate(self, loader, steps=None):
-        if not hasattr(self, 'n_epoch'):
-            self.n_epoch = 1
-            self.epoch = 1
+        self._is_train = False
         self.model.eval()
-        self._run_one_epoch(loader, is_train=False, steps=steps)
-        return self.loss_meter.avg, [m.avg for m in self.metric_meters]
+        self._run_one_epoch(loader, steps=steps)
+        return self._loss_meter.avg, [m.avg for m in self._metric_meters]
 
-    def _make_step(self, batch, is_train):
+    def _make_step(self, batch):
         images, target = batch
         output = self.model(images)
         loss = self.criterion(output, target)
-        if is_train:
+        if self._is_train:
             self.optimizer.zero_grad()
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
             #grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 5.0)
             self.optimizer.step()
             torch.cuda.synchronize()
-            
+
         # update metrics
-        self.loss_meter.update(to_numpy(loss))
-        for metric, meter in zip(self.metrics, self.metric_meters):
+        self._loss_meter.update(to_numpy(loss))
+        for metric, meter in zip(self._metrics, self._metric_meters):
             meter.update(to_numpy(metric(output, target).squeeze()))
 
-        return None # or smth? 
+        return None  # or smth?
 
-    def _run_one_epoch(self, loader, is_train=True, steps=None):
-        self.loss_meter.reset()
-        self.timer.reset()
-        for m in self.metric_meters:
-            m.reset()
-        self.ep_size = len(loader) # useful in callbacks
-        pbar = tqdm(enumerate(loader), total=steps or self.ep_size, ncols=0) #, ncols=0
-        pbar.set_description("Epoch {:2d}/{}. {}ing:".format(
-            self.epoch, self.n_epoch, ['validat', 'train'][is_train]))
-        with torch.set_grad_enabled(is_train):
+    def _run_one_epoch(self, loader, steps=None):
+        self._loss_meter.reset()
+        self._timer.reset()
+        for metric in self._metric_meters:
+            metric.reset()
+        self._ep_size = len(loader)  # useful in callbacks
+        if self._verbose:
+            pbar = tqdm(enumerate(loader), total=steps or self._ep_size, ncols=0)
+            pbar.set_description("Epoch {:2d}/{}. {}ing:".format(
+                self._epoch, self._epochs, ['validat', 'train'][self._is_train]))
+        else:
+            pbar = enumerate(loader)
+
+        with torch.set_grad_enabled(self._is_train):
             for i, batch in pbar:
                 if steps and i == steps:
-                    pbar.close()
+                    if self._verbose:
+                        pbar.close()
                     break
-                self.callbacks.on_batch_begin(i)
-                self._make_step(batch, is_train)
-                desc = OrderedDict({'Loss': "{:.4f}".format(self.loss_meter.avg_smooth)})
-                desc.update({m.name: "{:.3f}".format(m.avg_smooth) for m in self.metric_meters})
-                pbar.set_postfix(**desc)
-                self.callbacks.on_batch_end(i)
+                self._step = i
+                self.callbacks.on_batch_begin()
+                self._make_step(batch)
+                if self._verbose:
+                    desc = OrderedDict({'Loss': "{:.4f}".format(self._loss_meter.avg_smooth)})
+                    desc.update({m.name: "{:.3f}".format(m.avg_smooth) for m in self._metric_meters})
+                    pbar.set_postfix(**desc)
+                self.callbacks.on_batch_end()
         return None

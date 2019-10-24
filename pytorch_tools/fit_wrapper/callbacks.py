@@ -1,8 +1,9 @@
 import os
-import torch
+# import torch
 import logging
-from queue import PriorityQueue
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
+# from queue import PriorityQueue
+# from tensorboardX import SummaryWriter
 from ..utils.misc import listify
 import math
 
@@ -28,16 +29,16 @@ class Callback(object):
     def set_runner(self, runner):
         self.runner = runner
 
-    def on_batch_begin(self, i, **kwargs):
+    def on_batch_begin(self):
         pass
 
-    def on_batch_end(self, i, **kwargs):
+    def on_batch_end(self):
         pass
 
-    def on_epoch_begin(self, epoch):
+    def on_epoch_begin(self):
         pass
 
-    def on_epoch_end(self, epoch):
+    def on_epoch_end(self):
         pass
 
     def on_train_begin(self):
@@ -62,21 +63,21 @@ class Callbacks(Callback):
         for callback in self.callbacks:
             callback.set_runner(runner)
 
-    def on_batch_begin(self, i, **kwargs):
+    def on_batch_begin(self):
         for callback in self.callbacks:
-            callback.on_batch_begin(i, **kwargs)
+            callback.on_batch_begin()
 
-    def on_batch_end(self, i, **kwargs):
+    def on_batch_end(self):
         for callback in self.callbacks:
-            callback.on_batch_end(i, **kwargs)
+            callback.on_batch_end()
 
-    def on_epoch_begin(self, epoch):
+    def on_epoch_begin(self):
         for callback in self.callbacks:
-            callback.on_epoch_begin(epoch)
+            callback.on_epoch_begin()
 
-    def on_epoch_end(self, epoch):
+    def on_epoch_end(self):
         for callback in self.callbacks:
-            callback.on_epoch_end(epoch)
+            callback.on_epoch_end()
 
     def on_train_begin(self):
         for callback in self.callbacks:
@@ -100,8 +101,9 @@ class PhasesScheduler(Callback):
         {'ep':(33, 34), 'lr':(lr/25*bs_scale[2], lr/125*bs_scale[2])},
     ]
     """
-    def __init__(self, optimizer, phases):
+    def __init__(self, optimizer, phases, change_every=10):
         self.optimizer = optimizer
+        self.change_every = change_every
         self.current_lr = None
         self.current_mom = None
         self.phases = [self._format_phase(p) for p in phases]
@@ -133,7 +135,7 @@ class PhasesScheduler(Callback):
             perc = 0
         else:
             ep_start, ep_end = phase['ep']
-            ep_curr, ep_tot = self.epoch - ep_start, ep_end - ep_start
+            ep_curr, ep_tot = self.runner._epoch - ep_start, ep_end - ep_start
             perc = (ep_curr * batch_tot + batch_curr) / (ep_tot * batch_tot)
         if len(phase['lr']) == 1:
             new_lr = phase['lr'][0] # constant learning rate
@@ -151,11 +153,10 @@ class PhasesScheduler(Callback):
 
         return new_lr, new_mom
 
-    def on_epoch_begin(self, epoch):
-        self.epoch = epoch
+    def on_epoch_begin(self):
         new_phase = None
         for phase in reversed(self.phases):
-            if (epoch >= phase['ep'][0]):
+            if (self.runner._epoch >= phase['ep'][0]):
                 new_phase = phase
                 break
         if new_phase is None:
@@ -163,10 +164,10 @@ class PhasesScheduler(Callback):
         else:
             self.phase = new_phase
 
-    def on_batch_begin(self, i):
-        lr, mom = self._get_lr_mom(i)
-        if self.current_lr == lr and self.current_mom == mom:
-            return 
+    def on_batch_begin(self):
+        lr, mom = self._get_lr_mom(self.runner._step)
+        if (self.current_lr == lr and self.current_mom == mom) or (self.runner._step % self.change_every != 0):
+            return
         self.current_lr = lr
         self.current_mom = mom
         for param_group in self.optimizer.param_groups:
@@ -225,29 +226,42 @@ class PhasesScheduler(Callback):
 #         return False
 
 
-# class TensorBoard(Callback):
-#     def __init__(self, log_dir: str):
-#         super().__init__()
-#         self.log_dir = log_dir
-#         self.writer = None
+class TensorBoard(Callback):
+    def __init__(self, log_dir, log_every=100):
+        super().__init__()
+        self.log_dir = log_dir
+        self.log_every = log_every
+        self.writer = None
 
-#     def on_train_begin(self):
-#         os.makedirs(self.log_dir, exist_ok=True)
-#         self.writer = SummaryWriter(self.log_dir)
+    def on_train_begin(self):
+        os.makedirs(self.log_dir, exist_ok=True)
+        self.writer = SummaryWriter(self.log_dir)
 
-#     def on_epoch_end(self, epoch):
-#         for k, v in self.metrics.train_metrics.items():
-#             self.writer.add_scalar('train/{}'.format(k), float(v), global_step=epoch)
+    def on_batch_end(self):
+        if self.runner._is_train:
+            self.writer.add_scalar('train_/loss', self.runner._loss_meter.val, self.global_step)
+            for m in self.runner._metric_meters[1]:
+                self.writer.add_scalar('train_/{}'.format(m.name), m.val, self.global_step)
 
-#         for k, v in self.metrics.val_metrics.items():
-#             self.writer.add_scalar('val/{}'.format(k), float(v), global_step=epoch)
+    def on_epoch_end(self):
+        self.writer.add_scalar('train/loss', self.runner.train_metrics[0], self.global_step)
+        for m in self.runner._train_metrics[1]:
+            self.writer.add_scalar('train/{}'.format(m.name), m.avg, self.global_step)
 
-#         for idx, param_group in enumerate(self.runner.optimizer.param_groups):
-#             lr = param_group['lr']
-#             self.writer.add_scalar('group{}/lr'.format(idx), float(lr), global_step=epoch)
+        self.writer.add_scalar('val/loss', self.runner.val_metrics[0])
+        for m in self.runner._val_metrics[1]:
+            self.writer.add_scalar('val/{}'.format(m.name), m.avg, self.global_step)
 
-#     def on_train_end(self):
-#         self.writer.close()
+        # for idx, param_group in enumerate(self.runner.optimizer.param_groups):
+        #     lr = param_group['lr']
+        #     self.writer.add_scalar('group{}/lr'.format(idx), float(lr), global_step=epoch)
+    
+    @property
+    def global_step(self):
+        return (self.runner._epoch - 1) * self.runner._ep_size + self.runner._step
+    
+    def on_train_end(self):
+        self.writer.close()
 
 
 class Logger(Callback):
@@ -256,18 +270,14 @@ class Logger(Callback):
         super().__init__()
         self.logger = logger or self._get_logger(os.path.join(log_dir, 'logs.txt'))
 
-    def on_epoch_begin(self, epoch):
-        print(epoch, self.current_lr)
+    def on_epoch_begin(self):
         self.logger.info(
-            'Epoch {} | '.format(epoch) + 'lr {:.3f}'.format(self.current_lr[0]))
+            'Epoch {} | '.format(self.runner._epoch) + 'lr {:.3f}'.format(self.current_lr[0]))
 
     def on_epoch_end(self, epoch):
-        loss, metrics = self.runner.loss_meter.avg, self.runner.metric_meters
-        has_val = bool(getattr(self.runner, '_train_metrics', None))
-        trn_loss, trn_metrics = self.runner._train_metrics if has_val else (loss, metrics)
-        self.logger.info('Train ' + self._format_meters(trn_loss, trn_metrics))
-        if has_val:
-            self.logger.info('Val ' + self._format_meters(loss, metrics))
+        self.logger.info('Train ' + self._format_meters(*self.runner._train_metrics))
+        if self.runner._val_metrics is not None:
+            self.logger.info('Val ' + self._format_meters(*self.runner._val_metrics))
 
     @staticmethod
     def _get_logger(log_path):
@@ -285,10 +295,8 @@ class Logger(Callback):
         res = []
         for param_group in self.runner.optimizer.param_groups:
             res.append(param_group['lr'])
-        # if len(res) == 1:
-        #     return res[0]
         return res
 
     @staticmethod
     def _format_meters(loss, metrics):
-        return 'loss: {:.4f} | '.format(loss) +  " | ".join("{}: {:.4f}".format(m.name, m.avg) for m in metrics)
+        return 'loss: {:.4f} | '.format(loss.avg) +  " | ".join("{}: {:.4f}".format(m.name, m.avg) for m in metrics)
