@@ -130,7 +130,7 @@ class PhasesScheduler(Callback):
 
     def _get_lr_mom(self, batch_curr):
         phase = self.phase
-        batch_tot = self.runner.ep_size
+        batch_tot = self.runner._ep_size
         if len(phase['ep']) == 1:
             perc = 0
         else:
@@ -274,7 +274,7 @@ class Logger(Callback):
         self.logger.info(
             'Epoch {} | '.format(self.runner._epoch) + 'lr {:.3f}'.format(self.current_lr[0]))
 
-    def on_epoch_end(self, epoch):
+    def on_epoch_end(self):
         self.logger.info('Train ' + self._format_meters(*self.runner._train_metrics))
         if self.runner._val_metrics is not None:
             self.logger.info('Val ' + self._format_meters(*self.runner._val_metrics))

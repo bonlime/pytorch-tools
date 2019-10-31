@@ -82,8 +82,6 @@ class Runner:
         for metric, meter in zip(self._metrics, self._metric_meters):
             meter.update(to_numpy(metric(output, target).squeeze()))
 
-        return None  # or smth?
-
     def _run_one_epoch(self, loader, steps=None):
         self._loss_meter.reset()
         self._timer.reset()
@@ -111,4 +109,4 @@ class Runner:
                     desc.update({m.name: "{:.3f}".format(m.avg_smooth) for m in self._metric_meters})
                     pbar.set_postfix(**desc)
                 self.callbacks.on_batch_end()
-        return None
+        return
