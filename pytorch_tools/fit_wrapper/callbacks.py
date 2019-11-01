@@ -173,7 +173,7 @@ class PhasesScheduler(Callback):
             param_group['momentum'] = mom
 
 class CheckpointSaver(Callback):
-    def __init__(self, save_dir, save_name='model_{ep}_{loss:.2f}.chpn', mode='min'):
+    def __init__(self, save_dir, save_name='model_{ep}_{metric:.2f}.chpn', mode='min'):
         super().__init__()
         self.mode = mode
         self.save_dir = save_dir
@@ -192,7 +192,7 @@ class CheckpointSaver(Callback):
         if (self.mode == 'min' and metric < self.best) or \
            (self.mode == 'max' and metric > self.best):
             save_name = os.path.join(
-                self.save_dir, self.save_name.format(self.runner._epoch, metric))
+                self.save_dir, self.save_name.format(ep=self.runner._epoch, metric=metric))
             self._save_checkpoint(save_name)
 
     def _save_checkpoint(self, path):
@@ -243,15 +243,15 @@ class TensorBoard(Callback):
     def on_batch_end(self):
         if self.runner._is_train and (self.runner._step % self.log_every == 0):
             self.writer.add_scalar('train_/loss', self.runner._loss_meter.val, self.global_step)
-            for m in self.runner._metric_meters[1]:
+            for m in self.runner._metric_meters:
                 self.writer.add_scalar('train_/{}'.format(m.name), m.val, self.global_step)
 
     def on_epoch_end(self):
-        self.writer.add_scalar('train/loss', self.runner.train_metrics[0], self.global_step)
+        self.writer.add_scalar('train/loss', self.runner._train_metrics[0].avg, self.global_step)
         for m in self.runner._train_metrics[1]:
             self.writer.add_scalar('train/{}'.format(m.name), m.avg, self.global_step)
 
-        self.writer.add_scalar('val/loss', self.runner.val_metrics[0])
+        self.writer.add_scalar('val/loss', self.runner._val_metrics[0].avg)
         for m in self.runner._val_metrics[1]:
             self.writer.add_scalar('val/{}'.format(m.name), m.avg, self.global_step)
 
