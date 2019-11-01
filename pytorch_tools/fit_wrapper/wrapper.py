@@ -50,11 +50,11 @@ class Runner:
             self.callbacks.on_epoch_begin()
             self.model.train()
             self._run_one_epoch(train_loader, steps=steps_per_epoch)
-            self._train_metrics = self._loss_meter, [copy(m) for m in self._metric_meters]
+            self._train_metrics = copy(self._loss_meter), [copy(m) for m in self._metric_meters]
 
             if val_loader is not None:
                 self.evaluate(val_loader, steps=val_steps)
-                self._val_metrics = self._loss_meter, [copy(m) for m in self._metric_meters]
+                self._val_metrics = copy(self._loss_meter), [copy(m) for m in self._metric_meters]
 
             self.callbacks.on_epoch_end()
         self.callbacks.on_train_end()
