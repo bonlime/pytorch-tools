@@ -17,7 +17,7 @@ class ContentLoss(Loss):
     criterion: str in ['mse', 'mae'], reduction method
     """
 
-    def __init__(self, model="vgg19_bn", pretrained='imagenet', layers=["21"],
+    def __init__(self, model="vgg11_bn", pretrained='imagenet', layers=["21"],
                  weights=1, loss="mse", device="cuda", **args):
         super().__init__()
         try:
@@ -70,7 +70,7 @@ class StyleLoss(Loss):
     model: str in ['vgg11_bn', 'vgg13_bn', 'vgg16_bn', 'vgg19_bn']
     """
 
-    def __init__(self, model="vgg19_bn", pretrained='imagenet', layers=["0", "5", "10", "19", "28"],
+    def __init__(self, model="vgg11_bn", pretrained='imagenet', layers=["0", "5", "10", "19", "28"],
                  weights=[0.75, 0.5, 0.2, 0.2, 0.2], loss="mse", device="cuda", **args):
         super().__init__()
         try:
@@ -106,7 +106,7 @@ class StyleLoss(Loss):
         style_gram = [self.gram_matrix(x) for x in style_features]
 
         loss = 0
-        for i_g, s_g in zip(input_gram, style_gram):
+        # for i_g, s_g in zip(input_gram, style_gram):
             
         loss = [self.criterion(torch.stack(i_g), torch.stack(s_g)) for i_g, s_g in zip(input_gram, style_gram)]
         return loss
