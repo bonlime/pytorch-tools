@@ -230,38 +230,36 @@ class CheckpointSaver(Callback):
 
 
 class TensorBoard(Callback):
-    def __init__(self, log_dir, log_every=100):
+    def __init__(self, log_dir, log_every=20):
         super().__init__()
         self.log_dir = log_dir
         self.log_every = log_every
         self.writer = None
+        self.current_step = 0
 
     def on_train_begin(self):
         os.makedirs(self.log_dir, exist_ok=True)
         self.writer = SummaryWriter(self.log_dir)
 
     def on_batch_end(self):
-        if self.runner._is_train and (self.runner._step % self.log_every == 0):
-            self.writer.add_scalar('train_/loss', self.runner._loss_meter.val, self.global_step)
+        self.current_step += 1
+        if self.runner._is_train and (self.current_step % self.log_every == 0):
+            self.writer.add_scalar('train_/loss', self.runner._loss_meter.val, self.current_step)
             for m in self.runner._metric_meters:
-                self.writer.add_scalar('train_/{}'.format(m.name), m.val, self.global_step)
+                self.writer.add_scalar('train_/{}'.format(m.name), m.val, self.current_step)
+
 
     def on_epoch_end(self):
-        self.writer.add_scalar('train/loss', self.runner._train_metrics[0].avg, self.global_step)
+        self.writer.add_scalar('train/loss', self.runner._train_metrics[0].avg, self.current_step)
         for m in self.runner._train_metrics[1]:
-            self.writer.add_scalar('train/{}'.format(m.name), m.avg, self.global_step)
+            self.writer.add_scalar('train/{}'.format(m.name), m.avg, self.current_step)
 
-        self.writer.add_scalar('val/loss', self.runner._val_metrics[0].avg, self.global_step)
+        if self.runner._val_metrics is None:
+            return
+            
+        self.writer.add_scalar('val/loss', self.runner._val_metrics[0].avg, self.current_step)
         for m in self.runner._val_metrics[1]:
-            self.writer.add_scalar('val/{}'.format(m.name), m.avg, self.global_step)
-
-        # for idx, param_group in enumerate(self.runner.optimizer.param_groups):
-        #     lr = param_group['lr']
-        #     self.writer.add_scalar('group{}/lr'.format(idx), float(lr), global_step=epoch)
-    
-    @property
-    def global_step(self):
-        return (self.runner._epoch - 1) * self.runner._ep_size + self.runner._step
+            self.writer.add_scalar('val/{}'.format(m.name), m.avg, self.current_step)
     
     def on_train_end(self):
         self.writer.close()

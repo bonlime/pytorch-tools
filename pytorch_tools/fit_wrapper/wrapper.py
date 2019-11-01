@@ -90,7 +90,7 @@ class Runner:
         self._ep_size = len(loader)  # useful in callbacks
         if self._verbose:
             pbar = tqdm(enumerate(loader), total=steps or self._ep_size, ncols=0)
-            pbar.set_description("Epoch {:2d}/{}. {}ing:".format(
+            pbar.set_description("Epoch {:2d}/{}. {}ing".format(
                 self._epoch, self._epochs, ['validat', 'train'][self._is_train]))
         else:
             pbar = enumerate(loader)
