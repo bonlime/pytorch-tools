@@ -5,25 +5,25 @@ It's work in progress, no guarantees that code will work
 from pytorch_tools import models
 import torch
 import torch.nn as nn
-from torch.nn.modules.loss import _Loss
+from .base import Loss
 
-class ContentLoss(_Loss):
+MODELS_LIST = ['vgg11_bn', 'vgg13_bn', 'vgg16_bn', 'vgg19_bn']
+class ContentLoss(Loss):
     """
     Creates content loss for neural style transfer
     model: str in ['vgg11_bn', 'vgg13_bn', 'vgg16_bn', 'vgg19_bn']
     layers: list of VGG layers used to evaluate content loss
     criterion: str in ['mse', 'mae'], reduction method
     """
-    models_list = ['vgg11_bn', 'vgg13_bn', 'vgg16_bn', 'vgg19_bn']
 
     def __init__(self, model="vgg19_bn", layers=["21"],
-                 weights=1, loss="mse", device="cuda", **args):
+                 weights=1, criterion="mse", device="cuda", **args):
         super().__init__()
         try:
-            self.model = models.__dict__[arch](pretrained=True, **args)
+            self.model = models.__dict__[model](pretrained=True, **args)
             self.model.eval().to(device)
         except KeyError:
-            print("Model architecture not found in {}".format(models_list))
+            print("Model architecture not found in {}".format(MODELS_LIST))
         
         if isinstance(layers, str):
             layers = [layers]
@@ -46,12 +46,12 @@ class ContentLoss(_Loss):
         """
         Measure distance between feature representations of input and content images
         """
-        input_features = get_features(input, self.model, self.layers)
-        content_features = get_features(content, self.model, self.layers)
+        input_features = self.get_features(input, self.model, self.layers)
+        content_features = self.get_features(content, self.model, self.layers)
         loss = self.criterion(input_features, content_features)
         return loss
 
-    def get_features(x, model, layers=None):
+    def get_features(self, x, model, layers=None):
         """
         Extract features from the intermediate layers.
         """
@@ -66,21 +66,20 @@ class ContentLoss(_Loss):
         return features
 
     
-class StyleLoss(_Loss):
+class StyleLoss(Loss):
     """
     Class for creating style loss for neural style transfer
     model: str in ['vgg11_bn', 'vgg13_bn', 'vgg16_bn', 'vgg19_bn']
     """
-    models_list = ['vgg11_bn', 'vgg13_bn', 'vgg16_bn', 'vgg19_bn']
 
     def __init__(self, model="vgg19_bn", layers=["0", "5", "10", "19", "28"],
-                 weights=[0.75, 0.5, 0.2, 0.2, 0.2], loss="mse", device="cuda", **args):
+                 weights=[0.75, 0.5, 0.2, 0.2, 0.2], criterion="mse", device="cuda", **args):
         super().__init__()
         try:
-            self.model = models.__dict__[arch](pretrained=True, **args)
+            self.model = models.__dict__[model](pretrained=True, **args)
             self.model.eval().to(device)
         except KeyError:
-            print("Model architecture not found in {}".format(models_list))
+            print("Model architecture not found in {}".format(MODELS_LIST))
         
         if isinstance(layers, str):
             layers = [layers]
@@ -103,14 +102,14 @@ class StyleLoss(_Loss):
         """
         Measure distance between feature representations of input and content images
         """
-        input_features = get_features(input, self.model, self.layers)
-        style_features = get_features(content, self.model, self.layers)
-        input_gram = gram_matrix(input_features)
-        style_gram = gram_matrix(style_features)
+        input_features = self.get_features(input, self.model, self.layers)
+        style_features = self.get_features(style, self.model, self.layers)
+        input_gram = self.gram_matrix(input_features)
+        style_gram = self.gram_matrix(style_features)
         loss = self.criterion(input_gram, style_gram)
         return loss
 
-    def get_features(x, model, layers=None):
+    def get_features(self, x, model, layers=None):
         """
         Extract features from the intermediate layers.
         """
@@ -124,7 +123,7 @@ class StyleLoss(_Loss):
                 features.append(x)
         return features
 
-    def gram_matrix(input):
+    def gram_matrix(self, input):
         """
         Compute Gram matrix for each image in batch
         input: Tensor of shape BxCxHxW

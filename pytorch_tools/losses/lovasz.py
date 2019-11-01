@@ -176,8 +176,8 @@ def mean(l, ignore_nan=False, empty=0):
     return acc / n
 
 # --------------------------- Convinient classes ---------------------------
-from torch.nn.modules.loss import _Loss
-class BinaryLovaszLoss(_Loss):
+from .base import Loss
+class BinaryLovaszLoss(Loss):
     """    
     The Binary Lovasz-Softmax loss: A tractable surrogate for the optimization of the 
     intersection-over-union measure in neural networks
@@ -198,7 +198,7 @@ class BinaryLovaszLoss(_Loss):
         return _lovasz_hinge(logits.squeeze(), target, per_image=self.per_image, ignore=self.ignore)
 
 
-class LovaszLoss(_Loss):
+class LovaszLoss(Loss):
     """
     The Lovasz-Softmax loss: A tractable surrogate for the optimization of the 
     intersection-over-union measure in neural networks

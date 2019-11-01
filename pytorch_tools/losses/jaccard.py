@@ -2,12 +2,11 @@ from typing import List
 
 import torch
 from torch import Tensor
-from torch.nn.modules.loss import _Loss
-
+from .base import Loss
 from .functional import soft_jaccard_score
 
 
-class BinaryJaccardLoss(_Loss):
+class BinaryJaccardLoss(Loss):
     """Implementation of Jaccard loss for binary image segmentation task
     """
 
@@ -29,7 +28,7 @@ class BinaryJaccardLoss(_Loss):
         return loss
 
 
-class BinaryJaccardLogLoss(_Loss):
+class BinaryJaccardLogLoss(Loss):
     """Implementation of Jaccard loss for binary image segmentation task
     """
 
@@ -50,7 +49,7 @@ class BinaryJaccardLogLoss(_Loss):
         return loss
 
 
-class MulticlassJaccardLoss(_Loss):
+class MulticlassJaccardLoss(Loss):
     """Implementation of Jaccard loss for multiclass (semantic) image segmentation task
     """
 

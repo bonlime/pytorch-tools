@@ -1,11 +1,9 @@
 from functools import partial
-
-from torch.nn.modules.loss import _Loss
-
+from .base import Loss
 from .functional import sigmoid_focal_loss, reduced_focal_loss
 
 
-class BinaryFocalLoss(_Loss):
+class BinaryFocalLoss(Loss):
     def __init__(self, alpha=0.5, gamma=2, ignore_index=None, reduction='mean', reduced=False, threshold=0.5):
         """
 
@@ -40,7 +38,7 @@ class BinaryFocalLoss(_Loss):
         return loss
 
 
-class FocalLoss(_Loss):
+class FocalLoss(Loss):
     def __init__(self, alpha=0.5, gamma=2, ignore_index=None):
         """
         Focal loss for multi-class problem.
