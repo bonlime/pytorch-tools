@@ -277,7 +277,7 @@ class Logger(Callback):
     def on_epoch_end(self):
         self.logger.info('Train ' + self._format_meters(*self.runner._train_metrics))
         if self.runner._val_metrics is not None:
-            self.logger.info('Val ' + self._format_meters(*self.runner._val_metrics))
+            self.logger.info('Val   ' + self._format_meters(*self.runner._val_metrics))
 
     @staticmethod
     def _get_logger(log_path):
