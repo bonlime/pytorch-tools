@@ -1,11 +1,9 @@
 import os
-# import torch
-import logging
-from torch.utils.tensorboard import SummaryWriter
-# from queue import PriorityQueue
-# from tensorboardX import SummaryWriter
-from ..utils.misc import listify
 import math
+import logging
+import torch
+from torch.utils.tensorboard import SummaryWriter
+from ..utils.misc import listify
 
 
 class Callback(object):
@@ -174,30 +172,35 @@ class PhasesScheduler(Callback):
             param_group['lr'] = lr
             param_group['momentum'] = mom
 
+class CheckpointSaver(Callback):
+    def __init__(self, save_dir, save_name='model_{ep}_{loss:.2f}.chpn', mode='min'):
+        super().__init__()
+        self.mode = mode
+        self.save_dir = save_dir
+        self.save_name = save_name
+        self.best = float('inf') if mode == 'min' else -float('inf')
 
-# class CheckpointSaver(Callback):
-#     def __init__(self, save_dir, save_name, mode='min', monitor='val_loss'):
-#         super().__init__()
-#         self.mode = mode
-#         self.save_name = save_name
-#         self._best_checkpoints_queue = PriorityQueue(5)
-#         self.monitor_name = monitor
-#         self.save_dir = save_dir
+    def on_train_begin(self):
+        os.makedirs(self.save_dir, exist_ok=True)
 
-#     def on_train_begin(self):
-#         os.makedirs(self.save_dir, exist_ok=True)
-#         while not self._best_checkpoints_queue.empty():
-#             self._best_checkpoints_queue.get()
+    def on_epoch_end(self):
+        # TODO zakirov(1.11.19) Add support for saving based on metric
+        if self.runner._val_metrics is not None:
+            metric = self.runner._val_metrics[0].avg # loss
+        else:
+            metric = self.runner._train_metrics[0].avg
+        if (self.mode == 'min' and metric < self.best) or \
+           (self.mode == 'max' and metric > self.best):
+            save_name = os.path.join(
+                self.save_dir, self.save_name.format(self.runner._epoch, metric))
+            self._save_checkpoint(save_name)
 
-#     def save_checkpoint(self, epoch, path):
-#         if hasattr(self.runner.model, 'module'):
-#             state_dict = self.runner.model.module.state_dict()
-#         else:
-#             state_dict = self.runner.model.state_dict()
-#         torch.save({
-#             'epoch': epoch + 1,
-#             'state_dict': state_dict,
-#             'optimizer': self.runner.optimizer.state_dict()}, path)
+    def _save_checkpoint(self, path):
+        torch.save({
+            'epoch': self.runner._epoch,
+            'state_dict': self.runner.model.state_dict(),
+            'optimizer': self.runner.optimizer.state_dict()}, path)
+
 
 #     def on_epoch_end(self, epoch):
         
@@ -238,7 +241,7 @@ class TensorBoard(Callback):
         self.writer = SummaryWriter(self.log_dir)
 
     def on_batch_end(self):
-        if self.runner._is_train:
+        if self.runner._is_train and (self.runner._step % self.log_every == 0):
             self.writer.add_scalar('train_/loss', self.runner._loss_meter.val, self.global_step)
             for m in self.runner._metric_meters[1]:
                 self.writer.add_scalar('train_/{}'.format(m.name), m.val, self.global_step)
