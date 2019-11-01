@@ -251,7 +251,7 @@ class TensorBoard(Callback):
         for m in self.runner._train_metrics[1]:
             self.writer.add_scalar('train/{}'.format(m.name), m.avg, self.global_step)
 
-        self.writer.add_scalar('val/loss', self.runner._val_metrics[0].avg)
+        self.writer.add_scalar('val/loss', self.runner._val_metrics[0].avg, self.global_step)
         for m in self.runner._val_metrics[1]:
             self.writer.add_scalar('val/{}'.format(m.name), m.avg, self.global_step)
 
