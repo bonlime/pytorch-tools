@@ -4,7 +4,6 @@ from .focal import BinaryFocalLoss, FocalLoss
 from .jaccard import BinaryJaccardLogLoss, BinaryJaccardLoss, MulticlassJaccardLoss
 from .dice import BinaryDiceLogLoss, BinaryDiceLoss, MulticlassDiceLoss
 from .lovasz import BinaryLovaszLoss, LovaszLoss
-from .joint_loss import JointLoss, WeightedLoss
 from .wing_loss import WingLoss
 from .vgg_loss import ContentLoss, StyleLoss
 

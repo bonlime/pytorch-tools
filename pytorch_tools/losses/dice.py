@@ -2,11 +2,10 @@ from typing import List
 
 import torch
 from torch import Tensor
-from torch.nn.modules.loss import _Loss
-
+from .base import Loss
 from .functional import soft_dice_score
 
-class BinaryDiceLoss(_Loss):
+class BinaryDiceLoss(Loss):
     """Implementation of Dice loss for binary image segmentation task
     NOTE: Take care that y_pred and y_true has the correct shape
     """
@@ -29,7 +28,7 @@ class BinaryDiceLoss(_Loss):
         return loss
 
 
-class BinaryDiceLogLoss(_Loss):
+class BinaryDiceLogLoss(Loss):
     """Implementation of logarithic Dice loss for binary image segmentation task
     """
 
@@ -50,7 +49,7 @@ class BinaryDiceLogLoss(_Loss):
         return loss
 
 
-class MulticlassDiceLoss(_Loss):
+class MulticlassDiceLoss(Loss):
     """Implementation of Dice loss for multiclass (semantic) image segmentation task
     """
 
