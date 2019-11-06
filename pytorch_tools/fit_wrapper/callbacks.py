@@ -253,7 +253,11 @@ class TensorBoard(Callback):
         self.writer.add_scalar('train/loss', self.runner._train_metrics[0].avg, self.current_step)
         for m in self.runner._train_metrics[1]:
             self.writer.add_scalar('train/{}'.format(m.name), m.avg, self.current_step)
-
+        
+        lr = sorted([pg['lr'] for pg in self.runner.optimizer.param_groups])[-1] # largest lr
+        self.writer.add_scalar('train_/lr', lr, self.current_step)
+        
+        # don't log if no val
         if self.runner._val_metrics is None:
             return
             
