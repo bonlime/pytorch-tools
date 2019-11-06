@@ -202,33 +202,6 @@ class CheckpointSaver(Callback):
             'optimizer': self.runner.optimizer.state_dict()}, path)
 
 
-#     def on_epoch_end(self, epoch):
-        
-#         metric = self.metrics.val_metrics[self._metric_name]
-#         new_path_to_save = os.path.join(
-#             self.save_dir / self.runner.current_stage_name,
-#             self.save_name.format(epoch=epoch, metric="{:.5}".format(metric)))
-#         if self._try_update_best_losses(metric, new_path_to_save):
-#             self.save_checkpoint(epoch=epoch, path=new_path_to_save)
-
-#     def _try_update_best_losses(self, metric, new_path_to_save):
-#         if self.mode == 'min':
-#             metric = -metric
-#         if not self._best_checkpoints_queue.full():
-#             self._best_checkpoints_queue.put((metric, new_path_to_save))
-#             return True
-
-#         min_metric, min_metric_path = self._best_checkpoints_queue.get()
-
-#         if min_metric < metric:
-#             os.remove(min_metric_path)
-#             self._best_checkpoints_queue.put((metric, new_path_to_save))
-#             return True
-
-#         self._best_checkpoints_queue.put((min_metric, min_metric_path))
-#         return False
-
-
 class TensorBoard(Callback):
     def __init__(self, log_dir, log_every=20):
         super().__init__()
