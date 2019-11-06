@@ -196,9 +196,13 @@ class CheckpointSaver(Callback):
             self._save_checkpoint(save_name)
 
     def _save_checkpoint(self, path):
+        if hasattr(self.runner.model, 'module'): # used for saving DDP models
+            state_dict = self.runner.model.module.state_dict()
+        else:
+            state_dict = self.runner.model.state_dict()
         torch.save({
             'epoch': self.runner._epoch,
-            'state_dict': self.runner.model.state_dict(),
+            'state_dict': state_dict,
             'optimizer': self.runner.optimizer.state_dict()}, path)
 
 
