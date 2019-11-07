@@ -196,37 +196,14 @@ class CheckpointSaver(Callback):
             self._save_checkpoint(save_name)
 
     def _save_checkpoint(self, path):
+        if hasattr(self.runner.model, 'module'): # used for saving DDP models
+            state_dict = self.runner.model.module.state_dict()
+        else:
+            state_dict = self.runner.model.state_dict()
         torch.save({
             'epoch': self.runner._epoch,
-            'state_dict': self.runner.model.state_dict(),
+            'state_dict': state_dict,
             'optimizer': self.runner.optimizer.state_dict()}, path)
-
-
-#     def on_epoch_end(self, epoch):
-        
-#         metric = self.metrics.val_metrics[self._metric_name]
-#         new_path_to_save = os.path.join(
-#             self.save_dir / self.runner.current_stage_name,
-#             self.save_name.format(epoch=epoch, metric="{:.5}".format(metric)))
-#         if self._try_update_best_losses(metric, new_path_to_save):
-#             self.save_checkpoint(epoch=epoch, path=new_path_to_save)
-
-#     def _try_update_best_losses(self, metric, new_path_to_save):
-#         if self.mode == 'min':
-#             metric = -metric
-#         if not self._best_checkpoints_queue.full():
-#             self._best_checkpoints_queue.put((metric, new_path_to_save))
-#             return True
-
-#         min_metric, min_metric_path = self._best_checkpoints_queue.get()
-
-#         if min_metric < metric:
-#             os.remove(min_metric_path)
-#             self._best_checkpoints_queue.put((metric, new_path_to_save))
-#             return True
-
-#         self._best_checkpoints_queue.put((min_metric, min_metric_path))
-#         return False
 
 
 class TensorBoard(Callback):
@@ -253,7 +230,11 @@ class TensorBoard(Callback):
         self.writer.add_scalar('train/loss', self.runner._train_metrics[0].avg, self.current_step)
         for m in self.runner._train_metrics[1]:
             self.writer.add_scalar('train/{}'.format(m.name), m.avg, self.current_step)
-
+        
+        lr = sorted([pg['lr'] for pg in self.runner.optimizer.param_groups])[-1] # largest lr
+        self.writer.add_scalar('train_/lr', lr, self.current_step)
+        
+        # don't log if no val
         if self.runner._val_metrics is None:
             return
             
