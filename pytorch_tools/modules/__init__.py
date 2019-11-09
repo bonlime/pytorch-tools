@@ -7,4 +7,4 @@ from .residual import Bottleneck
 from .residual import SEModule
 # from .residual import Transition, DenseLayer
 
-from .activations import SiLU, SoftExponential
+from .activations import SiLU, SoftExponential, Swish, MemoryEfficientSwish
