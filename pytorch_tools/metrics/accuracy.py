@@ -5,6 +5,11 @@ class Accuracy:
         self.topk = topk
     
     def __call__(self, output, target):
+        """Args:
+            output (Tensor): raw logits of shape (N, C)
+            target (Long Tensor): true classes of shape (N,) or one-hot encoded of shape (N, C)"""
+        if len(target.shape) == 2:
+            target = target.argmax(1)
         _, pred = output.topk(self.topk, 1, True, True)
         pred = pred.t()
         correct = pred.eq(target.view(1, -1).expand_as(pred))
@@ -22,8 +27,12 @@ class BalancedAccuracy:
         self.name = 'BalancedAcc'
 
     def __call__(self, output, target):
-        # if raw preds, then argmax them
-        if output.shape != target.shape:
+        """Args:
+            output (Tensor): raw logits of shape (N, C) or already argmaxed of shape (N,)
+            target (Long Tensor): true classes of shape (N,) or one-hot encoded of shape (N, C)"""
+        if len(target.shape) == 2:
+            target = target.argmax(1)
+        if len(output.shape) == 2:
             output = output.argmax(1)
         correct = output.eq(target)
         result = 0

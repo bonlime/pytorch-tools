@@ -1,6 +1,6 @@
 import pytest
 import torch
-
+import numpy as np
 import pytorch_tools.losses.functional as F
 import pytorch_tools.losses as losses
 """
@@ -69,3 +69,26 @@ def test_loss_addition():
     inp = torch.ones(2,1,8,8)
     label = torch.zeros(2,1,8,8)
     res = l(inp, label)
+
+def test_cross_entropy():
+    inp = torch.randn(100,10)
+    target = torch.randint(0,10,(100,)).long()
+    tar_one_hot = torch.zeros(target.size(0), 10, dtype=torch.float)
+    tar_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
+    c = np.random.beta(0.4, 0.4)
+    perm = torch.randperm(100)
+    tar_one_hot_2 = tar_one_hot * c + (1-c) * tar_one_hot[perm,:]
+
+    torch_ce = torch.nn.CrossEntropyLoss()(inp, target)
+    my_ce = losses.CrossEntropyLoss(one_hot=False, num_classes=10)(inp, target)
+    assert torch.allclose(torch_ce, my_ce) 
+
+    my_ce_oh = losses.CrossEntropyLoss(one_hot=True)(inp, tar_one_hot)
+    assert torch.allclose(torch_ce, my_ce_oh)
+
+    my_ce_oh_2 = losses.CrossEntropyLoss(one_hot=True)(inp, tar_one_hot_2)
+    assert not torch.allclose(torch_ce, my_ce_oh_2)
+
+    my_ce_sm = losses.CrossEntropyLoss(smoothing=0.1, one_hot=False, num_classes=10)(inp, target)
+    assert not torch.allclose(my_ce_sm, my_ce)
+
