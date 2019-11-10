@@ -176,7 +176,7 @@ class ResNet(nn.Module):
     def _initialize_weights(self, init_bn0=False):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=self.norm_act)
+                nn.init.xavier_uniform_(m.weight)
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1.)
                 nn.init.constant_(m.bias, 0.)
