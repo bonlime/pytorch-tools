@@ -63,11 +63,11 @@ class SoftExponential(nn.Module):
         - See related paper:
         https://arxiv.org/pdf/1602.01321.pdf
     Examples:
-        >>> a1 = soft_exponential(256)
+        >>> a1 = soft_exponential()
         >>> x = torch.randn(256)
         >>> x = a1(x)
     '''
-    def __init__(self, in_features, alpha=None):
+    def __init__(self, alpha=None):
         '''
         Initialization.
         INPUT:
@@ -76,13 +76,12 @@ class SoftExponential(nn.Module):
             aplha is initialized with zero value by default
         '''
         super(SoftExponential, self).__init__()
-        self.in_features = in_features
 
         # initialize alpha
         if alpha is None:
-            self.alpha = Parameter(torch.tensor(0.0))  # create a tensor out of alpha
+            self.alpha = nn.Parameter(torch.tensor(0.0))  # create a tensor out of alpha
         else:
-            self.alpha = Parameter(torch.tensor(alpha))  # create a tensor out of alpha
+            self.alpha = nn.Parameter(torch.tensor(alpha))  # create a tensor out of alpha
             
         self.alpha.requiresGrad = True  # set requiresGrad to true!
 
@@ -99,3 +98,33 @@ class SoftExponential(nn.Module):
 
         if (self.alpha > 0.0):
             return (torch.exp(self.alpha * x) - 1)/ self.alpha + self.alpha
+
+class SwishImplementation(torch.autograd.Function):
+    '''
+    Efficient Swish cannot be used when exporting using PyTorch JIT,
+    use ordinary Swish activation function.
+    Code from: github.com/lukemelas/EfficientNet-PyTorch repo
+    '''
+    @staticmethod
+    def forward(ctx, input):
+        result = input * torch.sigmoid(input)
+        ctx.save_for_backward(input)
+        return result
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        i = ctx.saved_variables[0]
+        sigmoid_i = torch.sigmoid(i)
+        grad_input = grad_output * (sigmoid_i * (1 + i * (1 - sigmoid_i)))
+        return grad_input
+
+class MemoryEfficientSwish(nn.Module):
+    def forward(self, x):
+        return SwishImplementation.apply(x)
+
+class Swish(nn.Module):
+    """
+    Slightly modified activation. Used in EfficientNet, MixNet
+    """
+    def forward(self, x):
+        return x * torch.sigmoid(x)
