@@ -79,9 +79,9 @@ class SoftExponential(nn.Module):
 
         # initialize alpha
         if alpha is None:
-            self.alpha = Parameter(torch.tensor(0.0))  # create a tensor out of alpha
+            self.alpha = nn.Parameter(torch.tensor(0.0))  # create a tensor out of alpha
         else:
-            self.alpha = Parameter(torch.tensor(alpha))  # create a tensor out of alpha
+            self.alpha = nn.Parameter(torch.tensor(alpha))  # create a tensor out of alpha
             
         self.alpha.requiresGrad = True  # set requiresGrad to true!
 
