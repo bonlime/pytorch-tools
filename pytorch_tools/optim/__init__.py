@@ -3,7 +3,7 @@ from .lr_finder import LRFinder
 from .radam import RAdam, PlainRAdam, AdamW
 from .sgdw import SGDW
 from .adamw import AdamW
-from novograd import Novograd
+from .novograd import Novograd
 from .schedulers import LinearLR, ExponentialLR
 
 from torch import optim
