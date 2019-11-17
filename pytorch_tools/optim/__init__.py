@@ -3,6 +3,7 @@ from .lr_finder import LRFinder
 from .radam import RAdam, PlainRAdam, AdamW
 from .sgdw import SGDW
 from .adamw import AdamW
+from novograd import Novograd
 from .schedulers import LinearLR, ExponentialLR
 
 from torch import optim
@@ -20,5 +21,7 @@ def optimizer_from_name(optim_name):
         return optim.RMSprop
     elif optim_name == 'radam':
         return RAdam
+    elif optim_name == 'novograd':
+        return Novograd
     else:
         raise ValueError('Optimizer {} not found'.format(optim_name))
