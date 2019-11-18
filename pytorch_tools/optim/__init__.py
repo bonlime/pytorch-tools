@@ -1,9 +1,8 @@
 from __future__ import absolute_import
+from apex.optimizers import FusedNovoGrad, FusedAdam, FusedSGD
 from .lr_finder import LRFinder
-from .radam import RAdam, PlainRAdam, AdamW
+from .radam import RAdam, PlainRAdam
 from .sgdw import SGDW
-from .adamw import AdamW
-from .novograd import Novograd
 from .schedulers import LinearLR, ExponentialLR
 
 from torch import optim
@@ -16,12 +15,16 @@ def optimizer_from_name(optim_name):
     elif optim_name == 'adam':
         return optim.Adam
     elif optim_name =='adamw':
-        return AdamW
+        return optim.AdamW
     elif optim_name =='rmsprop':
         return optim.RMSprop
     elif optim_name == 'radam':
         return RAdam
-    elif optim_name == 'novograd':
-        return Novograd
+    elif optim_name in ['fused_sgd', 'fusedsgd']:
+        return FusedSGD
+    elif optim_name in ['fused_adam', 'fusedadam']:
+        return FusedAdam
+    elif optim_name in ['fused_novograd', 'fusednovograd', 'novograd']:
+        return FusedNovoGrad
     else:
         raise ValueError('Optimizer {} not found'.format(optim_name))
