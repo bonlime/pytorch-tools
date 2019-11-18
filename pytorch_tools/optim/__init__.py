@@ -4,6 +4,7 @@ from .lr_finder import LRFinder
 from .radam import RAdam, PlainRAdam
 from .sgdw import SGDW
 from .schedulers import LinearLR, ExponentialLR
+from .lookahead import Lookahead
 
 from torch import optim
 def optimizer_from_name(optim_name):
