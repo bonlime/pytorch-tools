@@ -21,3 +21,7 @@ def test_resnet_imagenet(arch):
 @pytest.mark.parametrize('arch', resnet_names[:5]) #test only part of the models
 def test_resnet_imagenet_custom_cls(arch):
     m = models.__dict__[arch](pretrained='imagenet', num_classes=10)
+
+@pytest.mark.parametrize('arch', resnet_names[:5]) #test only part of the models
+def test_resnet_custom_in_channels(arch):
+    m = models.__dict__[arch](in_channels=5)
