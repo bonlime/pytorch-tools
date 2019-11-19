@@ -1,6 +1,7 @@
 import torch
 from .base import Loss
-    
+
+
 class CrossEntropyLoss(Loss):
     """
     CE with optional smoothing and support for multiple positive labels. 
@@ -22,7 +23,7 @@ class CrossEntropyLoss(Loss):
                                          dtype=torch.float, device=y_pred.device)
             target_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
         y_pred = y_pred.float()
-        logprobs = torch.nn.functional.log_softmax(y_pred, dim = -1)
+        logprobs = torch.nn.functional.log_softmax(y_pred, dim=1)
         # mupltiple labels handling
         nll_loss = -logprobs * target_one_hot
         nll_loss = nll_loss.sum(-1)
