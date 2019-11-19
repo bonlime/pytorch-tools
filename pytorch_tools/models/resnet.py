@@ -46,7 +46,7 @@ class ResNet(nn.Module):
             for every model but some have more. Check the code to find out.
         num_classes (int): 
             Number of classification classes. Defaults to 1000.
-        in_chans (int): 
+        in_channels (int): 
             Number of input (color) channels. Defaults to 3.
         use_se (bool): 
             Enable Squeeze-Excitation module in blocks.
@@ -80,7 +80,7 @@ class ResNet(nn.Module):
     """
     def __init__(self, block=None, layers=None,
                  pretrained=None, # not used. here for proper signature
-                 num_classes=1000, in_chans=3, use_se=False,
+                 num_classes=1000, in_channels=3, use_se=False,
                  groups=1, base_width=64,
                  deep_stem=False,
                  dilated=False,
@@ -111,14 +111,14 @@ class ResNet(nn.Module):
         
         if deep_stem:
             self.conv1 = nn.Sequential(
-                conv3x3(in_chans, stem_width // 2, 2),
+                conv3x3(in_channels, stem_width // 2, 2),
                 norm_layer(stem_width // 2, activation=norm_act),
                 conv3x3(stem_width, stem_width // 2),
                 norm_layer(stem_width // 2, activation=norm_act),
                 conv3x3(stem_width // 2, stem_width, 2)
             )
         else:
-            self.conv1 = nn.Conv2d(in_chans, stem_width, kernel_size=7, stride=2,
+            self.conv1 = nn.Conv2d(in_channels, stem_width, kernel_size=7, stride=2,
                                    padding=3, bias=False)
         self.bn1 = norm_layer(stem_width, activation=norm_act)
         if antialias:

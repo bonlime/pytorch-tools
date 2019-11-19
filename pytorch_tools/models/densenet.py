@@ -110,7 +110,7 @@ class DenseNet(nn.Module):
             Number of classification classes. Defaults to 1000.
         drop_rate (float): 
             Dropout probability after each DenseLayer. Defaults to 0.0.
-        in_chans (int): 
+        in_channels (int): 
             Number of input (color) channels. Defaults to 3.
         deep_stem (bool): 
             Whether to replace the 7x7 conv1 with 3 3x3 convolution layers. Defaults to False.
@@ -129,7 +129,7 @@ class DenseNet(nn.Module):
                  pretrained=None, # not used. here for proper signature
                  num_classes=1000,
                  drop_rate=0.0,
-                 in_chans=3,
+                 in_channels=3,
                  deep_stem=False, stem_width=64,
                  encoder=False,
                  global_pool='avg',
@@ -140,7 +140,7 @@ class DenseNet(nn.Module):
         layers_dict = OrderedDict()
         if deep_stem:
             layers_dict['conv0'] = nn.Sequential(
-                conv3x3(in_chans, stem_width // 2, 2),
+                conv3x3(in_channels, stem_width // 2, 2),
                 nn.BatchNorm2d(stem_width //2),
                 nn.ReLU(inplace=True),
                 conv3x3(stem_width // 2, stem_width // 2),
@@ -149,7 +149,7 @@ class DenseNet(nn.Module):
                 conv3x3(stem_width // 2, stem_width, 2)
             )
         else:
-            layers_dict['conv0'] = nn.Conv2d(in_chans, stem_width, kernel_size=7, 
+            layers_dict['conv0'] = nn.Conv2d(in_channels, stem_width, kernel_size=7, 
                                              stride=2, padding=3, bias=False)
 
         layers_dict['norm0'] = nn.BatchNorm2d(stem_width) 

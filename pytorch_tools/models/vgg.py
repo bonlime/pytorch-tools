@@ -14,6 +14,7 @@ class VGG(nn.Module):
     Args:
         pretrained (str): if present, returns a model pre-trained on 'str' dataset
         num_classes (int, optional): [description]. Defaults to 1000.
+        in_channels (int): Number of input (color) channels. Defaults to 3.
         norm_layer (ABN, optional): Which version of ABN to use. Choices are:
             'ABN' - dropin replacement for BN+Relu.
             'InplaceABN' - efficient version. If used with `pretrain` Weights still 
@@ -28,11 +29,13 @@ class VGG(nn.Module):
                  layers,
                  pretrained=None, # not used. here for proper signature.
                  num_classes=1000, 
+                 in_channels=3,
                  norm_layer='abn',
                  encoder=False,
                  antialias=False):
 
         super(VGG, self).__init__()
+        self.in_channels = in_channels
         self.norm_act = 'relu' if norm_layer.lower() == 'abn' else 'leaky_relu'
         self.norm_layer = bn_from_name(norm_layer)
         self.encoder = encoder
@@ -89,7 +92,7 @@ class VGG(nn.Module):
     
     def _make_layers(self, cfg):
         layers = []
-        in_channels = 3
+        in_channels = self.in_channels
         for v in cfg:
             if v == 'M':
                 if self.antialias:
