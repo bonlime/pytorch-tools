@@ -230,15 +230,15 @@ def test_cross_entropy():
     tar_one_hot_2 = tar_one_hot * c + (1-c) * tar_one_hot[perm,:]
 
     torch_ce = torch.nn.CrossEntropyLoss()(inp, target)
-    my_ce = losses.CrossEntropyLoss(one_hot=False, num_classes=10)(inp, target)
+    my_ce = losses.CrossEntropyLoss()(inp, target)
     assert torch.allclose(torch_ce, my_ce) 
 
-    my_ce_oh = losses.CrossEntropyLoss(one_hot=True)(inp, tar_one_hot)
+    my_ce_oh = losses.CrossEntropyLoss()(inp, tar_one_hot)
     assert torch.allclose(torch_ce, my_ce_oh)
 
-    my_ce_oh_2 = losses.CrossEntropyLoss(one_hot=True)(inp, tar_one_hot_2)
+    my_ce_oh_2 = losses.CrossEntropyLoss()(inp, tar_one_hot_2)
     assert not torch.allclose(torch_ce, my_ce_oh_2)
 
-    my_ce_sm = losses.CrossEntropyLoss(smoothing=0.1, one_hot=False, num_classes=10)(inp, target)
+    my_ce_sm = losses.CrossEntropyLoss(smoothing=0.1)(inp, target)
     assert not torch.allclose(my_ce_sm, my_ce)
 
