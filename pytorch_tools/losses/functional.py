@@ -3,18 +3,14 @@ import torch
 import torch.nn.functional as F
 
 
-def sigmoid_focal_loss(input,
-                       target,
-                       gamma=2.0,
-                       alpha=0.25,
-                       reduction='mean'):
+def sigmoid_focal_loss(y_pred, y_true, gamma=2.0, alpha=0.25, reduction='mean'):
     """Compute binary focal loss between target and output logits.
 
     See :class:`~pytorch_toolbelt.losses.FocalLoss` for details.
 
     Args:
-        input: Tensor of arbitrary shape
-        target: Tensor of the same shape as input
+        y_pred: Tensor of arbitrary shape
+        y_true: Tensor of the same shape as y_pred
         reduction (string, optional): Specifies the reduction to apply to the output:
             'none' | 'mean' | 'sum' | 'batchwise_mean'. 'none': no reduction will be applied,
             'mean': the sum of the output will be divided by the number of
@@ -27,16 +23,16 @@ def sigmoid_focal_loss(input,
 
         https://github.com/open-mmlab/mmdetection/blob/master/mmdet/core/loss/losses.py
     """
-    target = target.type(input.type())
+    y_true = y_true.type(y_pred.type())
 
-    logpt = -F.binary_cross_entropy_with_logits(input, target, reduction='none')
+    logpt = -F.binary_cross_entropy_with_logits(y_pred, y_true, reduction='none')
     pt = torch.exp(logpt)
 
     # compute the loss
     loss = -((1 - pt).pow(gamma)) * logpt
 
     if alpha is not None:
-        loss = loss * (alpha * target + (1 - alpha) * (1 - target))
+        loss = loss * (alpha * y_true + (1 - alpha) * (1 - y_true))
 
     if reduction == 'mean':
         loss = loss.mean()
@@ -48,18 +44,14 @@ def sigmoid_focal_loss(input,
     return loss
 
 
-def reduced_focal_loss(input,
-                       target,
-                       threshold=0.5,
-                       gamma=2.0,
-                       reduction='mean'):
+def reduced_focal_loss(y_pred, y_true, threshold=0.5, gamma=2.0, reduction='mean'):
     """Compute reduced focal loss between target and output logits.
 
     See :class:`~pytorch_toolbelt.losses.FocalLoss` for details.
 
     Args:
-        input: Tensor of arbitrary shape
-        target: Tensor of the same shape as input
+        y_pred: Tensor of arbitrary shape
+        y_true: Tensor of the same shape as y_pred
         reduction (string, optional): Specifies the reduction to apply to the output:
             'none' | 'mean' | 'sum' | 'batchwise_mean'. 'none': no reduction will be applied,
             'mean': the sum of the output will be divided by the number of
@@ -72,9 +64,9 @@ def reduced_focal_loss(input,
 
         https://arxiv.org/abs/1903.01347
     """
-    target = target.type(input.type())
+    y_true = y_true.type(y_pred.type())
 
-    logpt = -F.binary_cross_entropy_with_logits(input, target, reduction='none')
+    logpt = -F.binary_cross_entropy_with_logits(y_pred, y_true, reduction='none')
     pt = torch.exp(logpt)
 
     # compute the loss
@@ -138,17 +130,17 @@ def soft_dice_score(y_pred, y_true, dims=None):
     return dice_score
 
 
-def wing_loss(prediction, target, width=5, curvature=0.5, reduction='mean'):
+def wing_loss(y_pred, y_true, width=5, curvature=0.5, reduction='mean'):
     """
-    https://arxiv.org/pdf/1711.06753.pdf
-    :param prediction:
-    :param target:
-    :param width:
-    :param curvature:
-    :param reduction:
-    :return:
-    """
-    diff_abs = (target - prediction).abs()
+    Implementation of wing loss from https://arxiv.org/pdf/1711.06753.pdf
+    Args:
+        y_pred (torch.Tensor): Of shape `NxCx*` where * means any
+            number of additional dimensions
+        y_true (torch.Tensor): `NxCx*`, same shape as `y_pred`
+        width (float): ???
+        curvature (float): ???
+    """  
+    diff_abs = (y_true - y_pred).abs()
     loss = diff_abs.clone()
 
     idx_smaller = diff_abs < width

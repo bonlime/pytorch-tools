@@ -29,101 +29,101 @@ def _lovasz_grad(gt_sorted):
 # --------------------------- BINARY LOSSES ---------------------------
 
 
-def _lovasz_hinge(logits, labels, per_image=True, ignore=None):
+def _lovasz_hinge(y_pred, y_true, per_image=True, ignore=None):
     """
     Binary Lovasz hinge loss
-      logits: [B, H, W] Variable, logits at each pixel (between -\infty and +\infty)
-      labels: [B, H, W] Tensor, binary ground truth masks (0 or 1)
+      y_pred: [B, H, W] Variable, y_pred at each pixel (between -\infty and +\infty)
+      y_true: [B, H, W] Tensor, binary ground truth masks (0 or 1)
       per_image: compute the loss per image instead of per batch
       ignore: void class id
     """
     if per_image:
         loss = mean(_lovasz_hinge_flat(*_flatten_binary_scores(log.unsqueeze(0), lab.unsqueeze(0), ignore))
-                          for log, lab in zip(logits, labels))
+                          for log, lab in zip(y_pred, y_true))
     else:
-        loss = _lovasz_hinge_flat(*_flatten_binary_scores(logits, labels, ignore))
+        loss = _lovasz_hinge_flat(*_flatten_binary_scores(y_pred, y_true, ignore))
     return loss
 
 
-def _lovasz_hinge_flat(logits, labels):
+def _lovasz_hinge_flat(y_pred, y_true):
     """
     Binary Lovasz hinge loss
-      logits: [P] Variable, logits at each prediction (between -\infty and +\infty)
-      labels: [P] Tensor, binary ground truth labels (0 or 1)
+      y_pred: [P] Variable, y_pred at each prediction (between -\infty and +\infty)
+      y_true: [P] Tensor, binary ground truth y_true (0 or 1)
       ignore: label to ignore
     """
-    if len(labels) == 0:
+    if len(y_true) == 0:
         # only void pixels, the gradients should be 0
-        return logits.sum() * 0.
-    signs = 2. * labels.float() - 1.
-    errors = (1. - logits * Variable(signs))
+        return y_pred.sum() * 0.
+    signs = 2. * y_true.float() - 1.
+    errors = (1. - y_pred * Variable(signs))
     errors_sorted, perm = torch.sort(errors, dim=0, descending=True)
     perm = perm.data
-    gt_sorted = labels[perm]
+    gt_sorted = y_true[perm]
     grad = _lovasz_grad(gt_sorted)
     loss = torch.dot(F.relu(errors_sorted), Variable(grad))
     return loss
 
 
-def _flatten_binary_scores(scores, labels, ignore=None):
+def _flatten_binary_scores(y_pred, y_true, ignore=None):
     """
     Flattens predictions in the batch (binary case)
-    Remove labels equal to 'ignore'
+    Remove y_true equal to 'ignore'
     """
-    scores = scores.view(-1)
-    labels = labels.view(-1)
+    y_pred = y_pred.view(-1)
+    y_true = y_true.view(-1)
     if ignore is None:
-        return scores, labels
-    valid = (labels != ignore)
-    vscores = scores[valid]
-    vlabels = labels[valid]
-    return vscores, vlabels
+        return y_pred, y_true
+    valid = (y_true != ignore)
+    vy_pred = y_pred[valid]
+    vy_true = y_true[valid]
+    return vy_pred, vy_true
 
 
 # --------------------------- MULTICLASS LOSSES ---------------------------
 
 
-def _lovasz_softmax(probas, labels, classes='present', per_image=False, ignore=None):
+def _lovasz_softmax(y_pred, y_true, classes='present', per_image=False, ignore=None):
     """
     Multi-class Lovasz-Softmax loss
-      probas: [B, C, H, W] Variable, class probabilities at each prediction (between 0 and 1).
+      y_pred: [B, C, H, W] Variable, class probabilities at each prediction (between 0 and 1).
               Interpreted as binary (sigmoid) output with outputs of size [B, H, W].
-      labels: [B, H, W] Tensor, ground truth labels (between 0 and C - 1)
-      classes: 'all' for all, 'present' for classes present in labels, or a list of classes to average.
+      y_true: [B, H, W] Tensor, ground truth y_true (between 0 and C - 1)
+      classes: 'all' for all, 'present' for classes present in y_true, or a list of classes to average.
       per_image: compute the loss per image instead of per batch
-      ignore: void class labels
+      ignore: void class y_true
     """
     if per_image:
-        loss = mean(_lovasz_softmax_flat(*_flatten_probas(prob.unsqueeze(0), lab.unsqueeze(0), ignore), classes=classes)
-                          for prob, lab in zip(probas, labels))
+        loss = mean(_lovasz_softmax_flat(*_flatten_preds(pred.unsqueeze(0), lab.unsqueeze(0), ignore), classes=classes)
+                          for pred, lab in zip(y_pred, y_true))
     else:
-        loss = _lovasz_softmax_flat(*_flatten_probas(probas, labels, ignore), classes=classes)
+        loss = _lovasz_softmax_flat(*_flatten_preds(y_pred, y_true, ignore), classes=classes)
     return loss
 
 
-def _lovasz_softmax_flat(probas, labels, classes='present'):
+def _lovasz_softmax_flat(y_pred, y_true, classes='present'):
     """
     Multi-class Lovasz-Softmax loss
-      probas: [P, C] Variable, class probabilities at each prediction (between 0 and 1)
-      labels: [P] Tensor, ground truth labels (between 0 and C - 1)
-      classes: 'all' for all, 'present' for classes present in labels, or a list of classes to average.
+      y_pred: [P, C] Variable, class probabilities at each prediction (between 0 and 1)
+      y_true: [P] Tensor, ground truth y_true (between 0 and C - 1)
+      classes: 'all' for all, 'present' for classes present in y_true, or a list of classes to average.
     """
-    if probas.numel() == 0:
+    if y_pred.numel() == 0:
         # only void pixels, the gradients should be 0
-        return probas * 0.
-    C = probas.size(1)
+        return y_pred * 0.
+    C = y_pred.size(1)
     losses = []
     class_to_sum = list(range(C)) if classes in ['all', 'present'] else classes
     for c in class_to_sum:
-        fg = (labels == c).float() # foreground for class c
+        fg = (y_true == c).float() # foreground for class c
         if (classes is 'present' and fg.sum() == 0):
             continue
         if C == 1:
             if len(classes) > 1:
                 raise ValueError('Sigmoid output possible only with 1 class')
-            class_pred = probas[:, 0]
+            class_pred = y_pred[:, 0]
         else:
-            class_pred = probas[:, c]
+            class_pred = y_pred[:, c]
         errors = (Variable(fg) - class_pred).abs()
         errors_sorted, perm = torch.sort(errors, 0, descending=True)
         perm = perm.data
@@ -132,23 +132,23 @@ def _lovasz_softmax_flat(probas, labels, classes='present'):
     return mean(losses)
 
 
-def _flatten_probas(probas, labels, ignore=None):
+def _flatten_preds(y_pred, y_true, ignore=None):
     """
     Flattens predictions in the batch
     """
-    if probas.dim() == 3:
+    if y_pred.dim() == 3:
         # assumes output of a sigmoid layer
-        B, H, W = probas.size()
-        probas = probas.view(B, 1, H, W)
-    B, C, H, W = probas.size()
-    probas = probas.permute(0, 2, 3, 1).contiguous().view(-1, C)  # B * H * W, C = P, C
-    labels = labels.view(-1)
+        B, H, W = y_pred.size()
+        y_pred = y_pred.view(B, 1, H, W)
+    B, C, H, W = y_pred.size()
+    y_pred = y_pred.permute(0, 2, 3, 1).contiguous().view(-1, C)  # B * H * W, C = P, C
+    y_true = y_true.view(-1)
     if ignore is None:
-        return probas, labels
-    valid = (labels != ignore)
-    vprobas = probas[valid.nonzero().squeeze()]
-    vlabels = labels[valid]
-    return vprobas, vlabels
+        return y_pred, y_true
+    valid = (y_true != ignore)
+    vy_pred = y_pred[valid.nonzero().squeeze()]
+    vy_true = y_true[valid]
+    return vy_pred, vy_true
 
 # --------------------------- HELPER FUNCTIONS ---------------------------
 def isnan(x):
@@ -183,8 +183,8 @@ class BinaryLovaszLoss(Loss):
     intersection-over-union measure in neural networks
     https://arxiv.org/pdf/1705.08790.pdf
 
-      logits: [B, 1, H, W] Variable, logits at each pixel (between -\infty and +\infty)
-      labels: [B, H, W] Tensor, binary ground truth masks (0 or 1)
+      y_pred: [B, 1, H, W] Variable, y_pred at each pixel (between -\infty and +\infty)
+      y_true: [B, H, W] Tensor, binary ground truth masks (0 or 1)
       per_image (bool): compute the loss per image instead of per batch
       ignore (int): void class id
     """
@@ -193,9 +193,9 @@ class BinaryLovaszLoss(Loss):
         self.ignore = ignore
         self.per_image = per_image
 
-    def forward(self, logits, target):
-        assert logits.size(1) == 1 # make sure it's binary case
-        return _lovasz_hinge(logits.squeeze(), target, per_image=self.per_image, ignore=self.ignore)
+    def forward(self, y_pred, y_true):
+        assert y_pred.size(1) == 1 # make sure it's binary case
+        return _lovasz_hinge(y_pred.squeeze(), y_true, per_image=self.per_image, ignore=self.ignore)
 
 
 class LovaszLoss(Loss):
@@ -204,17 +204,17 @@ class LovaszLoss(Loss):
     intersection-over-union measure in neural networks
     https://arxiv.org/pdf/1705.08790.pdf
     
-    probas: [B, C, H, W] Variable, class probabilities at each prediction (between 0 and 1).
+    y_pred: [B, C, H, W] Variable, class probabilities at each prediction (between 0 and 1).
               Interpreted as binary (sigmoid) output with outputs of size [B, H, W].
-      labels: [B, H, W] Tensor, ground truth labels (between 0 and C - 1)
-      classes: 'all' for all, 'present' for classes present in labels, or a list of classes to average.
+      y_true: [B, H, W] Tensor, ground truth y_true (between 0 and C - 1)
+      classes: 'all' for all, 'present' for classes present in y_true, or a list of classes to average.
       per_image: compute the loss per image instead of per batch
-      ignore: void class labels
+      ignore: void class y_true
     """
     def __init__(self, per_image=False, ignore=None):
         super().__init__()
         self.ignore = ignore
         self.per_image = per_image
 
-    def forward(self, logits, target):
-        return _lovasz_softmax(logits, target, per_image=self.per_image, ignore=self.ignore)
+    def forward(self, y_pred, y_true):
+        return _lovasz_softmax(y_pred, y_true, per_image=self.per_image, ignore=self.ignore)
