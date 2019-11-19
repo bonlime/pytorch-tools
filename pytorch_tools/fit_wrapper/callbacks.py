@@ -172,6 +172,34 @@ class PhasesScheduler(Callback):
             param_group['lr'] = lr
             param_group['momentum'] = mom
 
+class ReduceLROnPlateau(Callback):
+    def __init__(self, optimizer, factor=0.5, patience=5, min_lr=1e-6, verbose=1, logger=None, mode='min'):
+        self.optimizer = optimizer
+        self.factor = factor
+        self.patience = patience
+        self.min_lr = min_lr
+        self.verbose = bool(verbouse)
+        self.logger = logger
+        self.best = float('inf') if mode == 'min' else -float('inf')
+        self._steps_since_best = 0
+    
+    def on_epoch_end(self):
+        # TODO zakirov(19.11.19) Add support for saving based on metric
+        if self.runner._val_metrics is not None:
+            metric = self.runner._val_metrics[0].avg # loss
+        else:
+            metric = self.runner._train_metrics[0].avg
+        
+        self._steps_since_best += 1
+
+        if (self.mode == 'min' and metric < self.best) or \
+           (self.mode == 'max' and metric > self.best):
+            self._steps_since_best = 0
+        elif self._steps_since_best > self.patience:
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] *= self.factor
+
+
 class CheckpointSaver(Callback):
     def __init__(self, save_dir, save_name='model_{ep}_{metric:.2f}.chpn', mode='min'):
         super().__init__()
