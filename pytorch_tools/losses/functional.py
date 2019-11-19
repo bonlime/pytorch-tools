@@ -93,30 +93,49 @@ def reduced_focal_loss(input,
     return loss
 
 
-def soft_jaccard_score(pred,
-                       target,
-                       smooth=1e-3,
-                       from_logits=False):
-    if from_logits:
-        pred = pred.sigmoid()
+def soft_jaccard_score(y_pred, y_true, dims=None):
+    """
+    Args:
+        y_pred (torch.Tensor): Of shape `NxCx*` where * means any
+            number of additional dimensions
+        y_true (torch.Tensor): `NxCx*`, same shape as `y_pred`
+        dims (Tuple[int], optional): Dims to use for calculating
+    """    
+    SMOOTH = 1e-3 # Laplace smoothing
+    if y_pred.size() != y_true.size(): 
+        raise ValueError('Input and target shapes should match')
 
-    target = target.float()
-    intersection = torch.sum(pred * target)
-    union = torch.sum(pred) + torch.sum(target)
-    iou = intersection / (union - intersection + smooth)
-    return iou
+    if dims is not None:
+        intersection = torch.sum(y_pred * y_true, dim=dims)
+        cardinality = torch.sum(y_pred + y_true, dim=dims)
+    else:
+        intersection = torch.sum(y_pred * y_true)
+        cardinality = torch.sum(y_pred + y_true)
+    union = cardinality - intersection
+    jaccard_score = (intersection + SMOOTH) / (union + SMOOTH)
+    return jaccard_score
 
 
-def soft_dice_score(pred,
-                    target,
-                    smooth=1e-3,
-                    from_logits=False):
-    if from_logits:
-        pred = pred.sigmoid()
+def soft_dice_score(y_pred, y_true, dims=None):
+    """
+    Args:
+        y_pred (torch.Tensor): Of shape `NxCx*` where * means any
+            number of additional dimensions
+        y_true (torch.Tensor): `NxCx*`, same shape as `y_pred`
+        dims (Tuple[int], optional): Dims to use for calculating
+    """    
+    SMOOTH = 1e-4 # Laplace smoothing
+    if y_pred.size() != y_true.size(): 
+        raise ValueError('Input and target shapes should match')
 
-    intersection = torch.sum(pred * target)
-    union = torch.sum(pred) + torch.sum(target) + smooth
-    return 2 * intersection / union
+    if dims is not None:
+        intersection = torch.sum(y_pred * y_true, dim=dims)
+        cardinality = torch.sum(y_pred + y_true, dim=dims)
+    else:
+        intersection = torch.sum(y_pred * y_true)
+        cardinality = torch.sum(y_pred + y_true)
+    dice_score = (2.0 * intersection + SMOOTH) / (cardinality + SMOOTH)
+    return dice_score
 
 
 def wing_loss(prediction, target, width=5, curvature=0.5, reduction='mean'):

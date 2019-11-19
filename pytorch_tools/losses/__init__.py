@@ -1,8 +1,7 @@
 from __future__ import absolute_import
 
 from .focal import BinaryFocalLoss, FocalLoss
-from .jaccard import BinaryJaccardLogLoss, BinaryJaccardLoss, MulticlassJaccardLoss
-from .dice import BinaryDiceLogLoss, BinaryDiceLoss, MulticlassDiceLoss
+from .dice_jaccard import DiceLoss, JaccardLoss
 from .lovasz import BinaryLovaszLoss, LovaszLoss
 from .wing_loss import WingLoss
 from .vgg_loss import ContentLoss, StyleLoss
