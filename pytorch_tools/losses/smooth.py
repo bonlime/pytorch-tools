@@ -15,7 +15,7 @@ class CrossEntropyLoss(Loss):
 
     def forward(self, y_pred, target):
         # check is explicit on purpose, don't rely on self.one_hot
-        if len(target.shape) == 2:
+        if len(target.shape) != 1:
             target_one_hot = target.float()
         else:
             num_classes = y_pred.size(1)
