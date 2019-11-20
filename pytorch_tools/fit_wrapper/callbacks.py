@@ -178,7 +178,7 @@ class ReduceLROnPlateau(Callback):
         self.factor = factor
         self.patience = patience
         self.min_lr = min_lr
-        self.verbose = bool(verbouse)
+        self.verbose = bool(verbose)
         self.logger = logger
         self.best = float('inf') if mode == 'min' else -float('inf')
         self._steps_since_best = 0
