@@ -1,12 +1,7 @@
 import torch
-from .base import Loss
+from .base import Loss, Mode
 from .functional import soft_dice_score, soft_jaccard_score
-from enum import Enum
 
-class Mode(Enum):
-    BINARY = "binary"
-    MULTICLASS = "multiclass"
-    MULTILABEL = "multilabel"
 
 class DiceLoss(Loss):
     """

@@ -219,14 +219,17 @@ def test_loss_addition():
     label = torch.zeros(2,1,8,8)
     res = l(inp, label)
 
+BS = 16
+N_CLASSES = 10
+
 @torch.no_grad()
 def test_cross_entropy():
-    inp = torch.randn(100,10)
-    target = torch.randint(0,10,(100,)).long()
-    tar_one_hot = torch.zeros(target.size(0), 10, dtype=torch.float)
+    inp = torch.randn(BS, N_CLASSES)
+    target = torch.randint(0, N_CLASSES,(BS,)).long()
+    tar_one_hot = torch.zeros(target.size(0), N_CLASSES, dtype=torch.float)
     tar_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
     c = np.random.beta(0.4, 0.4)
-    perm = torch.randperm(100)
+    perm = torch.randperm(BS)
     tar_one_hot_2 = tar_one_hot * c + (1-c) * tar_one_hot[perm,:]
 
     torch_ce = torch.nn.CrossEntropyLoss()(inp, target)
@@ -241,4 +244,53 @@ def test_cross_entropy():
 
     my_ce_sm = losses.CrossEntropyLoss(smoothing=0.1)(inp, target)
     assert not torch.allclose(my_ce_sm, my_ce)
+
+
+@torch.no_grad()
+def test_binary_cross_entropy():
+    # classification test
+    IM_SIZE = 10
+    inp = torch.randn(16).float()
+    target = torch.randint(0,2,(BS,)).float()
+
+    torch_ce = torch.nn.functional.binary_cross_entropy_with_logits(inp, target)
+    my_ce = losses.CrossEntropyLoss(mode='binary')(inp, target)
+    assert torch.allclose(torch_ce, my_ce) 
+
+    # test for images
+    inp = torch.randn(BS, 1, IM_SIZE, IM_SIZE).float()
+    target = torch.randint(0,2,(BS, 1, IM_SIZE, IM_SIZE)).float()
+    
+    torch_ce = torch.nn.functional.binary_cross_entropy_with_logits(inp, target)
+    my_ce = losses.CrossEntropyLoss(mode='binary')(inp, target)
+    assert torch.allclose(torch_ce, my_ce)
+
+    inp = torch.randn(BS, IM_SIZE, IM_SIZE).float()
+    target = torch.randint(0,2,(BS, IM_SIZE, IM_SIZE)).float()
+    
+    torch_ce = torch.nn.functional.binary_cross_entropy_with_logits(inp, target)
+    my_ce = losses.CrossEntropyLoss(mode='binary')(inp, target)
+    assert torch.allclose(torch_ce, my_ce) 
+
+    # test for images with different y_true shape
+    inp = torch.randn(BS, 1, IM_SIZE, IM_SIZE).float()
+    target = torch.randint(0,2,(BS, IM_SIZE, IM_SIZE)).float()
+    torch_ce = torch.nn.functional.binary_cross_entropy_with_logits(inp.squeeze(), target)
+    my_ce = losses.CrossEntropyLoss(mode='binary')(inp, target)
+    assert torch.allclose(torch_ce, my_ce)
+
+    inp = torch.randn(BS, IM_SIZE, IM_SIZE).float()
+    target = torch.randint(0,2,(BS, 1, IM_SIZE, IM_SIZE)).float()
+    torch_ce = torch.nn.functional.binary_cross_entropy_with_logits(inp, target.squeeze())
+    my_ce = losses.CrossEntropyLoss(mode='binary')(inp, target)
+    assert torch.allclose(torch_ce, my_ce)
+
+    # my_ce_oh = losses.CrossEntropyLoss()(inp, tar_one_hot)
+    # assert torch.allclose(torch_ce, my_ce_oh)
+
+    # my_ce_oh_2 = losses.CrossEntropyLoss()(inp, tar_one_hot_2)
+    # assert not torch.allclose(torch_ce, my_ce_oh_2)
+
+    # my_ce_sm = losses.CrossEntropyLoss(smoothing=0.1)(inp, target)
+    # assert not torch.allclose(my_ce_sm, my_ce)
 

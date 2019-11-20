@@ -1,6 +1,12 @@
 from torch.nn.modules.loss import _Loss
 import torch
+from enum import Enum
 
+class Mode(Enum):
+    BINARY = "binary"
+    MULTICLASS = "multiclass"
+    MULTILABEL = "multilabel"
+    
 class Loss(_Loss):
     """Loss which supports addition and multiplication"""
     def __add__(self, other):
