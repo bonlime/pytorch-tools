@@ -42,7 +42,7 @@ class Lookahead(Optimizer):
                     param_state = self.state[p]
                     # φ = φ + α * (θ - φ) = α * θ + (1 - α) * φ
                     p.data.mul_(self.la_alpha).add_(1.0 - self.la_alpha, param_state['slow_params'])
-                    param_state['cached_params'].copy_(p.data)
+                    param_state['slow_params'].copy_(p.data)
         return loss
 
     def zero_grad(self):
