@@ -3,9 +3,12 @@ from pytorch_tools.metrics import Accuracy
 from pytorch_tools.metrics import BalancedAccuracy
 from pytorch_tools.metrics import DiceScore, JaccardScore
 #from ..utils.misc import to_numpy
+import pytest
 import torch
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
 import numpy as np 
+
+METRIC_NAMES = sorted(name for name in pt.metrics.__dict__ if not name.islower())
 
 def test_accuracy():
     output = torch.rand((16,4))
@@ -45,3 +48,8 @@ def test_jaccard_score():
     jaccard_score = JaccardScore(mode='binary', from_logits=False)(inp, target)
     jaccard_loss = pt.losses.JaccardLoss(mode='binary', from_logits=False)(inp, target)
     assert jaccard_score == 1 - jaccard_loss
+
+@pytest.mark.parametrize('metric', METRIC_NAMES)
+def test_has_name(metric):
+    m = pt.metrics.__dict__[metric]()
+    assert hasattr(m, 'name')
