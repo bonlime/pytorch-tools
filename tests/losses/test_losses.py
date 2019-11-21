@@ -214,10 +214,16 @@ def test_losses_init(loss_name):
     l = losses.__dict__[loss_name]()
 
 def test_loss_addition():
-    l = losses.DiceLoss('binary') * 0.5 + losses.BinaryFocalLoss() * 5
     inp = torch.ones(2,1,8,8)
     label = torch.zeros(2,1,8,8)
+    d_l = losses.DiceLoss('binary')
+    bf_l = losses.BinaryFocalLoss()
+    l = losses.DiceLoss('binary') * 0.5 + losses.BinaryFocalLoss() * 5
+    d_res = d_l(inp, label)
+    bf_res = bf_l(inp, label)
     res = l(inp, label)
+    assert res.shape == d_res.shape
+    assert res == d_res*0.5 + bf_res * 5
 
 BS = 16
 N_CLASSES = 10

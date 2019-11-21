@@ -41,7 +41,7 @@ class WeightedLoss(Loss):
     def forward(self, *input):
         l = self.loss(*input)
         self.weight = self.weight.to(l.device)
-        return l * self.weight
+        return l * self.weight[0]
 
 class SumOfLosses(Loss):
     def __init__(self, l1, l2):
