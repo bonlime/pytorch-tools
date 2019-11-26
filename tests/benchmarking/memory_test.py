@@ -7,7 +7,7 @@ import torch.backends.cudnn as cudnn
 from pytorch_tools import models
 from pytorch_tools.utils.misc import AverageMeter
 
-# pytest.skip("Not meant for pytest", allow_module_level=True)
+pytest.skip("Not meant for pytest", allow_module_level=True)
 
 def test_model(model):
     model = model.cuda(0)
