@@ -16,6 +16,8 @@ from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.modules import GlobalPool2d
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
+from pytorch_tools.utils.misc import activation_from_name, bn_from_name
+from inplace_abn import ABN
 from copy import deepcopy
 import re
 import logging
@@ -31,50 +33,47 @@ class _Transition(nn.Module):
     - 1x1 Convolution (with optional compression of the number of channels)
     - 2x2 Average Pooling
     """
-    def __init__(self, in_planes, out_planes):
+    def __init__(self, in_planes, out_planes, norm_layer=ABN, norm_act='relu'):
         super(_Transition, self).__init__()
-        self.norm = nn.BatchNorm2d(in_planes)
-        self.act = nn.ReLU(inplace=True)
+        self.norm = norm_layer(in_planes, activation=norm_act)
         self.conv = conv1x1(in_planes, out_planes)
         self.pool = nn.AvgPool2d(kernel_size=2, stride=2)
 
     def forward(self, x):
         out = self.norm(x)
-        out = self.act(x)
         out = self.conv(out)
         out = self.pool(out)
         return out
 
-def _bn_function_factory(norm, relu, conv):
+def _bn_function_factory(norm, conv):
     def bn_function(*inputs):
         concated_features = torch.cat(inputs, 1)
-        bottleneck_output = conv(relu(norm(concated_features)))
+        bottleneck_output = conv(norm(concated_features))
         return bottleneck_output
     return bn_function
 
 class _DenseLayer(nn.Module):
     expansion = 4
 
-    def __init__(self, in_planes, growth_rate, drop_rate=0.0, memory_efficient=False):
+    def __init__(self, in_planes, growth_rate, drop_rate=0.0, memory_efficient=False, 
+                 norm_layer=ABN, norm_act='relu'):
         super(_DenseLayer, self).__init__()
 
         width = growth_rate * self.expansion
-        self.norm1 = nn.BatchNorm2d(in_planes)
-        self.act1 = nn.ReLU(inplace=True)
+        self.norm1 = norm_layer(in_planes, activation=norm_act)
         self.conv1 = conv1x1(in_planes, width)
-        self.norm2 = nn.BatchNorm2d(width)
-        self.act2 = nn.ReLU(inplace=True)
+        self.norm2 = norm_layer(width, activation=norm_act)
         self.conv2 = conv3x3(width, growth_rate)
         self.drop_rate = drop_rate
         self.memory_efficient = memory_efficient
 
     def forward(self, *inputs):
-        bn_function = _bn_function_factory(self.norm1, self.act1, self.conv1)
+        bn_function = _bn_function_factory(self.norm1, self.conv1)
         if self.memory_efficient and any(x.requires_grad for x in inputs):
             out = cp.checkpoint(bn_function, *inputs)
         else:
             out = bn_function(*inputs)
-        out = self.conv2(self.act2(self.norm2(out)))
+        out = self.conv2(self.norm2(out))
         if self.drop_rate > 0:
             out = F.dropout(out, p=self.drop_rate, training=self.training)
         return out
@@ -112,6 +111,11 @@ class DenseNet(nn.Module):
             Dropout probability after each DenseLayer. Defaults to 0.0.
         in_channels (int): 
             Number of input (color) channels. Defaults to 3.
+        norm_layer (str): 
+            Nomaliztion layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory footprint. 
+            But increases backward time. Defaults to 'abn'.
+        norm_act (str): 
+            Activation for normalizion layer. It's reccomended to use `relu` with `abn`.
         deep_stem (bool): 
             Whether to replace the 7x7 conv1 with 3 3x3 convolution layers. Defaults to False.
         stem_width (int):
@@ -130,33 +134,35 @@ class DenseNet(nn.Module):
                  num_classes=1000,
                  drop_rate=0.0,
                  in_channels=3,
-                 deep_stem=False, stem_width=64,
+                 norm_layer='abn',
+                 norm_act='relu',
+                 deep_stem=False, 
+                 stem_width=64,
                  encoder=False,
                  global_pool='avg',
                  memory_efficient=True):
 
-        self.num_classes = num_classes
         super(DenseNet, self).__init__()
+        norm_layer = bn_from_name(norm_layer)
+        self.num_classes = num_classes
         layers_dict = OrderedDict()
         if deep_stem:
             layers_dict['conv0'] = nn.Sequential(
                 conv3x3(in_channels, stem_width // 2, 2),
-                nn.BatchNorm2d(stem_width //2),
-                nn.ReLU(inplace=True),
+                norm_layer(stem_width //2, activation=norm_act),
                 conv3x3(stem_width // 2, stem_width // 2),
-                nn.BatchNorm2d(stem_width //2),
-                nn.ReLU(inplace=True),
+                norm_layer(stem_width //2, activation=norm_act),
                 conv3x3(stem_width // 2, stem_width, 2)
             )
         else:
             layers_dict['conv0'] = nn.Conv2d(in_channels, stem_width, kernel_size=7, 
                                              stride=2, padding=3, bias=False)
 
-        layers_dict['norm0'] = nn.BatchNorm2d(stem_width) 
-        layers_dict['relu0'] = nn.ReLU(inplace=True)
+        layers_dict['norm0'] = norm_layer(stem_width, activation=norm_act)
         layers_dict['pool0'] = nn.MaxPool2d(kernel_size=3, stride=2, padding=1, ceil_mode=False)
         
-        largs = {'growth_rate': growth_rate, 'drop_rate': drop_rate, 'memory_efficient': memory_efficient}
+        largs = dict(growth_rate=growth_rate, drop_rate=drop_rate, memory_efficient=memory_efficient, 
+                     norm_layer=norm_layer, norm_act=norm_act)
         in_planes = stem_width
         for i, num_layers in enumerate(block_config):
             block = _DenseBlock(num_layers, in_planes, **largs)
@@ -173,6 +179,7 @@ class DenseNet(nn.Module):
         self.features = nn.Sequential(layers_dict)
 
         # Linear layer
+        self.encoder = encoder
         if not encoder:
             self.global_pool = GlobalPool2d(global_pool)
             self.classifier = nn.Linear(in_planes, num_classes)
@@ -180,16 +187,16 @@ class DenseNet(nn.Module):
             assert len(block_config) == 4, 'Need 4 blocks to use as encoder'
             self.forward = self.encoder_features
 
-    # def encoder_features(self, x):
-    #     """
-    #     Return 5 feature maps before maxpooling layers
-    #     """
-    #     x0 = self.norm0(self.conv0(x))
-    #     x1 = self.denseblock1(self.pool0(x0))
-    #     x2 = self.denseblock2(self.transition1(x1))
-    #     x3 = self.denseblock3(self.transition2(x1))
-    #     x4 = self.norm5(self.denseblock4(self.transition3(x1)))
-    #     return [x4, x3, x2, x1, x0]
+    def encoder_features(self, x):
+        """
+        Return 5 feature maps before maxpooling layers
+        """
+        x0 = self.norm0(self.conv0(x))
+        x1 = self.denseblock1(self.pool0(x0))
+        x2 = self.denseblock2(self.transition1(x1))
+        x3 = self.denseblock3(self.transition2(x1))
+        x4 = self.norm5(self.denseblock4(self.transition3(x1)))
+        return [x4, x3, x2, x1, x0]
 
     def logits(self, x):
         x = F.relu(x, inplace=True)
@@ -217,6 +224,8 @@ class DenseNet(nn.Module):
         pattern = re.compile(
         r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$')
         for key in list(state_dict.keys()):
+            if key.startswith('classifier') and self.encoder:
+                state_dict.pop(key)
             res = pattern.match(key)
             if res:
                 new_key = res.group(1) + res.group(2)
