@@ -145,9 +145,8 @@ class DenseNet(nn.Module):
         super(DenseNet, self).__init__()
         norm_layer = bn_from_name(norm_layer)
         self.num_classes = num_classes
-        layers_dict = OrderedDict()
         if deep_stem:
-            layers_dict['conv0'] = nn.Sequential(
+            self.conv0 = nn.Sequential(
                 conv3x3(in_channels, stem_width // 2, 2),
                 norm_layer(stem_width //2, activation=norm_act),
                 conv3x3(stem_width // 2, stem_width // 2),
@@ -155,28 +154,26 @@ class DenseNet(nn.Module):
                 conv3x3(stem_width // 2, stem_width, 2)
             )
         else:
-            layers_dict['conv0'] = nn.Conv2d(in_channels, stem_width, kernel_size=7, 
+            self.conv0 = nn.Conv2d(in_channels, stem_width, kernel_size=7, 
                                              stride=2, padding=3, bias=False)
 
-        layers_dict['norm0'] = norm_layer(stem_width, activation=norm_act)
-        layers_dict['pool0'] = nn.MaxPool2d(kernel_size=3, stride=2, padding=1, ceil_mode=False)
+        self.norm0 = norm_layer(stem_width, activation=norm_act)
+        self.pool0 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1, ceil_mode=False)
         
         largs = dict(growth_rate=growth_rate, drop_rate=drop_rate, memory_efficient=memory_efficient, 
                      norm_layer=norm_layer, norm_act=norm_act)
         in_planes = stem_width
         for i, num_layers in enumerate(block_config):
             block = _DenseBlock(num_layers, in_planes, **largs)
-            layers_dict['denseblock{}'.format(i+1)] = block
+            setattr(self, 'denseblock{}'.format(i+1), block)
             in_planes += num_layers * growth_rate
             if i != len(block_config) - 1:
                 trans = _Transition(in_planes=in_planes, out_planes=in_planes // 2)
-                layers_dict['transition{}'.format(i+1)] = trans
+                setattr(self, 'transition{}'.format(i+1), trans)
                 in_planes //= 2
 
         # Final normalization
-        layers_dict['norm5'] = nn.BatchNorm2d(in_planes)
-        # define features
-        self.features = nn.Sequential(layers_dict)
+        self.norm5 = nn.BatchNorm2d(in_planes)
 
         # Linear layer
         self.encoder = encoder
@@ -194,9 +191,23 @@ class DenseNet(nn.Module):
         x0 = self.norm0(self.conv0(x))
         x1 = self.denseblock1(self.pool0(x0))
         x2 = self.denseblock2(self.transition1(x1))
-        x3 = self.denseblock3(self.transition2(x1))
-        x4 = self.norm5(self.denseblock4(self.transition3(x1)))
+        x3 = self.denseblock3(self.transition2(x2))
+        x4 = self.norm5(self.denseblock4(self.transition3(x3)))
         return [x4, x3, x2, x1, x0]
+
+    def features(self, x):
+        x = self.conv0(x)
+        x = self.norm0(x)
+        x = self.pool0(x)
+        x = self.denseblock1(x)
+        x = self.transition1(x)
+        x = self.denseblock2(x)
+        x = self.transition2(x)
+        x = self.denseblock3(x)
+        x = self.transition3(x)
+        x = self.denseblock4(x)
+        x = self.norm5(x)
+        return x
 
     def logits(self, x):
         x = F.relu(x, inplace=True)
@@ -226,6 +237,9 @@ class DenseNet(nn.Module):
         for key in list(state_dict.keys()):
             if key.startswith('classifier') and self.encoder:
                 state_dict.pop(key)
+            if key.startswith('features'):
+                state_dict[key[9:]] = state_dict.pop(key)
+            key = key[9:]
             res = pattern.match(key)
             if res:
                 new_key = res.group(1) + res.group(2)
@@ -317,8 +331,8 @@ def _densenet(arch, pretrained=None, **kwargs):
             logging.warning('Using model pretrained for {} classes with {} classes. Last layer is initialized randomly'.format(
                 cfg_settings['num_classes'], kwargs_cls))
             # if there is last_linear in state_dict, it's going to be overwritten
-            #state_dict['fc.weight'] = model.state_dict()['last_linear.weight']
-            #state_dict['fc.bias'] = model.state_dict()['last_linear.bias']
+            state_dict['classifier.weight'] = model.state_dict()['classifier.weight']
+            state_dict['classifier.bias'] = model.state_dict()['classifier.bias']
         model.load_state_dict(state_dict)
 
     setattr(model, 'pretrained_settings', cfg_settings)

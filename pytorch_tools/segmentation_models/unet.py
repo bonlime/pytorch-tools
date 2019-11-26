@@ -95,14 +95,15 @@ class Unet(EncoderDecoder):
             activation='sigmoid',
             center=False,  # usefull for VGG models
             norm_layer='abn',
+            norm_act='relu',
             **encoder_params):
         encoder = get_encoder(
             encoder_name,
             norm_layer=norm_layer,
+            norm_act=norm_act,
             encoder_weights=encoder_weights,
             **encoder_params,
         )
-        norm_act = 'relu' if norm_layer.lower() == 'abn' else 'leaky_relu'
         decoder = UnetDecoder(
             encoder_channels=encoder.out_shapes,
             decoder_channels=decoder_channels,

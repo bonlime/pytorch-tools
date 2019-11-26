@@ -12,10 +12,9 @@ densenet_names = sorted(name for name in models.__dict__
 def test_densenet_init(arch, pretrained):
     m = models.__dict__[arch](pretrained=pretrained)
 
-# TODO(bonlime) fix custom classes for densenet
-# @pytest.mark.parametrize('arch', densenet_names[:2])
-# def test_densenet_imagenet_custom_cls(arch):
-#     m = models.__dict__[arch](pretrained='imagenet', num_classes=10)
+@pytest.mark.parametrize('arch', densenet_names[:2])
+def test_densenet_imagenet_custom_cls(arch):
+    m = models.__dict__[arch](pretrained='imagenet', num_classes=10)
 
 @pytest.mark.parametrize('arch', densenet_names[:2]) #test only part of the models
 def test_densenet_custom_in_channels(arch):
