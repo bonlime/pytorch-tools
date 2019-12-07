@@ -2,18 +2,21 @@ from torch.nn.modules.loss import _Loss
 import torch
 from enum import Enum
 
+
 class Mode(Enum):
     BINARY = "binary"
     MULTICLASS = "multiclass"
     MULTILABEL = "multilabel"
-    
+
+
 class Loss(_Loss):
     """Loss which supports addition and multiplication"""
+
     def __add__(self, other):
         if isinstance(other, Loss):
             return SumOfLosses(self, other)
         else:
-            raise ValueError('Loss should be inherited from `Loss` class')
+            raise ValueError("Loss should be inherited from `Loss` class")
 
     def __radd__(self, other):
         return self.__add__(other)
@@ -22,10 +25,11 @@ class Loss(_Loss):
         if isinstance(value, (int, float)):
             return WeightedLoss(self, value)
         else:
-            raise ValueError('Loss should be multiplied by int or float')
+            raise ValueError("Loss should be multiplied by int or float")
 
     def __rmul__(self, other):
         return self.__mul__(other)
+
 
 class WeightedLoss(Loss):
     """
@@ -38,10 +42,11 @@ class WeightedLoss(Loss):
         self.loss = loss
         self.weight = torch.Tensor([weight])
 
-    def forward(self, *input):
-        l = self.loss(*input)
+    def forward(self, *inputs):
+        l = self.loss(*inputs)
         self.weight = self.weight.to(l.device)
         return l * self.weight[0]
+
 
 class SumOfLosses(Loss):
     def __init__(self, l1, l2):

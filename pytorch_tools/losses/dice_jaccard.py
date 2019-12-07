@@ -8,8 +8,10 @@ class DiceLoss(Loss):
     Implementation of Dice loss for image segmentation task.
     It supports binary, multiclass and multilabel cases
     """
+
     IOU_FUNCTION = soft_dice_score
-    def __init__(self, mode='binary', log_loss=False, from_logits=True):
+
+    def __init__(self, mode="binary", log_loss=False, from_logits=True):
         """
         Args:
             mode (str): Metric mode {'binary', 'multiclass', 'multilabel'}
@@ -17,10 +19,10 @@ class DiceLoss(Loss):
                 'multiclass', 'binary' - expects y_true of shape NxHxW
             log_loss (bool): If True, loss computed as `-log(jaccard)`; otherwise `1 - jaccard`
             from_logits (bool): If True assumes input is raw logits
-        """ 
+        """
 
         super(DiceLoss, self).__init__()
-        self.mode = Mode(mode) # raises an error if not valid
+        self.mode = Mode(mode)  # raises an error if not valid
         self.log_loss = log_loss
         self.from_logits = from_logits
 
@@ -61,10 +63,12 @@ class DiceLoss(Loss):
             loss = 1 - scores
         return loss.mean()
 
+
 class JaccardLoss(DiceLoss):
     """
-    Implementation of Dice loss for image segmentation task.
+    Implementation of Jaccard loss for image segmentation task.
     It supports binary, multiclass and multilabel cases
     """
+
     # the only difference is which function to use
     IOU_FUNCTION = soft_jaccard_score

@@ -9,7 +9,8 @@ class CrossEntropyLoss(Loss):
     Can accept one-hot encoded y_trues
     Supports only one reduction for now
     """
-    def __init__(self, mode='multiclass', smoothing=0.0):
+
+    def __init__(self, mode="multiclass", smoothing=0.0):
         """
         Args:
             mode (str): Metric mode {'binary', 'multiclass'}
@@ -33,8 +34,9 @@ class CrossEntropyLoss(Loss):
             y_true_one_hot = y_true.float()
         else:
             num_classes = y_pred.size(1)
-            y_true_one_hot = torch.zeros(y_true.size(0), num_classes, 
-                                         dtype=torch.float, device=y_pred.device)
+            y_true_one_hot = torch.zeros(
+                y_true.size(0), num_classes, dtype=torch.float, device=y_pred.device
+            )
             y_true_one_hot.scatter_(1, y_true.unsqueeze(1), 1.0)
         y_pred = y_pred.float()
         logprobs = F.log_softmax(y_pred, dim=1)
@@ -45,5 +47,3 @@ class CrossEntropyLoss(Loss):
         loss = self.confidence * nll_loss + self.smoothing * smooth_loss
         return loss.mean()
 
-
-torch.nn.BCELoss
