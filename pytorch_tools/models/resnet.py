@@ -101,7 +101,6 @@ class ResNet(nn.Module):
         self.num_classes = num_classes
         self.groups = groups
         self.base_width = base_width
-        self.drop_rate = drop_rate
         self.block = block
         self.expansion = block.expansion
         self.dilated = dilated
@@ -145,6 +144,7 @@ class ResNet(nn.Module):
         self.num_features = 512 * self.expansion
         self.encoder = encoder
         if not encoder:
+            self.dropout = nn.Dropout(p=drop_rate)
             self.last_linear = nn.Linear(self.num_features * self.global_pool.feat_mult(), num_classes)
         else:
             self.forward = self.encoder_features
@@ -213,8 +213,7 @@ class ResNet(nn.Module):
     def logits(self, x):
         x = self.global_pool(x)
         x = torch.flatten(x, 1)
-        if self.drop_rate > 0.:
-            x = F.dropout(x, p=self.drop_rate, training=self.training)
+        x = self.dropout(x)
         x = self.last_linear(x)
         return x
 
