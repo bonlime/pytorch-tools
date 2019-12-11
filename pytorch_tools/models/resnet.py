@@ -340,10 +340,16 @@ CFGS = {
         'imagenet_ig': {'url': 'https://download.pytorch.org/models/ig_resnext101_32x48-3e41cc8a.pth'}
     },
     # SE RESNET MODELS
+    'se_resnet34': {
+        'default': {
+            'params': {'block': BasicBlock, 'layers': [3, 4, 6, 3], 'use_se': True},
+            **DEFAULT_IMAGENET_SETTINGS,
+        },
+        # NO WEIGHTS
+    },
     'se_resnet50': {
         'default': {
             'params': {'block': Bottleneck, 'layers': [3, 4, 6, 3], 'use_se': True},
-            'url': 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet50-ce0d4300.pth',
             **DEFAULT_IMAGENET_SETTINGS,
         },
         'imagenet': {'url': 'http://data.lip6.fr/cadene/pretrainedmodels/se_resnet50-ce0d4300.pth'},
@@ -501,11 +507,11 @@ def ig_resnext101_32x48d(**kwargs):
     r"""Constructs a ResNeXt-101 32x48 model pre-trained on weakly-supervised data."""
     return _resnet('ig_resnext101_32x48d', **kwargs)
 
-# @wraps(ResNet)
-# @add_docs_for(ResNet)
-# def se_resnet34(**kwargs):
-#     """TODO: Add Doc"""
-#     return  _resnet('se_resnet34', **kwargs)
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def se_resnet34(**kwargs):
+    """TODO: Add Doc"""
+    return  _resnet('se_resnet34', **kwargs)
 
 
 @wraps(ResNet)

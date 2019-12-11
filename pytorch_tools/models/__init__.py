@@ -12,7 +12,7 @@ from .resnet import resnet152
 from .resnet import resnext50_32x4d
 from .resnet import resnext101_32x8d
 
-#from .resnet import se_resnet34 no weights
+from .resnet import se_resnet34
 from .resnet import se_resnet50
 from .resnet import se_resnet101
 
