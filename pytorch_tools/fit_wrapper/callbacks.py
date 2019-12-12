@@ -99,6 +99,7 @@ class PhasesScheduler(Callback):
         {'ep':(33, 34), 'lr':(lr/25*bs_scale[2], lr/125*bs_scale[2])},
     ]
     """
+
     def __init__(self, optimizer, phases, change_every=10):
         self.optimizer = optimizer
         self.change_every = change_every
@@ -106,107 +107,109 @@ class PhasesScheduler(Callback):
         self.current_mom = None
         self.phases = [self._format_phase(p) for p in phases]
         self.phase = self.phases[0]
-        self.tot_epochs = max([max(p['ep']) for p in self.phases])
+        self.tot_epochs = max([max(p["ep"]) for p in self.phases])
         super(PhasesScheduler, self).__init__()
 
     def _format_phase(self, phase):
-        phase['ep'] = listify(phase['ep'])
-        phase['lr'] = listify(phase['lr'])
-        phase['mom'] = listify(phase.get('mom', None)) # optional
-        if len(phase['lr']) == 2 or len(phase['mom']) == 2:
-            phase['mode'] = phase.get('mode', 'linear') 
-            assert (len(phase['ep']) == 2), 'Linear learning rates must contain end epoch'
+        phase["ep"] = listify(phase["ep"])
+        phase["lr"] = listify(phase["lr"])
+        phase["mom"] = listify(phase.get("mom", None))  # optional
+        if len(phase["lr"]) == 2 or len(phase["mom"]) == 2:
+            phase["mode"] = phase.get("mode", "linear")
+            assert len(phase["ep"]) == 2, "Linear learning rates must contain end epoch"
         return phase
 
     @staticmethod
     def _schedule(start, end, pct, mode):
         """anneal from `start` to `end` as pct goes from 0.0 to 1.0."""
-        if mode == 'linear':
+        if mode == "linear":
             return start + (end - start) * pct
-        elif mode == 'cos':
-            return end + (start - end)/2 * (math.cos(math.pi * pct) + 1)
+        elif mode == "cos":
+            return end + (start - end) / 2 * (math.cos(math.pi * pct) + 1)
 
     def _get_lr_mom(self, batch_curr):
         phase = self.phase
         batch_tot = self.runner._ep_size
-        if len(phase['ep']) == 1:
+        if len(phase["ep"]) == 1:
             perc = 0
         else:
-            ep_start, ep_end = phase['ep']
+            ep_start, ep_end = phase["ep"]
             ep_curr, ep_tot = self.runner._epoch - ep_start, ep_end - ep_start
             perc = (ep_curr * batch_tot + batch_curr) / (ep_tot * batch_tot)
-        if len(phase['lr']) == 1:
-            new_lr = phase['lr'][0] # constant learning rate
+        if len(phase["lr"]) == 1:
+            new_lr = phase["lr"][0]  # constant learning rate
         else:
-            lr_start, lr_end = phase['lr']
-            new_lr = self._schedule(lr_start, lr_end, perc, phase['mode'])
-            
-        if len(phase['mom']) == 0:
+            lr_start, lr_end = phase["lr"]
+            new_lr = self._schedule(lr_start, lr_end, perc, phase["mode"])
+
+        if len(phase["mom"]) == 0:
             new_mom = self.current_mom
-        elif len(phase['mom']) == 1:
-            new_mom = phase['mom'][0]
+        elif len(phase["mom"]) == 1:
+            new_mom = phase["mom"][0]
         else:
-            mom_start, mom_end = phase['mom']
-            new_mom = self._schedule(mom_start, mom_end, perc, phase['mode'])
+            mom_start, mom_end = phase["mom"]
+            new_mom = self._schedule(mom_start, mom_end, perc, phase["mode"])
 
         return new_lr, new_mom
 
     def on_epoch_begin(self):
         new_phase = None
         for phase in reversed(self.phases):
-            if (self.runner._epoch >= phase['ep'][0]):
+            if self.runner._epoch >= phase["ep"][0]:
                 new_phase = phase
                 break
         if new_phase is None:
-            raise Exception('Epoch out of range')
+            raise Exception("Epoch out of range")
         else:
             self.phase = new_phase
 
     def on_batch_begin(self):
         lr, mom = self._get_lr_mom(self.runner._step)
-        if (self.current_lr == lr and self.current_mom == mom) or (self.runner._step % self.change_every != 0):
+        if (self.current_lr == lr and self.current_mom == mom) or (
+            self.runner._step % self.change_every != 0
+        ):
             return
         self.current_lr = lr
         self.current_mom = mom
         for param_group in self.optimizer.param_groups:
-            param_group['lr'] = lr
-            param_group['momentum'] = mom
+            param_group["lr"] = lr
+            param_group["momentum"] = mom
+
 
 class ReduceLROnPlateau(Callback):
-    def __init__(self, optimizer, factor=0.5, patience=5, min_lr=1e-6, verbose=1, logger=None, mode='min'):
+    def __init__(self, optimizer, factor=0.5, patience=5, min_lr=1e-6, verbose=1, logger=None, mode="min"):
         self.optimizer = optimizer
         self.factor = factor
         self.patience = patience
         self.min_lr = min_lr
         self.verbose = bool(verbose)
         self.logger = logger
-        self.best = float('inf') if mode == 'min' else -float('inf')
+        self.best = float("inf") if mode == "min" else -float("inf")
         self._steps_since_best = 0
-    
+
     def on_epoch_end(self):
         # TODO zakirov(19.11.19) Add support for saving based on metric
         if self.runner._val_metrics is not None:
-            metric = self.runner._val_metrics[0].avg # loss
+            metric = self.runner._val_metrics[0].avg  # loss
         else:
             metric = self.runner._train_metrics[0].avg
-        
+
         self._steps_since_best += 1
 
-        if (self.mode == 'min' and metric < self.best) or \
-           (self.mode == 'max' and metric > self.best):
+        if (self.mode == "min" and metric < self.best) or (self.mode == "max" and metric > self.best):
             self._steps_since_best = 0
         elif self._steps_since_best > self.patience:
             for param_group in self.optimizer.param_groups:
-                param_group['lr'] *= self.factor
+                param_group["lr"] *= self.factor
 
 
 class CheckpointSaver(Callback):
-    def __init__(self, save_dir, save_name='model_{ep}_{metric:.2f}.chpn', mode='min'):
+    def __init__(self, save_dir, save_name="model_{ep}_{metric:.2f}.chpn", mode="min"):
         super().__init__()
         self.mode = mode
         self.save_dir = save_dir
         self.save_name = save_name
-        self.best = float('inf') if mode == 'min' else -float('inf')
+        self.best = float("inf") if mode == "min" else -float("inf")
 
     def on_train_begin(self):
         os.makedirs(self.save_dir, exist_ok=True)
@@ -214,24 +217,28 @@ class CheckpointSaver(Callback):
     def on_epoch_end(self):
         # TODO zakirov(1.11.19) Add support for saving based on metric
         if self.runner._val_metrics is not None:
-            metric = self.runner._val_metrics[0].avg # loss
+            metric = self.runner._val_metrics[0].avg  # loss
         else:
             metric = self.runner._train_metrics[0].avg
-        if (self.mode == 'min' and metric < self.best) or \
-           (self.mode == 'max' and metric > self.best):
+        if (self.mode == "min" and metric < self.best) or (self.mode == "max" and metric > self.best):
             save_name = os.path.join(
-                self.save_dir, self.save_name.format(ep=self.runner._epoch, metric=metric))
+                self.save_dir, self.save_name.format(ep=self.runner._epoch, metric=metric)
+            )
             self._save_checkpoint(save_name)
 
     def _save_checkpoint(self, path):
-        if hasattr(self.runner.model, 'module'): # used for saving DDP models
+        if hasattr(self.runner.model, "module"):  # used for saving DDP models
             state_dict = self.runner.model.module.state_dict()
         else:
             state_dict = self.runner.model.state_dict()
-        torch.save({
-            'epoch': self.runner._epoch,
-            'state_dict': state_dict,
-            'optimizer': self.runner.optimizer.state_dict()}, path)
+        torch.save(
+            {
+                "epoch": self.runner._epoch,
+                "state_dict": state_dict,
+                "optimizer": self.runner.optimizer.state_dict(),
+            },
+            path,
+        )
 
 
 class TensorBoard(Callback):
@@ -249,27 +256,26 @@ class TensorBoard(Callback):
     def on_batch_end(self):
         self.current_step += 1
         if self.runner._is_train and (self.current_step % self.log_every == 0):
-            self.writer.add_scalar('train_/loss', self.runner._loss_meter.val, self.current_step)
+            self.writer.add_scalar("train_/loss", self.runner._loss_meter.val, self.current_step)
             for m in self.runner._metric_meters:
-                self.writer.add_scalar('train_/{}'.format(m.name), m.val, self.current_step)
-
+                self.writer.add_scalar("train_/{}".format(m.name), m.val, self.current_step)
 
     def on_epoch_end(self):
-        self.writer.add_scalar('train/loss', self.runner._train_metrics[0].avg, self.current_step)
+        self.writer.add_scalar("train/loss", self.runner._train_metrics[0].avg, self.current_step)
         for m in self.runner._train_metrics[1]:
-            self.writer.add_scalar('train/{}'.format(m.name), m.avg, self.current_step)
-        
-        lr = sorted([pg['lr'] for pg in self.runner.optimizer.param_groups])[-1] # largest lr
-        self.writer.add_scalar('train_/lr', lr, self.current_step)
-        
+            self.writer.add_scalar("train/{}".format(m.name), m.avg, self.current_step)
+
+        lr = sorted([pg["lr"] for pg in self.runner.optimizer.param_groups])[-1]  # largest lr
+        self.writer.add_scalar("train_/lr", lr, self.current_step)
+
         # don't log if no val
         if self.runner._val_metrics is None:
             return
-            
-        self.writer.add_scalar('val/loss', self.runner._val_metrics[0].avg, self.current_step)
+
+        self.writer.add_scalar("val/loss", self.runner._val_metrics[0].avg, self.current_step)
         for m in self.runner._val_metrics[1]:
-            self.writer.add_scalar('val/{}'.format(m.name), m.avg, self.current_step)
-    
+            self.writer.add_scalar("val/{}".format(m.name), m.avg, self.current_step)
+
     def on_train_end(self):
         self.writer.close()
 
@@ -278,16 +284,15 @@ class Logger(Callback):
     def __init__(self, log_dir, logger=None):
         # logger - already created instance of logger
         super().__init__()
-        self.logger = logger or self._get_logger(os.path.join(log_dir, 'logs.txt'))
+        self.logger = logger or self._get_logger(os.path.join(log_dir, "logs.txt"))
 
     def on_epoch_begin(self):
-        self.logger.info(
-            'Epoch {} | '.format(self.runner._epoch) + 'lr {:.3f}'.format(self.current_lr[0]))
+        self.logger.info("Epoch {} | ".format(self.runner._epoch) + "lr {:.3f}".format(self.current_lr[0]))
 
     def on_epoch_end(self):
-        self.logger.info('Train ' + self._format_meters(*self.runner._train_metrics))
+        self.logger.info("Train " + self._format_meters(*self.runner._train_metrics))
         if self.runner._val_metrics is not None:
-            self.logger.info('Val   ' + self._format_meters(*self.runner._val_metrics))
+            self.logger.info("Val   " + self._format_meters(*self.runner._val_metrics))
 
     @staticmethod
     def _get_logger(log_path):
@@ -295,7 +300,7 @@ class Logger(Callback):
         logger.setLevel(logging.DEBUG)
         fh = logging.FileHandler(log_path)
         fh.setLevel(logging.INFO)
-        formatter = logging.Formatter('[%(asctime)s] %(message)s')
+        formatter = logging.Formatter("[%(asctime)s] %(message)s")
         fh.setFormatter(formatter)
         logger.addHandler(fh)
         return logger
@@ -304,9 +309,11 @@ class Logger(Callback):
     def current_lr(self):
         res = []
         for param_group in self.runner.optimizer.param_groups:
-            res.append(param_group['lr'])
+            res.append(param_group["lr"])
         return res
 
     @staticmethod
     def _format_meters(loss, metrics):
-        return 'loss: {:.4f} | '.format(loss.avg) +  " | ".join("{}: {:.4f}".format(m.name, m.avg) for m in metrics)
+        return "loss: {:.4f} | ".format(loss.avg) + " | ".join(
+            "{}: {:.4f}".format(m.name, m.avg) for m in metrics
+        )

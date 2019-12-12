@@ -6,6 +6,7 @@ from ..utils.misc import bn_from_name
 from .base import EncoderDecoder
 from .encoders import get_encoder
 
+
 class UnetCenterBlock(UnetDecoderBlock):
     def forward(self, x):
         self.block(x)
@@ -13,18 +14,19 @@ class UnetCenterBlock(UnetDecoderBlock):
 
 class UnetDecoder(nn.Module):
     def __init__(
-            self,
-            encoder_channels,
-            decoder_channels=(256, 128, 64, 32, 16),
-            final_channels=1,
-            use_bn=True,
-            center=False,
-            **bn_params): #norm layer, norm_act
-             
+        self,
+        encoder_channels,
+        decoder_channels=(256, 128, 64, 32, 16),
+        final_channels=1,
+        use_bn=True,
+        center=False,
+        **bn_params
+    ):  # norm layer, norm_act
+
         super().__init__()
         if center:
-                channels = encoder_channels[0]
-                self.center = UnetCenterBlock(channels, channels, use_bn=use_bn)
+            channels = encoder_channels[0]
+            self.center = UnetCenterBlock(channels, channels, use_bn=use_bn)
         else:
             self.center = None
 
@@ -37,9 +39,9 @@ class UnetDecoder(nn.Module):
         self.layer4 = UnetDecoderBlock(in_channels[3], out_channels[3], use_bn, **bn_params)
         self.layer5 = UnetDecoderBlock(in_channels[4], out_channels[4], use_bn, **bn_params)
         self.final_conv = conv1x1(out_channels[4], final_channels)
-        
+
         initialize(self)
-    
+
     def compute_channels(self, encoder_channels, decoder_channels):
         channels = [
             encoder_channels[0] + encoder_channels[1],
@@ -66,6 +68,7 @@ class UnetDecoder(nn.Module):
 
         return x
 
+
 class Unet(EncoderDecoder):
     """Unet_ is a fully convolution neural network for image semantic segmentation
     Args:
@@ -86,17 +89,18 @@ class Unet(EncoderDecoder):
     """
 
     def __init__(
-            self,
-            encoder_name='resnet34',
-            encoder_weights='imagenet',
-            decoder_use_batchnorm=True,
-            decoder_channels=(256, 128, 64, 32, 16),
-            classes=1,
-            activation='sigmoid',
-            center=False,  # usefull for VGG models
-            norm_layer='abn',
-            norm_act='relu',
-            **encoder_params):
+        self,
+        encoder_name="resnet34",
+        encoder_weights="imagenet",
+        decoder_use_batchnorm=True,
+        decoder_channels=(256, 128, 64, 32, 16),
+        classes=1,
+        activation="sigmoid",
+        center=False,  # usefull for VGG models
+        norm_layer="abn",
+        norm_act="relu",
+        **encoder_params
+    ):
         encoder = get_encoder(
             encoder_name,
             norm_layer=norm_layer,
@@ -115,4 +119,4 @@ class Unet(EncoderDecoder):
         )
 
         super().__init__(encoder, decoder, activation)
-        self.name = 'u-{}'.format(encoder_name)
+        self.name = "u-{}".format(encoder_name)

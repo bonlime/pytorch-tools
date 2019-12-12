@@ -9,7 +9,7 @@ import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
-from itertools import  filterfalse
+from itertools import filterfalse
 
 
 def _lovasz_grad(gt_sorted):
@@ -21,10 +21,11 @@ def _lovasz_grad(gt_sorted):
     gts = gt_sorted.sum()
     intersection = gts - gt_sorted.float().cumsum(0)
     union = gts + (1 - gt_sorted).float().cumsum(0)
-    jaccard = 1. - intersection / union
-    if p > 1: # cover 1-pixel case
+    jaccard = 1.0 - intersection / union
+    if p > 1:  # cover 1-pixel case
         jaccard[1:p] = jaccard[1:p] - jaccard[0:-1]
     return jaccard
+
 
 # --------------------------- BINARY LOSSES ---------------------------
 
@@ -38,8 +39,10 @@ def _lovasz_hinge(y_pred, y_true, per_image=True, ignore=None):
       ignore: void class id
     """
     if per_image:
-        loss = mean(_lovasz_hinge_flat(*_flatten_binary_scores(log.unsqueeze(0), lab.unsqueeze(0), ignore))
-                          for log, lab in zip(y_pred, y_true))
+        loss = mean(
+            _lovasz_hinge_flat(*_flatten_binary_scores(log.unsqueeze(0), lab.unsqueeze(0), ignore))
+            for log, lab in zip(y_pred, y_true)
+        )
     else:
         loss = _lovasz_hinge_flat(*_flatten_binary_scores(y_pred, y_true, ignore))
     return loss
@@ -54,9 +57,9 @@ def _lovasz_hinge_flat(y_pred, y_true):
     """
     if len(y_true) == 0:
         # only void pixels, the gradients should be 0
-        return y_pred.sum() * 0.
-    signs = 2. * y_true.float() - 1.
-    errors = (1. - y_pred * Variable(signs))
+        return y_pred.sum() * 0.0
+    signs = 2.0 * y_true.float() - 1.0
+    errors = 1.0 - y_pred * Variable(signs)
     errors_sorted, perm = torch.sort(errors, dim=0, descending=True)
     perm = perm.data
     gt_sorted = y_true[perm]
@@ -74,7 +77,7 @@ def _flatten_binary_scores(y_pred, y_true, ignore=None):
     y_true = y_true.view(-1)
     if ignore is None:
         return y_pred, y_true
-    valid = (y_true != ignore)
+    valid = y_true != ignore
     vy_pred = y_pred[valid]
     vy_true = y_true[valid]
     return vy_pred, vy_true
@@ -83,7 +86,7 @@ def _flatten_binary_scores(y_pred, y_true, ignore=None):
 # --------------------------- MULTICLASS LOSSES ---------------------------
 
 
-def _lovasz_softmax(y_pred, y_true, classes='present', per_image=False, ignore=None):
+def _lovasz_softmax(y_pred, y_true, classes="present", per_image=False, ignore=None):
     """
     Multi-class Lovasz-Softmax loss
       y_pred: [B, C, H, W] Variable, class probabilities at each prediction (between 0 and 1).
@@ -94,14 +97,18 @@ def _lovasz_softmax(y_pred, y_true, classes='present', per_image=False, ignore=N
       ignore: void class y_true
     """
     if per_image:
-        loss = mean(_lovasz_softmax_flat(*_flatten_preds(pred.unsqueeze(0), lab.unsqueeze(0), ignore), classes=classes)
-                          for pred, lab in zip(y_pred, y_true))
+        loss = mean(
+            _lovasz_softmax_flat(
+                *_flatten_preds(pred.unsqueeze(0), lab.unsqueeze(0), ignore), classes=classes
+            )
+            for pred, lab in zip(y_pred, y_true)
+        )
     else:
         loss = _lovasz_softmax_flat(*_flatten_preds(y_pred, y_true, ignore), classes=classes)
     return loss
 
 
-def _lovasz_softmax_flat(y_pred, y_true, classes='present'):
+def _lovasz_softmax_flat(y_pred, y_true, classes="present"):
     """
     Multi-class Lovasz-Softmax loss
       y_pred: [P, C] Variable, class probabilities at each prediction (between 0 and 1)
@@ -110,17 +117,17 @@ def _lovasz_softmax_flat(y_pred, y_true, classes='present'):
     """
     if y_pred.numel() == 0:
         # only void pixels, the gradients should be 0
-        return y_pred * 0.
+        return y_pred * 0.0
     C = y_pred.size(1)
     losses = []
-    class_to_sum = list(range(C)) if classes in ['all', 'present'] else classes
+    class_to_sum = list(range(C)) if classes in ["all", "present"] else classes
     for c in class_to_sum:
-        fg = (y_true == c).float() # foreground for class c
-        if (classes is 'present' and fg.sum() == 0):
+        fg = (y_true == c).float()  # foreground for class c
+        if classes is "present" and fg.sum() == 0:
             continue
         if C == 1:
             if len(classes) > 1:
-                raise ValueError('Sigmoid output possible only with 1 class')
+                raise ValueError("Sigmoid output possible only with 1 class")
             class_pred = y_pred[:, 0]
         else:
             class_pred = y_pred[:, c]
@@ -145,16 +152,17 @@ def _flatten_preds(y_pred, y_true, ignore=None):
     y_true = y_true.view(-1)
     if ignore is None:
         return y_pred, y_true
-    valid = (y_true != ignore)
+    valid = y_true != ignore
     vy_pred = y_pred[valid.nonzero().squeeze()]
     vy_true = y_true[valid]
     return vy_pred, vy_true
 
+
 # --------------------------- HELPER FUNCTIONS ---------------------------
 def isnan(x):
     return x != x
-    
-    
+
+
 def mean(l, ignore_nan=False, empty=0):
     """
     nanmean compatible with generators.
@@ -166,8 +174,8 @@ def mean(l, ignore_nan=False, empty=0):
         n = 1
         acc = next(l)
     except StopIteration:
-        if empty == 'raise':
-            raise ValueError('Empty mean')
+        if empty == "raise":
+            raise ValueError("Empty mean")
         return empty
     for n, v in enumerate(l, 2):
         acc += v
@@ -175,8 +183,11 @@ def mean(l, ignore_nan=False, empty=0):
         return acc
     return acc / n
 
+
 # --------------------------- Convinient classes ---------------------------
 from .base import Loss
+
+
 class BinaryLovaszLoss(Loss):
     """    
     The Binary Lovasz-Softmax loss: A tractable surrogate for the optimization of the 
@@ -188,13 +199,14 @@ class BinaryLovaszLoss(Loss):
       per_image (bool): compute the loss per image instead of per batch
       ignore (int): void class id
     """
+
     def __init__(self, per_image=False, ignore=None):
         super().__init__()
         self.ignore = ignore
         self.per_image = per_image
 
     def forward(self, y_pred, y_true):
-        assert y_pred.size(1) == 1 # make sure it's binary case
+        assert y_pred.size(1) == 1  # make sure it's binary case
         return _lovasz_hinge(y_pred.squeeze(), y_true, per_image=self.per_image, ignore=self.ignore)
 
 
@@ -211,6 +223,7 @@ class LovaszLoss(Loss):
       per_image: compute the loss per image instead of per batch
       ignore: void class y_true
     """
+
     def __init__(self, per_image=False, ignore=None):
         super().__init__()
         self.ignore = ignore

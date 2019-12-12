@@ -8,8 +8,16 @@ from pytorch_tools.utils.misc import activation_from_name
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=dilation, groups=groups, bias=False, dilation=dilation)
+    return nn.Conv2d(
+        in_planes,
+        out_planes,
+        kernel_size=3,
+        stride=stride,
+        padding=dilation,
+        groups=groups,
+        bias=False,
+        dilation=dilation,
+    )
 
 
 def conv1x1(in_planes, out_planes, stride=1):
@@ -20,7 +28,7 @@ def conv1x1(in_planes, out_planes, stride=1):
 class SEModule(nn.Module):
     def __init__(self, channels, reduction_channels):
         super(SEModule, self).__init__()
-        self.pool = GlobalPool2d('avg')
+        self.pool = GlobalPool2d("avg")
         # authors of original paper DO use bias
         self.fc1 = nn.Conv2d(channels, reduction_channels, kernel_size=1, stride=1, bias=True)
         self.relu = nn.ReLU(inplace=True)
@@ -37,24 +45,30 @@ class SEModule(nn.Module):
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inplanes, planes, 
-                 stride=1, downsample=None,
-                 groups=1, base_width=64, 
-                 use_se=False,
-                 dilation=1,
-                 norm_layer=ABN,
-                 norm_act='relu',
-                 antialias=False):
+    def __init__(
+        self,
+        inplanes,
+        planes,
+        stride=1,
+        downsample=None,
+        groups=1,
+        base_width=64,
+        use_se=False,
+        dilation=1,
+        norm_layer=ABN,
+        norm_act="relu",
+        antialias=False,
+    ):
         super(BasicBlock, self).__init__()
         antialias = antialias and stride == 2
-        assert groups == 1, 'BasicBlock only supports groups of 1'
-        assert base_width == 64, 'BasicBlock doest not support changing base width'
+        assert groups == 1, "BasicBlock only supports groups of 1"
+        assert base_width == 64, "BasicBlock doest not support changing base width"
         outplanes = planes * self.expansion
         conv1_stride = 1 if antialias else stride
         self.conv1 = conv3x3(inplanes, planes, conv1_stride, dilation)
         self.bn1 = norm_layer(planes, activation=norm_act)
         self.conv2 = conv3x3(planes, outplanes)
-        self.bn2 = norm_layer(outplanes, activation='identity')
+        self.bn2 = norm_layer(outplanes, activation="identity")
         self.se_module = SEModule(outplanes, planes // 4) if use_se else None
         self.final_act = activation_from_name(norm_act)
         self.downsample = downsample
@@ -84,14 +98,20 @@ class BasicBlock(nn.Module):
 class Bottleneck(nn.Module):
     expansion = 4
 
-    def __init__(self, inplanes, planes, 
-                 stride=1, downsample=None,
-                 groups=1, base_width=64, 
-                 use_se=False,
-                 dilation=1,
-                 norm_layer=ABN,
-                 norm_act='relu',
-                 antialias=False):
+    def __init__(
+        self,
+        inplanes,
+        planes,
+        stride=1,
+        downsample=None,
+        groups=1,
+        base_width=64,
+        use_se=False,
+        dilation=1,
+        norm_layer=ABN,
+        norm_act="relu",
+        antialias=False,
+    ):
         super(Bottleneck, self).__init__()
         antialias = antialias and stride == 2
         width = int(math.floor(planes * (base_width / 64)) * groups)
@@ -103,7 +123,7 @@ class Bottleneck(nn.Module):
         self.conv2 = conv3x3(width, width, conv2_stride, groups, dilation)
         self.bn2 = norm_layer(width, activation=norm_act)
         self.conv3 = conv1x1(width, outplanes)
-        self.bn3 = norm_layer(outplanes, activation='identity')
+        self.bn3 = norm_layer(outplanes, activation="identity")
         self.se_module = SEModule(outplanes, planes // 4) if use_se else None
         self.final_act = activation_from_name(norm_act)
         self.downsample = downsample
@@ -118,7 +138,7 @@ class Bottleneck(nn.Module):
 
         out = self.conv1(x)
         out = self.bn1(out)
-        
+
         # Conv(s=2)->BN->Relu(s=1) => Conv(s=1)->BN->Relu(s=1)->BlurPool(s=2)
         out = self.conv2(out)
         out = self.bn2(out)

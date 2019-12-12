@@ -4,17 +4,18 @@ import torch
 import torch.nn as nn
 from pytorch_tools.tta_wrapper import functional as F
 
+
 class Augmentation(object):
 
     transforms = {
-        'h_flip': F.HFlip(),
-        'v_flip': F.VFlip(),
-        'rotation': F.Rotate(),
-        'h_shift': F.HShift(),
-        'v_shift': F.VShift(),
+        "h_flip": F.HFlip(),
+        "v_flip": F.VFlip(),
+        "rotation": F.Rotate(),
+        "h_shift": F.HShift(),
+        "v_shift": F.VShift(),
         # 'contrast': F.Contrast(),
-        'add': F.Add(),
-        'mul': F.Multiply(),
+        "add": F.Add(),
+        "mul": F.Multiply(),
     }
 
     def __init__(self, **params):
@@ -24,8 +25,7 @@ class Augmentation(object):
         transform_params = [params[k] for k in params.keys()]
 
         # add identity parameters for all transforms and convert to list
-        transform_params = [t.prepare(params) for t, params in zip(
-            transforms, transform_params)]
+        transform_params = [t.prepare(params) for t, params in zip(transforms, transform_params)]
 
         # get all combinations of transforms params
         transform_params = list(itertools.product(*transform_params))
@@ -39,7 +39,7 @@ class Augmentation(object):
         self.backward_params = [p[::-1] for p in transform_params]
 
         self.n_transforms = len(transform_params)
-        print('Will merge {} augmentations for each image.'.format(self.n_transforms))
+        print("Will merge {} augmentations for each image.".format(self.n_transforms))
 
     def forward(self, x):
         self.bs = x.shape[0]
@@ -47,7 +47,7 @@ class Augmentation(object):
         for i, args in enumerate(self.forward_params):
             batch = x
             for f, arg in zip(self.forward_aug, args):
-                batch = f(batch, arg) 
+                batch = f(batch, arg)
             transformed_batches.append(batch)
         # returns shape B*Aug x C x H x W
         return torch.cat(transformed_batches, 0)
@@ -65,19 +65,20 @@ class Augmentation(object):
 
 
 class TTA(nn.Module):
-
-    def __init__(self,
-                 model,
-                 segm=False,
-                 h_flip=False,
-                 v_flip=False,
-                 h_shift=None,
-                 v_shift=None,
-                 rotation=None,
-                 # contrast=None,
-                 add=None,
-                 mul=None,
-                 merge='mean'):
+    def __init__(
+        self,
+        model,
+        segm=False,
+        h_flip=False,
+        v_flip=False,
+        h_shift=None,
+        v_shift=None,
+        rotation=None,
+        # contrast=None,
+        add=None,
+        mul=None,
+        merge="mean",
+    ):
         """Module wrapper for convinient TTA. 
         Wrapper add augmentation layers to your model like this:
 
@@ -109,28 +110,30 @@ class TTA(nn.Module):
         Returns:
             nn.Module
         """
-        
+
         super(TTA, self).__init__()
-        self.tta = Augmentation(h_flip=h_flip,
-                                v_flip=v_flip,
-                                h_shift=h_shift,
-                                v_shift=v_shift,
-                                rotation=rotation,
-                                # contrast=contrast,
-                                add=add,
-                                mul=mul
-                                )
+        self.tta = Augmentation(
+            h_flip=h_flip,
+            v_flip=v_flip,
+            h_shift=h_shift,
+            v_shift=v_shift,
+            rotation=rotation,
+            # contrast=contrast,
+            add=add,
+            mul=mul,
+        )
         self.model = model
         self.segm = segm
-        if merge == 'mean':
+        if merge == "mean":
             self.merge = F.mean
-        elif merge == 'gmean':
+        elif merge == "gmean":
             self.merge = F.gmean
-        elif merge == 'max':
+        elif merge == "max":
             self.merge = F.max
         else:
             raise ValueError(
-                "Merge type {} not implemented. Valid options are: `mean`, `gmean`, `max`".format(merge))
+                "Merge type {} not implemented. Valid options are: `mean`, `gmean`, `max`".format(merge)
+            )
 
     def forward(self, x):
         x = self.tta.forward(x)

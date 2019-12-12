@@ -25,9 +25,9 @@ class DualTransform:
 
 
 class SingleTransform(DualTransform):
-
     def backward(self, batch, param):
         return batch
+
 
 class HFlip(DualTransform):
 
@@ -70,7 +70,7 @@ class Rotate(DualTransform):
     def forward(self, batch, angle):
         # rotation is couterclockwise
         k = angle // 90
-        return torch.rot90(batch, k, (2,3))
+        return torch.rot90(batch, k, (2, 3))
 
     def backward(self, batch, angle):
         return self.forward(batch, -angle)

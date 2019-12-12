@@ -8,46 +8,48 @@ import torch.nn.functional as F
 from functools import partial
 
 from inplace_abn import ABN, InPlaceABN, InPlaceABNSync
-#from ..modules import SiLU, SoftExponential
+
+# from ..modules import SiLU, SoftExponential
 
 
 def initialize(model):
     for m in model.modules():
         if isinstance(m, nn.Conv2d):
-            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
         elif isinstance(m, nn.BatchNorm2d):
             nn.init.constant_(m.weight, 1)
             nn.init.constant_(m.bias, 0)
 
 
 def activation_from_name(act_name, act_param=0.01):
-    if act_name == 'relu':
+    if act_name == "relu":
         return partial(F.relu, inplace=True)
-    elif act_name == 'leaky_relu':
+    elif act_name == "leaky_relu":
         return partial(F.leaky_relu, negative_slope=act_param, inplace=True)
     elif act_name == "elu":
         return partial(F.elu, alpha=act_param, inplace=True)
     elif act_name == "identity":
         return lambda x: x
-    elif act_name == 'sigmoid':
+    elif act_name == "sigmoid":
         return nn.Sigmoid()
-    elif act_name == 'softmax':
+    elif act_name == "softmax":
         return nn.Softmax2d()
-    elif act_name == 'silu':
+    elif act_name == "silu":
         return SiLU(beta=act_param)
-    elif act_name == 'exp':
+    elif act_name == "exp":
         return SoftExponential(alpha=act_param)
     else:
         raise ValueError("Activation name {} not supported".format(act_name))
 
+
 #  TODO return proper activation and layer
 def bn_from_name(norm_name):
     norm_name = norm_name.lower()
-    if norm_name == 'abn':
+    if norm_name == "abn":
         return ABN
-    elif norm_name == 'inplaceabn':
+    elif norm_name == "inplaceabn":
         return InPlaceABN
-    elif norm_name == 'inplaceabnsync':
+    elif norm_name == "inplaceabnsync":
         return InPlaceABNSync
     elif norm_name == "bn":
         return nn.BatchNorm2d
@@ -61,13 +63,17 @@ def set_random_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
+
 def add_docs_for(other_func):
     """Simple decorator to concat docstrings"""
+
     def dec(func):
         func.__doc__ = func.__doc__ + other_func.__doc__
         return func
+
     return dec
-   
+
+
 def count_parameters(model):
     """Count number of parameters of a model
 
@@ -78,12 +84,14 @@ def count_parameters(model):
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     return total, trainable
 
+
 def listify(p):
     if p is None:
         p = []
     elif not isinstance(p, collections.Iterable):
         p = [p]
     return p
+
 
 def to_numpy(x):
     """Convert whatever to numpy array"""
@@ -94,8 +102,9 @@ def to_numpy(x):
     elif isinstance(x, list) or isinstance(x, tuple):
         return np.array(x)
     else:
-        raise ValueError('Unsupported type')
+        raise ValueError("Unsupported type")
     return x
+
 
 class AverageMeter:
     """Computes and stores the average and current value
@@ -103,7 +112,8 @@ class AverageMeter:
             val - last value
             avg - true average
             avg_smooth - smoothed average"""
-    def __init__(self, name='Meter', avg_mom=0.9):
+
+    def __init__(self, name="Meter", avg_mom=0.9):
         self.avg_mom = avg_mom
         self.name = name
         self.reset()
@@ -120,10 +130,11 @@ class AverageMeter:
         if self.count == 0:
             self.avg_smooth = val
         else:
-            self.avg_smooth = self.avg_smooth*self.avg_mom + val*(1-self.avg_mom)
+            self.avg_smooth = self.avg_smooth * self.avg_mom + val * (1 - self.avg_mom)
         self.sum += val
         self.count += 1
         self.avg = self.sum / self.count
+
 
 class TimeMeter:
     def __init__(self):
@@ -141,11 +152,12 @@ class TimeMeter:
         self.batch_time.update(time.time() - self.start)
         self.start = time.time()
 
+
 DEFAULT_IMAGENET_SETTINGS = {
-    'input_space': 'RGB',
-    'input_size': [3, 224, 224],
-    'input_range': [0, 1],
-    'mean': [0.485, 0.456, 0.406],
-    'std': [0.229, 0.224, 0.225],
-    'num_classes': 1000
+    "input_space": "RGB",
+    "input_size": [3, 224, 224],
+    "input_range": [0, 1],
+    "mean": [0.485, 0.456, 0.406],
+    "std": [0.229, 0.224, 0.225],
+    "num_classes": 1000,
 }

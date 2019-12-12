@@ -1,2 +1,2 @@
 from .unet import Unet
-from .linknet import Linknet 
+from .linknet import Linknet

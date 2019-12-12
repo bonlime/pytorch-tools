@@ -1,4 +1,3 @@
-
 from copy import copy
 from enum import Enum
 from collections import OrderedDict
@@ -23,7 +22,7 @@ class Runner:
         self.callbacks.set_runner(self)
         self._metrics = listify(metrics)
         self._metric_meters = [AverageMeter(name=m.name) for m in self._metrics]
-        self._loss_meter = AverageMeter('loss')
+        self._loss_meter = AverageMeter("loss")
         self._timer = TimeMeter()
         self._epochs = 1
         self._epoch = 1
@@ -34,17 +33,13 @@ class Runner:
         self._ep_size = None
         self._step = None
 
-    def fit(self,
-            train_loader,
-            steps_per_epoch=None,
-            val_loader=None,
-            val_steps=None,
-            epochs=2,
-            start_epoch=1):
+    def fit(
+        self, train_loader, steps_per_epoch=None, val_loader=None, val_steps=None, epochs=2, start_epoch=1
+    ):
 
         self._epochs = epochs
         self.callbacks.on_train_begin()
-        for epoch in range(start_epoch, epochs+1):
+        for epoch in range(start_epoch, epochs + 1):
             self._is_train = True  # added to always know the state
             self._epoch = epoch
             self.callbacks.on_epoch_begin()
@@ -73,7 +68,7 @@ class Runner:
             self.optimizer.zero_grad()
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
-            #grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 5.0)
+            # grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 5.0)
             self.optimizer.step()
             torch.cuda.synchronize()
 
@@ -90,8 +85,11 @@ class Runner:
         self._ep_size = len(loader)  # useful in callbacks
         if self._verbose:
             pbar = tqdm(enumerate(loader), total=steps or self._ep_size, ncols=0)
-            pbar.set_description("Epoch {:2d}/{}. {}ing".format(
-                self._epoch, self._epochs, ['validat', 'train'][self._is_train]))
+            pbar.set_description(
+                "Epoch {:2d}/{}. {}ing".format(
+                    self._epoch, self._epochs, ["validat", "train"][self._is_train]
+                )
+            )
         else:
             pbar = enumerate(loader)
 
@@ -105,7 +103,7 @@ class Runner:
                 self.callbacks.on_batch_begin()
                 self._make_step(batch)
                 if self._verbose:
-                    desc = OrderedDict({'Loss': "{:.4f}".format(self._loss_meter.avg_smooth)})
+                    desc = OrderedDict({"Loss": "{:.4f}".format(self._loss_meter.avg_smooth)})
                     desc.update({m.name: "{:.3f}".format(m.avg_smooth) for m in self._metric_meters})
                     pbar.set_postfix(**desc)
                 self.callbacks.on_batch_end()

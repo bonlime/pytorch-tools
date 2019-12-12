@@ -6,14 +6,11 @@ from ..utils.misc import bn_from_name
 from .base import EncoderDecoder
 from .encoders import get_encoder
 
+
 class LinknetDecoder(nn.Module):
     def __init__(
-            self,
-            encoder_channels,
-            prefinal_channels=32,
-            final_channels=1,
-            use_bn=True,
-            **bn_params): #norm layer, norm_act
+        self, encoder_channels, prefinal_channels=32, final_channels=1, use_bn=True, **bn_params
+    ):  # norm layer, norm_act
         super().__init__()
 
         in_channels = encoder_channels
@@ -39,6 +36,7 @@ class LinknetDecoder(nn.Module):
 
         return x
 
+
 class Linknet(EncoderDecoder):
     """Linknet_ is a fully convolution neural network for fast image semantic segmentation
     Note:
@@ -60,22 +58,20 @@ class Linknet(EncoderDecoder):
     """
 
     def __init__(
-            self,
-            encoder_name='resnet34',
-            encoder_weights='imagenet',
-            decoder_use_batchnorm=True,
-            classes=1,
-            activation='sigmoid',
-            norm_layer='abn',
-            **encoder_params):
+        self,
+        encoder_name="resnet34",
+        encoder_weights="imagenet",
+        decoder_use_batchnorm=True,
+        classes=1,
+        activation="sigmoid",
+        norm_layer="abn",
+        **encoder_params
+    ):
         encoder = get_encoder(
-            encoder_name,
-            norm_layer=norm_layer,
-            encoder_weights=encoder_weights,
-            **encoder_params,
+            encoder_name, norm_layer=norm_layer, encoder_weights=encoder_weights, **encoder_params,
         )
 
-        norm_act = 'relu' if norm_layer.lower() == 'abn' else 'leaky_relu'
+        norm_act = "relu" if norm_layer.lower() == "abn" else "leaky_relu"
         decoder = LinknetDecoder(
             encoder_channels=encoder.out_shapes,
             prefinal_channels=32,
@@ -87,4 +83,4 @@ class Linknet(EncoderDecoder):
 
         super().__init__(encoder, decoder, activation)
 
-        self.name = 'link-{}'.format(encoder_name)
+        self.name = "link-{}".format(encoder_name)

@@ -28,7 +28,7 @@ def rle_encode(mask):
 
 def rle_to_string(runs):
     """Array to str"""
-    return ' '.join(str(x) for x in runs)
+    return " ".join(str(x) for x in runs)
 
 
 def rle_decode(rle_str, shape, fill_value=1, dtype=int, relative=False):
@@ -46,7 +46,7 @@ def rle_decode(rle_str, shape, fill_value=1, dtype=int, relative=False):
         for index, length in zip(starts, lengths):
             start = start + index
             end = start + length
-            mask[start: end] = fill_value
+            mask[start:end] = fill_value
             start = end
         return mask.reshape(shape[::-1]).T
     else:

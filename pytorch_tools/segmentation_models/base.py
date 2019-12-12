@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
-from ..utils.misc import activation_from_name 
+from ..utils.misc import activation_from_name
 
 
 class EncoderDecoder(nn.Module):
-
-    def __init__(self, encoder, decoder, activation='identity'):
+    def __init__(self, encoder, decoder, activation="identity"):
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder

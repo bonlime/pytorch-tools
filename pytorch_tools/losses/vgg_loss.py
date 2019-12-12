@@ -8,7 +8,9 @@ import torch.nn as nn
 from .base import Loss
 from ..utils.misc import listify
 
-MODELS_LIST = ['vgg11_bn', 'vgg13_bn', 'vgg16_bn', 'vgg19_bn']
+MODELS_LIST = ["vgg11_bn", "vgg13_bn", "vgg16_bn", "vgg19_bn"]
+
+
 class ContentLoss(Loss):
     """
     Creates content loss for neural style transfer
@@ -17,15 +19,23 @@ class ContentLoss(Loss):
     criterion: str in ['mse', 'mae'], reduction method
     """
 
-    def __init__(self, model="vgg11_bn", pretrained='imagenet', layers=["21"],
-                 weights=1, loss="mse", device="cuda", **args):
+    def __init__(
+        self,
+        model="vgg11_bn",
+        pretrained="imagenet",
+        layers=["21"],
+        weights=1,
+        loss="mse",
+        device="cuda",
+        **args
+    ):
         super().__init__()
         try:
             self.model = models.__dict__[model](pretrained=pretrained, **args)
-            self.model.eval().to(device) 
+            self.model.eval().to(device)
         except KeyError:
             print("Model architecture not found in {}".format(MODELS_LIST))
-        
+
         self.layers = listify(layers)
         self.weights = listify(weights)
 
@@ -63,22 +73,30 @@ class ContentLoss(Loss):
         print(len(features))
         return features
 
-    
+
 class StyleLoss(Loss):
     """
     Class for creating style loss for neural style transfer
     model: str in ['vgg11_bn', 'vgg13_bn', 'vgg16_bn', 'vgg19_bn']
     """
 
-    def __init__(self, model="vgg11_bn", pretrained='imagenet', layers=["0", "5", "10", "19", "28"],
-                 weights=[0.75, 0.5, 0.2, 0.2, 0.2], loss="mse", device="cuda", **args):
+    def __init__(
+        self,
+        model="vgg11_bn",
+        pretrained="imagenet",
+        layers=["0", "5", "10", "19", "28"],
+        weights=[0.75, 0.5, 0.2, 0.2, 0.2],
+        loss="mse",
+        device="cuda",
+        **args
+    ):
         super().__init__()
         try:
             self.model = models.__dict__[model](pretrained=pretrained, **args)
             self.model.eval().to(device)
         except KeyError:
             print("Model architecture not found in {}".format(MODELS_LIST))
-        
+
         self.layers = listify(layers)
         self.weights = listify(weights)
 
@@ -107,8 +125,10 @@ class StyleLoss(Loss):
 
         loss = 0
         # for i_g, s_g in zip(input_gram, style_gram):
-            
-        loss = [self.criterion(torch.stack(i_g), torch.stack(s_g)) for i_g, s_g in zip(input_gram, style_gram)]
+
+        loss = [
+            self.criterion(torch.stack(i_g), torch.stack(s_g)) for i_g, s_g in zip(input_gram, style_gram)
+        ]
         return loss
 
     def get_features(self, x):

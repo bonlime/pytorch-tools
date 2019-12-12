@@ -3,7 +3,7 @@ from . import functional as F
 
 
 class WingLoss(Loss):
-    def __init__(self, width=5, curvature=0.5, reduction='mean'):
+    def __init__(self, width=5, curvature=0.5, reduction="mean"):
         super(WingLoss, self).__init__(reduction=reduction)
         self.width = width
         self.curvature = curvature

@@ -7,25 +7,27 @@ from .schedulers import LinearLR, ExponentialLR
 from .lookahead import Lookahead
 
 from torch import optim
+
+
 def optimizer_from_name(optim_name):
     optim_name = optim_name.lower()
-    if optim_name == 'sgd':
+    if optim_name == "sgd":
         return optim.SGD
-    elif optim_name == 'sgdw': 
+    elif optim_name == "sgdw":
         return SGDW
-    elif optim_name == 'adam':
+    elif optim_name == "adam":
         return optim.Adam
-    elif optim_name =='adamw':
+    elif optim_name == "adamw":
         return optim.AdamW
-    elif optim_name =='rmsprop':
+    elif optim_name == "rmsprop":
         return optim.RMSprop
-    elif optim_name == 'radam':
+    elif optim_name == "radam":
         return RAdam
-    elif optim_name in ['fused_sgd', 'fusedsgd']:
+    elif optim_name in ["fused_sgd", "fusedsgd"]:
         return FusedSGD
-    elif optim_name in ['fused_adam', 'fusedadam']:
+    elif optim_name in ["fused_adam", "fusedadam"]:
         return FusedAdam
-    elif optim_name in ['fused_novograd', 'fusednovograd', 'novograd']:
+    elif optim_name in ["fused_novograd", "fusednovograd", "novograd"]:
         return FusedNovoGrad
     else:
-        raise ValueError('Optimizer {} not found'.format(optim_name))
+        raise ValueError("Optimizer {} not found".format(optim_name))

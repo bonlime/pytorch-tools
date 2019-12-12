@@ -8,6 +8,7 @@ from torch.optim.lr_scheduler import _LRScheduler
 import matplotlib.pyplot as plt
 from .schedulers import LinearLR, ExponentialLR
 
+
 class LRFinder(object):
     """Learning rate range test.
     The learning rate range test increases the learning rate in a pre-training run
@@ -49,8 +50,8 @@ class LRFinder(object):
         # needed
         self.model_device = next(self.model.parameters()).device
         self.state_cacher = StateCacher(memory_cache, cache_dir=cache_dir)
-        self.state_cacher.store('model', self.model.state_dict())
-        self.state_cacher.store('optimizer', self.optimizer.state_dict())
+        self.state_cacher.store("model", self.model.state_dict())
+        self.state_cacher.store("optimizer", self.optimizer.state_dict())
 
         # If device is None, use the same as the model
         if device:
@@ -60,8 +61,8 @@ class LRFinder(object):
 
     def reset(self):
         """Restores the model and optimizer to their initial states."""
-        self.model.load_state_dict(self.state_cacher.retrieve('model'))
-        self.optimizer.load_state_dict(self.state_cacher.retrieve('optimizer'))
+        self.model.load_state_dict(self.state_cacher.retrieve("model"))
+        self.optimizer.load_state_dict(self.state_cacher.retrieve("optimizer"))
         self.model.to(self.model_device)
 
     def range_test(
@@ -219,7 +220,6 @@ class LRFinder(object):
         plt.show()
 
 
-
 class StateCacher(object):
     def __init__(self, in_memory, cache_dir=None):
         self.in_memory = in_memory
@@ -227,10 +227,11 @@ class StateCacher(object):
 
         if self.cache_dir is None:
             import tempfile
+
             self.cache_dir = tempfile.gettempdir()
         else:
             if not os.path.isdir(self.cache_dir):
-                raise ValueError('Given `cache_dir` is not a valid directory.')
+                raise ValueError("Given `cache_dir` is not a valid directory.")
 
         self.cached = {}
 
@@ -238,20 +239,20 @@ class StateCacher(object):
         if self.in_memory:
             self.cached.update({key: copy.deepcopy(state_dict)})
         else:
-            fn = os.path.join(self.cache_dir, 'state_{}_{}.pt'.format(key, id(self)))
+            fn = os.path.join(self.cache_dir, "state_{}_{}.pt".format(key, id(self)))
             self.cached.update({key: fn})
             torch.save(state_dict, fn)
 
     def retrieve(self, key):
         if key not in self.cached:
-            raise KeyError('Target {} was not cached.'.format(key))
+            raise KeyError("Target {} was not cached.".format(key))
 
         if self.in_memory:
             return self.cached.get(key)
         else:
             fn = self.cached.get(key)
             if not os.path.exists(fn):
-                raise RuntimeError('Failed to load state in {}. File does not exist anymore.'.format(fn))
+                raise RuntimeError("Failed to load state in {}. File does not exist anymore.".format(fn))
             state_dict = torch.load(fn, map_location=lambda storage, location: storage)
             return state_dict
 
