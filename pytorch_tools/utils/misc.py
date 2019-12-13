@@ -1,3 +1,4 @@
+import os
 import time
 import torch
 import random
@@ -5,6 +6,7 @@ import collections
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.distributed as dist
 from functools import partial
 
 from inplace_abn import ABN, InPlaceABN, InPlaceABNSync
@@ -62,6 +64,8 @@ def set_random_seed(seed):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
 
 def add_docs_for(other_func):
@@ -161,3 +165,25 @@ DEFAULT_IMAGENET_SETTINGS = {
     "std": [0.229, 0.224, 0.225],
     "num_classes": 1000,
 }
+
+
+def get_timestamp():
+    return time.strftime("%Y%m%d_%H%M%S", time.localtime())
+
+
+def env_world_size():
+    return int(os.environ.get("WORLD_SIZE", 1))
+
+
+def env_rank():
+    return int(os.environ.get("RANK", 0))
+
+
+def reduce_tensor(tensor):
+    return sum_tensor(tensor) / env_world_size()
+
+
+def sum_tensor(tensor):
+    rt = tensor.clone()
+    dist.all_reduce(rt, op=dist.ReduceOp.SUM)
+    return rt
