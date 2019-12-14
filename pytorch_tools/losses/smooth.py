@@ -34,7 +34,9 @@ class CrossEntropyLoss(Loss):
             y_true_one_hot = y_true.float()
         else:
             num_classes = y_pred.size(1)
-            y_true_one_hot = torch.zeros(y_true.size(0), num_classes, dtype=torch.float, device=y_pred.device)
+            y_true_one_hot = torch.zeros(
+                y_true.size(0), num_classes, dtype=torch.float, device=y_pred.device
+            )
             y_true_one_hot.scatter_(1, y_true.unsqueeze(1), 1.0)
         y_pred = y_pred.float()
         logprobs = F.log_softmax(y_pred, dim=1)
