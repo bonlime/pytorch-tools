@@ -10,6 +10,7 @@ from .resnet import resnet101
 from .resnet import resnet152
 
 from .resnet import resnext50_32x4d
+from .resnet import resnext101_32x4d
 from .resnet import resnext101_32x8d
 
 from .resnet import se_resnet34

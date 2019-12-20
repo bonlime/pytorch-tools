@@ -337,6 +337,12 @@ CFGS = {
             "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/resnext50d_32x4d-103e99f8.pth"
         },
     },
+    "resnext101_32x4d": {
+        "default": {
+            "params": {"block": Bottleneck, "layers": [3, 4, 23, 3], "base_width": 4, "groups": 32},
+            **DEFAULT_IMAGENET_SETTINGS,
+        }, # No pretrained 
+    },
     "resnext101_32x8d": {
         "default": {
             "params": {"block": Bottleneck, "layers": [3, 4, 23, 3], "base_width": 8, "groups": 32},
@@ -525,6 +531,11 @@ def resnext50_32x4d(**kwargs):
     r"""Constructs a ResNeXt50-32x4d model."""
     return _resnet("resnext50_32x4d", **kwargs)
 
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def resnext101_32x4d(**kwargs):
+    r"""Constructs a ResNeXt101-32x4d model."""
+    return _resnet("resnext101_32x4d", **kwargs)
 
 @wraps(ResNet)
 @add_docs_for(ResNet)
