@@ -5,11 +5,10 @@ import pytest
 import numpy as np
 import torch.backends.cudnn as cudnn
 from pytorch_tools import models
-from pytorch_tools.utils.misc import AverageMeter
-
-pytest.skip("Not meant for pytest", allow_module_level=True)
+from pytorch_tools.utils.misc import AverageMeter, count_parameters
 
 
+@pytest.mark.skip("Not meant for pytest")
 def test_model(model):
     model = model.cuda(0)
     optimizer = torch.optim.SGD(model.parameters(), 0.01, momentum=0.9, weight_decay=1e-4)
@@ -64,29 +63,29 @@ def test_model(model):
     del optimizer
     del model
 
-
-# all models are first init to cpu memory to find errors earlier
-models_dict = {
-    # 'VGG16 ABN' : models.vgg16_bn(norm_layer='abn'),
-    # 'VGG 16 InplaceABN:': models.vgg16_bn(norm_layer='inplaceabn'),
-    # 'Resnet50 No Antialias:' : models.resnet50(antialias=False), #norm_layer='abn',
-    # 'Resnet50 Antialias:': models.resnet50(antialias=True), #norm_layer='inplaceabn', ),
-    # 'Resnet50 ABN:' : models.se_resnet50(norm_layer='abn'),
-    # 'Resnet50 InPlaceABN:': models.se_resnet50(norm_layer='inplaceabn', norm_act='leaky_relu'),
-    # 'Densenet121 MemEff' : models.densenet121(memory_efficient=True),
-    # 'Densenet121 NotMemEff' : models.densenet121(memory_efficient=False),
-    "Densenet121 ABN": models.densenet121(norm_layer="abn", norm_act="leaky_relu"),
-    "Densenet121 InPlaceABN": models.densenet121(norm_layer="inplaceabn", norm_act="leaky_relu"),
-    # 'SE Resnext50_32x4 ABN:' : models.se_resnext50_32x4d(norm_layer='abn'),
-    # 'SE Resnext50_32x4 InplaceABN:' : models.se_resnext50_32x4d(norm_layer='inplaceabn')
-}
-print("Initialized models")
-BS = 64
-N_RUNS = 10
-RUN_ITERS = 10
-INP = torch.ones((BS, 3, 224, 224), requires_grad=True).cuda(0)
-TARGET = torch.ones(BS).long().cuda(0)
-criterion = torch.nn.CrossEntropyLoss().cuda(0)
-for name, model in models_dict.items():
-    print(name)
-    test_model(model)
+if __name__ == "__main__":
+    # all models are first init to cpu memory to find errors earlier
+    models_dict = {
+        # 'VGG16 ABN' : models.vgg16_bn(norm_layer='abn'),
+        # 'VGG 16 InplaceABN:': models.vgg16_bn(norm_layer='inplaceabn'),
+        # 'Resnet50 No Antialias:' : models.resnet50(antialias=False), #norm_layer='abn',
+        # 'Resnet50 Antialias:': models.resnet50(antialias=True), #norm_layer='inplaceabn', ),
+        # 'Resnet50 ABN:' : models.se_resnet50(norm_layer='abn'),
+        # 'Resnet50 InPlaceABN:': models.se_resnet50(norm_layer='inplaceabn', norm_act='leaky_relu'),
+        # 'Densenet121 MemEff' : models.densenet121(memory_efficient=True),
+        # 'Densenet121 NotMemEff' : models.densenet121(memory_efficient=False),
+        # "Densenet121 ABN": models.densenet121(norm_layer="abn", norm_act="leaky_relu"),
+        "Densenet121 InPlaceABN": models.densenet121(norm_layer="inplaceabn", norm_act="leaky_relu"),
+        # 'SE Resnext50_32x4 ABN:' : models.se_resnext50_32x4d(norm_layer='abn'),
+        # 'SE Resnext50_32x4 InplaceABN:' : models.se_resnext50_32x4d(norm_layer='inplaceabn')
+    }
+    print("Initialized models")
+    BS = 64
+    N_RUNS = 10
+    RUN_ITERS = 10
+    INP = torch.ones((BS, 3, 224, 224), requires_grad=True).cuda(0)
+    TARGET = torch.ones(BS).long().cuda(0)
+    criterion = torch.nn.CrossEntropyLoss().cuda(0)
+    for name, model in models_dict.items():
+        print(name + ' {:.2f}M params'.format(count_parameters(model)[0] / 1e6))
+        test_model(model)
