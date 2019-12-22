@@ -298,3 +298,13 @@ def test_binary_cross_entropy():
     torch_ce = torch.nn.functional.binary_cross_entropy_with_logits(inp, target.squeeze())
     my_ce = losses.CrossEntropyLoss(mode="binary")(inp, target)
     assert torch.allclose(torch_ce, my_ce)
+
+
+@torch.no_grad()
+def test_cross_entropy_weight():
+    inp = torch.randn(BS, N_CLASSES)
+    target = torch.randint(0, N_CLASSES, (BS,)).long()
+    weight = torch.randint(1, 100, (N_CLASSES,)).float()
+    torch_ce_w = torch.nn.CrossEntropyLoss(weight=weight)(inp, target)
+    my_ce_w = losses.CrossEntropyLoss(weight=weight)(inp, target)
+    assert torch.allclose(torch_ce_w, my_ce_w)
