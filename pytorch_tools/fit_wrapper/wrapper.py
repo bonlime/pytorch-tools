@@ -1,7 +1,7 @@
 from copy import copy
 from enum import Enum
 from collections import OrderedDict
-from tqdm.auto import tqdm
+from tqdm import tqdm
 import torch
 from apex import amp
 from ..utils.misc import AverageMeter
