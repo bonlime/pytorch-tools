@@ -1,6 +1,7 @@
 import os
 import sys
 import math
+import torch
 import numpy as np
 import cv2
 
@@ -14,13 +15,8 @@ class PSNR:
 
     @staticmethod
     def __call__(img1, img2):
-        img1 = img1.astype(np.float64)
-        img2 = img2.astype(np.float64)
-        mse = np.mean((img1 - img2) ** 2)
-        if mse == 0:
-            return float("inf")
-        return 20 * math.log10(255.0 / math.sqrt(mse))
-
+        mse = torch.mean((img1 - img2) ** 2)
+        return 20 * torch.log10(255.0 / torch.sqrt(mse))
 
 class SSIM:
     """Structure Similarity

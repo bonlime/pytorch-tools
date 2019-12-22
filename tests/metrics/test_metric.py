@@ -1,7 +1,7 @@
 import pytorch_tools as pt
 from pytorch_tools.metrics import Accuracy
 from pytorch_tools.metrics import BalancedAccuracy
-from pytorch_tools.metrics import DiceScore, JaccardScore
+from pytorch_tools.metrics import DiceScore, JaccardScore, PSNR
 
 # from ..utils.misc import to_numpy
 import pytest
@@ -54,6 +54,22 @@ def test_jaccard_score():
     jaccard_loss = pt.losses.JaccardLoss(mode="binary", from_logits=False)(inp, target)
     assert jaccard_score == 1 - jaccard_loss
 
+
+def test_psnr():
+    img1 = torch.randint(
+        low=0, 
+        high=256, 
+        size=(BS, 3, IM_SIZE, IM_SIZE), 
+        dtype=torch.float32)
+
+    img2 = torch.randint(
+        low=0, 
+        high=256, 
+        size=(BS, 3, IM_SIZE, IM_SIZE), 
+        dtype=torch.float32)
+    
+    psnr = PSNR()(img1, img2)
+    assert psnr > 0.
 
 @pytest.mark.parametrize("metric", METRIC_NAMES)
 def test_has_name(metric):
