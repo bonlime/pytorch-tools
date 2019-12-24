@@ -187,3 +187,28 @@ def sum_tensor(tensor):
     rt = tensor.clone()
     dist.all_reduce(rt, op=dist.ReduceOp.SUM)
     return rt
+
+
+def filter_bn_from_wd(model):
+    """
+    Filter out batch norm parameters and remove them from weight decay. Gives
+    higher accuracy for large batch training.
+    Idea from: https://arxiv.org/pdf/1807.11205.pdf
+    Code from: https://github.com/cybertronai/imagenet18
+    Args:
+        model (torch.nn.Module): model
+    Returns:
+        dict with parameters
+    """
+    def get_bn_params(module):
+        if isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
+            return module.parameters()
+        accum = set()
+        for child in module.children():
+            [accum.add(p) for p in get_bn_params(child)]
+        return accum
+
+    bn_params = get_bn_params(model)
+    bn_params2 = [p for p in model.parameters() if p in bn_params]
+    rem_params = [p for p in model.parameters() if p not in bn_params]
+    return [{"params": bn_params2, "weight_decay": 0}, {"params": rem_params}]
