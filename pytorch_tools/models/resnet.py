@@ -223,6 +223,8 @@ class ResNet(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1.0)
                 nn.init.constant_(m.bias, 0.0)
+            elif isinstance(m, nn.Linear):
+                nn.init.constant_(m.bias, 0)
         if init_bn0:
             for m in self.modules():
                 if isinstance(m, Bottleneck):
