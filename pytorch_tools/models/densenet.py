@@ -70,7 +70,7 @@ class _DenseLayer(nn.Module):
         self.conv1 = conv1x1(in_planes, width)
         self.norm2 = norm_layer(width, activation=norm_act)
         self.conv2 = conv3x3(width, growth_rate)
-        self.drop_rate = drop_rate
+        self.dropout = nn.Dropout(p=drop_rate, inplace=True)
         self.memory_efficient = memory_efficient
 
     def forward(self, *inputs):
@@ -80,8 +80,7 @@ class _DenseLayer(nn.Module):
         else:
             out = bn_function(*inputs)
         out = self.conv2(self.norm2(out))
-        if self.drop_rate > 0:
-            out = F.dropout(out, p=self.drop_rate, training=self.training)
+        out = self.dropout(out)
         return out
 
 
@@ -241,6 +240,8 @@ class DenseNet(nn.Module):
                 nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
                 nn.init.constant_(m.bias, 0)
 
     def load_state_dict(self, state_dict, **kwargs):
