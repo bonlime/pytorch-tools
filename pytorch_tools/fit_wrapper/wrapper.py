@@ -1,17 +1,19 @@
 import torch
 from copy import copy
-from collections import OrderedDict
 from apex import amp
-from tqdm import tqdm
 from .state import RunnerState
 from .callbacks import Callbacks
+from .callbacks import ConsoleLogger
 from ..utils.misc import to_numpy
 
+
 class Runner:
-    def __init__(self, model, optimizer, criterion, metrics=None, callbacks=None, verbose=True):
+    def __init__(
+        self, model, optimizer, criterion, metrics=None, callbacks=ConsoleLogger, verbose=True
+    ):
         super().__init__()
         self.state = RunnerState(
-            model=model, 
+            model=model,
             optimizer=optimizer,
             criterion=criterion,
             metrics=metrics,
@@ -21,10 +23,18 @@ class Runner:
         self.callbacks.set_state(self.state)
 
     def fit(
-        self, train_loader, steps_per_epoch=None, val_loader=None, val_steps=None, epochs=1, start_epoch=0
+        self,
+        train_loader,
+        steps_per_epoch=None,
+        val_loader=None,
+        val_steps=None,
+        epochs=1,
+        start_epoch=0,
     ):
         self.state.num_epochs = epochs
-        self.state.batch_size = train_loader.batch_size if hasattr(train_loader, 'batch_size') else 1
+        self.state.batch_size = (
+            train_loader.batch_size if hasattr(train_loader, "batch_size") else 1
+        )
         self.callbacks.on_train_begin()
         for epoch in range(start_epoch, epochs):
             self.state.is_train = True
@@ -48,10 +58,9 @@ class Runner:
         self._run_one_epoch(loader, steps=steps)
         return self.state.loss_meter.avg, [m.avg for m in self.state.metric_meters]
 
-    def _make_step(self, batch):
-        self.state.input = batch
-        images, target = batch
-        output = self.state.model(images)
+    def _make_step(self):
+        data, target = self.state.input
+        output = self.state.model(data)
         self.state.output = output
         loss = self.state.criterion(output, target)
         if self.state.is_train:
@@ -72,27 +81,13 @@ class Runner:
         self.state.timer.reset()
         for metric in self.state.metric_meters:
             metric.reset()
-        self.state.ep_size = steps or len(loader) # steps overwrites len
-        if self.state.verbose:
-            if hasattr(tqdm._instances):  # prevents many printing issues
-                tqdm._instances.clear()
-            pbar = tqdm(enumerate(loader), total=self.state.ep_size, ncols=0)
-            pbar.set_description(
-                "Epoch {:2d}/{}. {}ing".format(
-                    self.state.epoch, self.state.num_epochs, ["validat", "train"][self.state.is_train]
-                )
-            )
-        else:
-            pbar = enumerate(loader)
-
+        self.state.ep_size = steps or len(loader)  # steps overwrites len
+        pbar = enumerate(loader)
         with torch.set_grad_enabled(self.state.is_train):
             for i, batch in pbar:
                 self.state.step = i
+                self.state.input = batch
                 self.callbacks.on_batch_begin()
-                self._make_step(batch)
-                if self.state.verbose:
-                    desc = OrderedDict({"Loss": "{:.4f}".format(self.state.loss_meter.avg_smooth)})
-                    desc.update({m.name: "{:.3f}".format(m.avg_smooth) for m in self.state.metric_meters})
-                    pbar.set_postfix(**desc)
+                self._make_step()
                 self.callbacks.on_batch_end()
         return
