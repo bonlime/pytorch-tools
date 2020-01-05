@@ -48,16 +48,16 @@ class Loader:
     def __next__(self):
         img = torch.randn(BS, 3, IMG_SHAPE, IMG_SHAPE)
         target = torch.randint(NUM_CLASSES, (BS,))
-        return img, target
+        return img.cuda(), target.cuda()
 
 
 TestLoader = Loader()
-TestModel = Model()
+TestModel = Model().cuda()
 TestOptimizer = torch.optim.SGD(TestModel.parameters(), lr=1e-3)
-TestCriterion = CrossEntropyLoss()
+TestCriterion = CrossEntropyLoss().cuda()
 TestMetric = Accuracy()
 
-TestModel, TestOptimizer = apex.amp.initialize(TestModel, TestOptimizer, enabled=False)
+TestModel, TestOptimizer = apex.amp.initialize(TestModel, TestOptimizer, verbosity=0)
 
 
 def test_default():
@@ -79,7 +79,8 @@ def test_val_loader():
 
 
 # We only test that callbacks don't crash NOT that they do what they should do
-
+TMP_PATH = "/tmp/pt_tools2/"
+os.makedirs(TMP_PATH, exist_ok=True)
 
 def test_Timer_callback():
     runner = Runner(
@@ -102,15 +103,17 @@ def test_ReduceLROnPlateau_callback():
     )
     runner.fit(TestLoader, epochs=2)
 
+
 def test_CheckpointSaver_callback():
     runner = Runner(
         model=TestModel,
         optimizer=TestOptimizer,
         criterion=TestCriterion,
         metrics=TestMetric,
-        callbacks=pt_clb.CheckpointSaver("/tmp/pt_tools/", save_name="model.chpn"),
+        callbacks=pt_clb.CheckpointSaver(TMP_PATH, save_name="model.chpn"),
     )
     runner.fit(TestLoader, epochs=2)
+
 
 def test_FileLogger_callback():
     runner = Runner(
@@ -118,9 +121,10 @@ def test_FileLogger_callback():
         optimizer=TestOptimizer,
         criterion=TestCriterion,
         metrics=TestMetric,
-        callbacks=pt_clb.FileLogger("/tmp/pt_tools/"),
+        callbacks=pt_clb.FileLogger(TMP_PATH),
     )
     runner.fit(TestLoader, epochs=2)
+
 
 def test_TensorBoard():
     runner = Runner(
@@ -128,6 +132,6 @@ def test_TensorBoard():
         optimizer=TestOptimizer,
         criterion=TestCriterion,
         metrics=TestMetric,
-        callbacks=pt_clb.TensorBoard(log_dir="/tmp/pt_tools/"),
+        callbacks=pt_clb.TensorBoard(log_dir=TMP_PATH),
     )
     runner.fit(TestLoader, epochs=2)
