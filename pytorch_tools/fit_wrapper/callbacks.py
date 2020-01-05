@@ -1,7 +1,9 @@
 import os
 import math
 import logging
+from tqdm import tqdm
 from enum import Enum
+from collections import OrderedDict
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from ..utils.misc import listify
@@ -343,7 +345,36 @@ class TensorBoard(Callback):
         self.writer.close()
 
 
-class Logger(Callback):
+class ConsoleLogger(Callback):
+    def __init__(self, verbose=True):
+        self.verbose = verbose
+
+    def on_epoch_begin(self):
+        if not self.verbose:
+            return
+        if hasattr(tqdm._instances):  # prevents many printing issues
+            tqdm._instances.clear()
+        self.pbar = tqdm(total=self.state.ep_size, ncols=0)
+        stage_str = "train" if self.state.is_train else "validat"
+        self.pbar.set_description(
+            f"Epoch {self.state.epoch:2d}/{self.state.num_epochs}. {stage_str}ing"
+        )
+    
+    def on_batch_end(self):
+        if not self.verbose:
+            return
+        desc = OrderedDict({"Loss": f"{self.state.loss_meter.avg_smooth:.4f}"})
+        desc.update(
+            {m.name: f"{m.avg_smooth:.3f}" for m in self.state.metric_meters}
+        )
+        self.pbar.set_postfix(**desc)
+
+class FileLogger(Callback):
+    """Logs loss and metrics every epoch into file
+    Args:
+        log_dir (str): path where to store the logs
+        logger (logging.Logger): external logger. Default None
+    """
     def __init__(self, log_dir, logger=None):
         # logger - already created instance of logger
         super().__init__()
