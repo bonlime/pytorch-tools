@@ -12,6 +12,10 @@ class Runner:
         self, model, optimizer, criterion, metrics=None, callbacks=ConsoleLogger(), verbose=True
     ):
         super().__init__()
+
+        if not hasattr(amp._amp_state, "opt_properties"):
+            model, optimizer = amp.initialize(model, optimizer, enabled=False)
+
         self.state = RunnerState(
             model=model,
             optimizer=optimizer,
