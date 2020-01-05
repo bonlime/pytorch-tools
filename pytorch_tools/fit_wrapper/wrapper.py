@@ -8,9 +8,16 @@ from ..utils.misc import to_numpy
 
 
 class Runner:
-    def __init__(
-        self, model, optimizer, criterion, metrics=None, callbacks=ConsoleLogger(), verbose=True
-    ):
+    def __init__(self, model, optimizer, criterion, metrics=None, callbacks=ConsoleLogger()):
+        """
+        
+        Args:
+            model: model
+            optimizer: optimizer
+            criterion: Loss used for training 
+            metrics: Optional metrics to measure during training. Defaults to None.
+            callbacks (List): List of Callbacks to use. Defaults to ConsoleLogger().
+        """        
         super().__init__()
 
         if not hasattr(amp._amp_state, "opt_properties"):
@@ -21,7 +28,6 @@ class Runner:
             optimizer=optimizer,
             criterion=criterion,
             metrics=metrics,
-            verbose=verbose,
         )
         self.callbacks = Callbacks(callbacks)
         self.callbacks.set_state(self.state)
@@ -35,6 +41,16 @@ class Runner:
         epochs=1,
         start_epoch=0,
     ):
+        """
+        Args:
+            train_loader: DataLoader with defined `len` and `batch_size`
+            steps_per_epoch (int): How many steps to count as an epochs. Useful
+                when epoch is very long or it not clearly defined. Defaults to None.
+            val_loader: Validation DataLoader with defined `len` and `batch_size` Defaults to None.
+            val_steps (int): same as `steps_per_epoch` but for val data. Defaults to None.
+            epochs (int): Number of epochs to train for. Defaults to 1.
+            start_epoch (int): From which epoch to start. Useful on restarts. Defaults to 0.
+        """    
         self.state.num_epochs = epochs
         self.state.batch_size = (
             train_loader.batch_size if hasattr(train_loader, "batch_size") else 1

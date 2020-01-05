@@ -16,13 +16,11 @@ class RunnerState:
         optimizer=None,
         criterion=None,
         metrics=None,
-        verbose=True,
     ):
         # base 
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
-        self.verbose = verbose
         self.metrics = listify(metrics)
 
         # data pipeline
@@ -32,11 +30,10 @@ class RunnerState:
         # counters
         self.num_epochs = 1
         self.epoch = 0
-        self.verbose = verbose
-        self.train_loss = AverageMeter()
-        self.train_metrics = [AverageMeter(),]
-        self.val_loss = AverageMeter()
-        self.val_metrics = [AverageMeter(),]
+        self.train_loss = None
+        self.train_metrics = None
+        self.val_loss = None
+        self.val_metrics = None
         self.is_train = True
         self.epoch_size = None
         self.step = None

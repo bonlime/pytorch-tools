@@ -101,7 +101,7 @@ class Timer(Callback):
         self.state.timer.batch_end()
 
     def on_epoch_end(self):
-        if not self.has_printed and self.state.verbose:
+        if not self.has_printed:
             self.has_printed = True
             d_time = self.state.timer.data_time.avg_smooth
             b_time = self.state.timer.batch_time.avg_smooth
@@ -230,7 +230,10 @@ class ReduceLROnPlateau(Callback):
     def on_epoch_end(self):
         # TODO: zakirov(19.11.19) Add support for saving based on metric
         # TODO: zakirov(20.12.19) Add some logging when lr is reduced
-        current = self.state.val_loss.avg or self.state.train_loss.avg
+        if self.state.val_loss is not None:
+            current = self.state.val_loss.avg
+        else:
+            current = self.state.train_loss.avg
         self._steps_since_best += 1
         
         if (self.mode == ReduceMode.MIN and current < self.best) or (
@@ -266,7 +269,10 @@ class CheckpointSaver(Callback):
 
     def on_epoch_end(self):
         # TODO zakirov(1.11.19) Add support for saving based on metric
-        current = self.state.val_loss.avg or self.state.train_loss.avg
+        if self.state.val_loss is not None:
+            current = self.state.val_loss.avg
+        else:
+            current = self.state.train_loss.avg
         if (self.mode == ReduceMode.MIN and current < self.best) or (
             self.mode == ReduceMode.MAX and current > self.best
         ):  
@@ -309,8 +315,7 @@ class TensorBoard(Callback):
         self.writer = SummaryWriter(self.log_dir)
 
     def on_batch_end(self):
-        # TODO: somehow account for different batch size
-        self.current_step += 1
+        self.current_step += self.state.batch_size
         if self.state.is_train and (self.current_step % self.log_every == 0):
             self.writer.add_scalar(
                 # need proper name
@@ -327,7 +332,7 @@ class TensorBoard(Callback):
             self.writer.add_scalar("train/{}".format(m.name), m.avg, self.current_step)
 
         lr = sorted([pg["lr"] for pg in self.state.optimizer.param_groups])[-1]  # largest lr
-        # why train_ ? 
+        # TODO: select better name instead of train_ ? 
         self.writer.add_scalar("train_/lr", lr, self.current_step)
 
         # don't log if no val
@@ -343,12 +348,7 @@ class TensorBoard(Callback):
 
 
 class ConsoleLogger(Callback):
-    def __init__(self, verbose=True):
-        self.verbose = verbose
-
     def on_epoch_begin(self):
-        if not self.verbose:
-            return
         if hasattr(tqdm, "_instances"):  # prevents many printing issues
             tqdm._instances.clear()
         stage_str = "train" if self.state.is_train else "validat"
@@ -361,8 +361,6 @@ class ConsoleLogger(Callback):
         self.pbar.update()
 
     def on_batch_end(self):
-        if not self.verbose:
-            return
         desc = OrderedDict({"Loss": f"{self.state.loss_meter.avg_smooth:.4f}"})
         desc.update(
             {m.name: f"{m.avg_smooth:.3f}" for m in self.state.metric_meters}
