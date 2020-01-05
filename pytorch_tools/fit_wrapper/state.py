@@ -33,12 +33,12 @@ class RunnerState:
         self.num_epochs = 1
         self.epoch = 0
         self.verbose = verbose
-        self.train_loss = None
-        self.train_metrics = None
-        self.val_loss = None
-        self.val_metrics = None
+        self.train_loss = AverageMeter()
+        self.train_metrics = [AverageMeter(),]
+        self.val_loss = AverageMeter()
+        self.val_metrics = [AverageMeter(),]
         self.is_train = True
-        self.ep_size = None
+        self.epoch_size = None
         self.step = None
         self.batch_size = 0
         self.metric_meters = [AverageMeter(name=m.name) for m in self.metrics]
@@ -52,3 +52,7 @@ class RunnerState:
         if self.__isfrozen and not hasattr(self, key):
             raise TypeError(f"{self} is a frozen class")
         object.__setattr__(self, key, value)
+
+    @property
+    def epoch_log(self):
+        return self.epoch + 1

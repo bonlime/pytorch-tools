@@ -9,7 +9,7 @@ from ..utils.misc import to_numpy
 
 class Runner:
     def __init__(
-        self, model, optimizer, criterion, metrics=None, callbacks=ConsoleLogger, verbose=True
+        self, model, optimizer, criterion, metrics=None, callbacks=ConsoleLogger(), verbose=True
     ):
         super().__init__()
         self.state = RunnerState(
@@ -41,7 +41,7 @@ class Runner:
             self.state.epoch = epoch
             self.callbacks.on_epoch_begin()
             self.state.model.train()
-            self._run_one_epoch(train_loader, steps=steps_per_epoch)
+            self._run_loader(train_loader, steps=steps_per_epoch)
             self.state.train_loss = copy(self.state.loss_meter)
             self.state.train_metrics = [copy(m) for m in self.state.metric_meters]
 
@@ -55,7 +55,7 @@ class Runner:
     def evaluate(self, loader, steps=None):
         self.state.is_train = False
         self.state.model.eval()
-        self._run_one_epoch(loader, steps=steps)
+        self._run_loader(loader, steps=steps)
         return self.state.loss_meter.avg, [m.avg for m in self.state.metric_meters]
 
     def _make_step(self):
@@ -76,15 +76,16 @@ class Runner:
         for metric, meter in zip(self.state.metrics, self.state.metric_meters):
             meter.update(to_numpy(metric(output, target).squeeze()))
 
-    def _run_one_epoch(self, loader, steps=None):
+    def _run_loader(self, loader, steps=None):
         self.state.loss_meter.reset()
         self.state.timer.reset()
         for metric in self.state.metric_meters:
             metric.reset()
-        self.state.ep_size = steps or len(loader)  # steps overwrites len
-        pbar = enumerate(loader)
+        self.state.epoch_size = steps or len(loader)  # steps overwrites len
         with torch.set_grad_enabled(self.state.is_train):
-            for i, batch in pbar:
+            for i, batch in enumerate(loader):
+                if i == self.state.epoch_size:
+                    break
                 self.state.step = i
                 self.state.input = batch
                 self.callbacks.on_batch_begin()

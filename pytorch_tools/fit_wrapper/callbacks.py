@@ -25,8 +25,6 @@ class Callback(object):
     """
 
     def __init__(self):
-        self.runner = None
-        self.metrics = None
         self.state = RunnerState()
 
     def set_state(self, state):
@@ -58,7 +56,6 @@ class Callbacks(Callback):
         self.callbacks = listify(callbacks)
 
     def set_state(self, state):
-        super().set_state(state)
         for callback in self.callbacks:
             callback.set_state(state)
 
@@ -108,7 +105,7 @@ class Timer(Callback):
             self.has_printed = True
             d_time = self.state.timer.data_time.avg_smooth
             b_time = self.state.timer.batch_time.avg_smooth
-            print(f"TimeMeter profiling. Data time: {d_time}. Model time: {b_time}")
+            print(f"\nTimeMeter profiling. Data time: {d_time:.2E}s. Model time: {b_time:.2E}s \n")
 
 
 class PhasesScheduler(Callback):
@@ -156,7 +153,7 @@ class PhasesScheduler(Callback):
 
     def _get_lr_mom(self, batch_curr):
         phase = self.phase
-        batch_tot = self.state.ep_size
+        batch_tot = self.state.epoch_size
         if len(phase["ep"]) == 1:
             perc = 0
         else:
@@ -352,14 +349,17 @@ class ConsoleLogger(Callback):
     def on_epoch_begin(self):
         if not self.verbose:
             return
-        if hasattr(tqdm._instances):  # prevents many printing issues
+        if hasattr(tqdm, "_instances"):  # prevents many printing issues
             tqdm._instances.clear()
-        self.pbar = tqdm(total=self.state.ep_size, ncols=0)
         stage_str = "train" if self.state.is_train else "validat"
-        self.pbar.set_description(
-            f"Epoch {self.state.epoch:2d}/{self.state.num_epochs}. {stage_str}ing"
-        )
-    
+        desc = f"Epoch {self.state.epoch_log:2d}/{self.state.num_epochs}. {stage_str}ing"
+        self.pbar = tqdm(desc=desc, ncols=0)
+
+    def on_batch_begin(self):
+        # have to set total here because it's not always defined during `on_epoch_begin`
+        self.pbar.total = self.state.epoch_size
+        self.pbar.update()
+
     def on_batch_end(self):
         if not self.verbose:
             return
