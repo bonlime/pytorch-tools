@@ -4,6 +4,7 @@ import logging
 from tqdm import tqdm
 from enum import Enum
 from collections import OrderedDict
+import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from ..utils.misc import listify
@@ -406,3 +407,101 @@ class FileLogger(Callback):
     @staticmethod
     def _format_meters(loss, metrics):
         return f"loss: {loss.avg:.4f} | " + " | ".join(f"{m.name}: {m.avg:.4f}" for m in metrics)
+
+class Mixup(Callback):
+    """Performs mixup on input. Only for classification.
+    Mixup blends two images by linear interpolation between them with small 
+    lambda drown from Beta distribution. Labels become a liner blend of true labels for 
+    original images.   
+    Ref: https://arxiv.org/abs/1710.09412
+
+    Args:
+        alpha (float): hyperparameter from paper. Suggested default is 0.2 for Imagenet.
+        num_classes (int): number of classes. Mixup implicitly turns
+            labels into one hot encoding and needs number of classes to do that
+        prob (float): probability of applying mixup
+    """
+    def __init__(self, alpha, num_classes, prob=0.5):
+        super().__init__()
+        self.tb = torch.distributions.Beta(alpha, alpha)
+        self.num_classes = num_classes
+        self.prob = prob
+
+    def on_batch_begin(self):
+        self.state.input = self.mixup(*self.state.input)
+
+    def mixup(self, data, target):
+        with torch.no_grad():
+            if len(target.shape) == 1:  # if not one hot
+                target_one_hot = torch.zeros(
+                    target.size(0), self.num_classes, dtype=torch.float, device=data.device
+                )
+                target_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
+            else:
+                target_one_hot = target
+            if np.random.rand() > self.prob:
+                return data, target_one_hot
+            bs = data.size(0)
+            c = self.tb.sample()
+            perm = torch.randperm(bs).cuda()
+            md = c * data + (1 - c) * data[perm, :]
+            mt = c * target_one_hot + (1 - c) * target_one_hot[perm, :]
+            return md, mt
+
+class Cutmix(Callback):
+    """Performs CutMix on input. Only for classification.
+    Cutmix combines two images by replacing part of the image by part from another image. 
+    New label is proportional to area of inserted part. 
+    Ref: https://arxiv.org/abs/1905.04899
+
+    Args:
+        alpha (float): hyperparameter from paper. Suggested default is 1.0 for Imagenet.
+        num_classes (int): number of classes. CutMix implicitly turns
+            labels into one hot encoding and needs number of classes to do that
+        prob (float): probability of applying mixup
+    """
+    def __init__(self, alpha, num_classes, prob=0.5):
+        super().__init__()
+        self.tb = torch.distributions.Beta(alpha, alpha)
+        self.num_classes = num_classes
+        self.prob = prob
+
+    def on_batch_begin(self):
+        self.state.input = self.cutmix(*self.state.input)
+
+    def cutmix(self, data, target):
+        with torch.no_grad():
+            if len(target.shape) == 1:  # if not one hot
+                target_one_hot = torch.zeros(
+                    target.size(0), self.num_classes, dtype=torch.float, device=data.device
+                )
+                target_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
+            else:
+                target_one_hot = target
+            if np.random.rand() > self.prob:
+                return data, target_one_hot
+            BS, C, H, W = data.size()
+            perm = torch.randperm(BS).cuda()
+            lam = self.tb.sample()
+            lam = min([lam, 1 - lam])
+            bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
+            # real lambda may be diffrent from sampled. adjust for it
+            lam = (bbh2 - bbh1) * (bbw2 - bbw1) / (H * W)
+            data[:, bbh1:bbh2, bbw1:bbw2] = data[perm, bbh1:bbh2, bbw1:bbw2]
+            mixed_target = (1 - lam) * target_one_hot + lam * target_one_hot[perm, :]
+        return data, mixed_target
+
+    @staticmethod
+    def rand_bbox(H, W, lam):
+        """ returns bbox with area close to lam*H*W """
+        cut_rat = np.sqrt(lam)
+        cut_h = np.int(H * cut_rat)
+        cut_w = np.int(W * cut_rat)
+        # uniform
+        ch = np.random.randint(H)
+        cw = np.random.randint(W)
+        bbh1 = np.clip(ch - cut_h // 2, 0, H)
+        bbw1 = np.clip(cw - cut_w // 2, 0, W)
+        bbh2 = np.clip(ch + cut_h // 2, 0, H)
+        bbw2 = np.clip(cw + cut_w // 2, 0, W)
+        return bbh1, bbw1, bbh2, bbw2
