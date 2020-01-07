@@ -58,7 +58,6 @@ class ABN(nn.Module):
             nn.init.constant_(self.weight, 1)
             nn.init.constant_(self.bias, 0)
 
-
     def forward(self, x):
         x = F.batch_norm(x, self.running_mean, self.running_var, self.weight, self.bias,
                                   self.training, self.momentum, self.eps)

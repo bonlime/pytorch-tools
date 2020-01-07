@@ -95,7 +95,7 @@ class ResNet(nn.Module):
         deep_stem=False,
         dilated=False,
         norm_layer="abn",
-        norm_act="relu",
+        norm_act="leaky_relu",
         antialias=False,
         encoder=False,
         drop_rate=0.0,
@@ -104,9 +104,6 @@ class ResNet(nn.Module):
     ):
 
         stem_width = 64
-        if norm_layer.lower() == "abn":
-            norm_act = "relu"
-
         norm_layer = bn_from_name(norm_layer)
         self.inplanes = stem_width
         self.num_classes = num_classes

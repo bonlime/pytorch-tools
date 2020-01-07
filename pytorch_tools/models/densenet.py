@@ -18,7 +18,7 @@ from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules import activation_from_name
-from inplace_abn import ABN
+from pytorch_tools.modules import ABN
 from copy import deepcopy
 import re
 import logging

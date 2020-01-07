@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from inplace_abn import ABN
+from .activated_batch_norm import ABN
 from .residual import conv3x3, conv1x1
 
 relu = nn.ReLU(inplace=True)
