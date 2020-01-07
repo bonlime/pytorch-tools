@@ -16,13 +16,14 @@ class Callback(object):
     Abstract class that all callback(e.g., Logger) classes extends from.
     Must be extended before usage.
     usage example:
-    train start
-    ---epoch start (one epoch - one run of every loader)
-    ------batch start
-    ------batch handler
-    ------batch end
+    begin
+    ---epoch begin (one epoch - one run of every loader)
+    ------loader begin 
+    ---------batch begin
+    ---------batch end
+    ------loader end 
     ---epoch end
-    train end
+    end
     """
 
     def __init__(self):
@@ -37,16 +38,22 @@ class Callback(object):
     def on_batch_end(self):
         pass
 
+    def on_loader_begin(self):
+        pass
+
+    def on_loader_end(self):
+        pass
+
     def on_epoch_begin(self):
         pass
 
     def on_epoch_end(self):
         pass
 
-    def on_train_begin(self):
+    def on_begin(self):
         pass
 
-    def on_train_end(self):
+    def on_end(self):
         pass
 
 
@@ -69,6 +76,14 @@ class Callbacks(Callback):
         for callback in self.callbacks:
             callback.on_batch_end()
 
+    def on_loader_begin(self):
+        for callback in self.callbacks:
+            callback.on_loader_begin()
+
+    def on_loader_end(self):
+        for callback in self.callbacks:
+            callback.on_loader_end()
+
     def on_epoch_begin(self):
         for callback in self.callbacks:
             callback.on_epoch_begin()
@@ -77,13 +92,13 @@ class Callbacks(Callback):
         for callback in self.callbacks:
             callback.on_epoch_end()
 
-    def on_train_begin(self):
+    def on_begin(self):
         for callback in self.callbacks:
-            callback.on_train_begin()
+            callback.on_begin()
 
-    def on_train_end(self):
+    def on_end(self):
         for callback in self.callbacks:
-            callback.on_train_end()
+            callback.on_end()
 
 
 class Timer(Callback):
@@ -265,7 +280,7 @@ class CheckpointSaver(Callback):
         self.mode = ReduceMode(mode)
         self.best = float("inf") if mode == ReduceMode.MIN else -float("inf")
 
-    def on_train_begin(self):
+    def on_begin(self):
         os.makedirs(self.save_dir, exist_ok=True)
 
     def on_epoch_end(self):
@@ -312,7 +327,7 @@ class TensorBoard(Callback):
         self.writer = None
         self.current_step = 0
 
-    def on_train_begin(self):
+    def on_begin(self):
         os.makedirs(self.log_dir, exist_ok=True)
         self.writer = SummaryWriter(self.log_dir)
 
@@ -345,27 +360,28 @@ class TensorBoard(Callback):
         for m in self.state.val_metrics:
             self.writer.add_scalar(f"val/{m.name}", m.avg, self.current_step)
 
-    def on_train_end(self):
+    def on_end(self):
         self.writer.close()
 
 
 class ConsoleLogger(Callback):
-    def on_epoch_begin(self):
+    def on_begin(self):
         if hasattr(tqdm, "_instances"):  # prevents many printing issues
             tqdm._instances.clear()
+
+    def on_loader_begin(self):
         stage_str = "train" if self.state.is_train else "validat"
         desc = f"Epoch {self.state.epoch_log:2d}/{self.state.num_epochs}. {stage_str}ing"
-        self.pbar = tqdm(desc=desc, ncols=0)
+        self.pbar = tqdm(total=self.state.epoch_size, desc=desc, ncols=0)
 
-    def on_batch_begin(self):
-        # have to set total here because it's not always defined during `on_epoch_begin`
-        self.pbar.total = self.state.epoch_size
-        self.pbar.update()
+    def on_loader_end(self):
+        self.pbar.close()   
 
     def on_batch_end(self):
         desc = OrderedDict({"Loss": f"{self.state.loss_meter.avg_smooth:.4f}"})
         desc.update({m.name: f"{m.avg_smooth:.3f}" for m in self.state.metric_meters})
         self.pbar.set_postfix(**desc)
+        self.pbar.update()
 
 
 class FileLogger(Callback):

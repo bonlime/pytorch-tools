@@ -42,7 +42,7 @@ class Runner:
         """
         self.state.num_epochs = epochs
         self.state.batch_size = train_loader.batch_size if hasattr(train_loader, "batch_size") else 1
-        self.callbacks.on_train_begin()
+        self.callbacks.on_begin()
         for epoch in range(start_epoch, epochs):
             self.state.is_train = True
             self.state.epoch = epoch
@@ -57,7 +57,7 @@ class Runner:
                 self.state.val_loss = copy(self.state.loss_meter)
                 self.state.val_metrics = [copy(m) for m in self.state.metric_meters]
             self.callbacks.on_epoch_end()
-        self.callbacks.on_train_end()
+        self.callbacks.on_end()
 
     def evaluate(self, loader, steps=None):
         self.state.is_train = False
@@ -89,6 +89,7 @@ class Runner:
         for metric in self.state.metric_meters:
             metric.reset()
         self.state.epoch_size = steps or len(loader)  # steps overwrites len
+        self.callbacks.on_loader_begin()
         with torch.set_grad_enabled(self.state.is_train):
             for i, batch in enumerate(loader):
                 if i == self.state.epoch_size:
@@ -98,4 +99,5 @@ class Runner:
                 self.callbacks.on_batch_begin()
                 self._make_step()
                 self.callbacks.on_batch_end()
+        self.callbacks.on_loader_end()
         return
