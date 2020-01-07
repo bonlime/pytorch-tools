@@ -135,3 +135,23 @@ def test_TensorBoard():
         callbacks=pt_clb.TensorBoard(log_dir=TMP_PATH),
     )
     runner.fit(TestLoader, epochs=2)
+
+def test_Cutmix():
+    runner = Runner(
+        model=TestModel,
+        optimizer=TestOptimizer,
+        criterion=TestCriterion,
+        metrics=TestMetric,
+        callbacks=pt_clb.Cutmix(1.0, NUM_CLASSES)
+    )
+    runner.fit(TestLoader, epochs=2)
+
+def test_Mixup():
+    runner = Runner(
+        model=TestModel,
+        optimizer=TestOptimizer,
+        criterion=TestCriterion,
+        metrics=TestMetric,
+        callbacks=pt_clb.Mixup(0.2, NUM_CLASSES)
+    )
+    runner.fit(TestLoader, epochs=2)
