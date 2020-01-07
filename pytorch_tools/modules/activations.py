@@ -119,6 +119,8 @@ class MishNaive(nn.Module):
         return mish_naive(x)
 
 #### Helpfull functions ####
+def identity(x, *args, **kwargs):
+    return x
 
 class Identity(nn.Module):
     def __init__(self, *args, **kwargs):
@@ -148,11 +150,11 @@ ACT_FUNC_DICT = {
     ACT.CELU: F.celu,
     ACT.ELU: F.elu,
     ACT.GLU: F.elu,
-    ACT.IDENTITY: lambda x: x,
+    ACT.IDENTITY: identity,
     ACT.LEAKY_RELU: F.leaky_relu,
     ACT.MISH: mish,
     ACT.MISH_NAIVE: mish_naive,
-    ACT.NONE: lambda x: x,
+    ACT.NONE: identity,
     ACT.PRELU: F.prelu,
     ACT.RELU: F.relu,
     ACT.RELU6: F.relu6,
