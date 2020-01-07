@@ -442,7 +442,7 @@ class Mixup(Callback):
                 target_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
             else:
                 target_one_hot = target
-            if np.random.rand() > self.prob:
+            if not self.state.is_train or np.random.rand() > self.prob:
                 return data, target_one_hot
             bs = data.size(0)
             c = self.tb.sample()
@@ -483,7 +483,7 @@ class Cutmix(Callback):
                 target_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
             else:
                 target_one_hot = target
-            if np.random.rand() > self.prob:
+            if not self.state.is_train or np.random.rand() > self.prob:
                 return data, target_one_hot
             BS, C, H, W = data.size()
             perm = torch.randperm(BS).cuda()
