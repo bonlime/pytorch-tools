@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 from .base import Loss, Mode
+from ..utils.misc import to_tensor
 
 
 class CrossEntropyLoss(Loss):
@@ -24,7 +25,7 @@ class CrossEntropyLoss(Loss):
         self.mode = Mode(mode)
         self.confidence = 1.0 - smoothing
         self.smoothing = smoothing
-        weight = torch.Tensor([1.0]) if weight is None else weight
+        weight = torch.Tensor([1.0]) if weight is None else to_tensor(weight)
         self.register_buffer("weight", weight)
 
     def forward(self, y_pred, y_true):

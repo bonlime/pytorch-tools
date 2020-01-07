@@ -107,7 +107,26 @@ def to_numpy(x):
         return np.array(x)
     else:
         raise ValueError("Unsupported type")
-    return x
+
+def to_tensor(x, dtype=None):
+    """Convert whatever to torch Tensor"""
+    if isinstance(x, torch.Tensor):
+        if dtype is not None:
+            x = x.type(dtype)
+        return x
+    elif isinstance(x, np.ndarray):
+        x = torch.from_numpy(x)
+        if dtype is not None:
+            x = x.type(dtype)
+        return x
+    elif isinstance(x, (list, tuple)):
+        x = np.array(x)
+        x = torch.from_numpy(x)
+        if dtype is not None:
+            x = x.type(dtype)
+        return x
+    else:
+        raise ValueError("Unsupported input type" + str(type(x)))
 
 
 class AverageMeter:

@@ -397,7 +397,7 @@ class FileLogger(Callback):
         self.logger = logger or self._get_logger(os.path.join(log_dir, "logs.txt"))
 
     def on_epoch_begin(self):
-        self.logger.info(f"Epoch {self.state.epoch} | lr {self.current_lr:.3f}")
+        self.logger.info(f"Epoch {self.state.epoch_log} | lr {self.current_lr:.3f}")
 
     def on_epoch_end(self):
         loss, metrics = self.state.train_loss, self.state.train_metrics
