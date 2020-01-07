@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
 from pytorch_tools.modules import BlurPool
-from pytorch_tools.utils.misc import bn_from_name, add_docs_for, DEFAULT_IMAGENET_SETTINGS
+from pytorch_tools.modules import bn_from_name
+from pytorch_tools.utils.misc import add_docs_for, DEFAULT_IMAGENET_SETTINGS
 from functools import wraps, partial
 from copy import deepcopy
 

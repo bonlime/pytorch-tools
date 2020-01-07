@@ -16,7 +16,8 @@ from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.modules import GlobalPool2d
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
-from pytorch_tools.utils.misc import activation_from_name, bn_from_name
+from pytorch_tools.modules import bn_from_name
+from pytorch_tools.modules import activation_from_name
 from inplace_abn import ABN
 from copy import deepcopy
 import re
