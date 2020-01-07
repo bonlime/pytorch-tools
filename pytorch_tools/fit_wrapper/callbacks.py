@@ -237,10 +237,10 @@ class ReduceLROnPlateau(Callback):
         super().__init__()
         self.factor = factor
         self.patience = patience
-        self.min_lr = min_lr
-        self.best = float("inf") if mode == ReduceMode.MIN else -float("inf")
-        self._steps_since_best = 0
         self.mode = ReduceMode(mode)
+        self.min_lr = min_lr
+        self.best = float("inf") if self.mode == ReduceMode.MIN else -float("inf")
+        self._steps_since_best = 0
 
     def on_epoch_end(self):
         # TODO: zakirov(19.11.19) Add support for saving based on metric
@@ -278,7 +278,7 @@ class CheckpointSaver(Callback):
         self.save_dir = save_dir
         self.save_name = save_name
         self.mode = ReduceMode(mode)
-        self.best = float("inf") if mode == ReduceMode.MIN else -float("inf")
+        self.best = float("inf") if self.mode == ReduceMode.MIN else -float("inf")
 
     def on_begin(self):
         os.makedirs(self.save_dir, exist_ok=True)
