@@ -61,19 +61,13 @@ TestModel, TestOptimizer = apex.amp.initialize(TestModel, TestOptimizer, verbosi
 
 
 def test_default():
-    runner = Runner(
-        model=TestModel, optimizer=TestOptimizer, criterion=TestCriterion, metrics=TestMetric,
-    )
+    runner = Runner(model=TestModel, optimizer=TestOptimizer, criterion=TestCriterion, metrics=TestMetric,)
     runner.fit(TestLoader, epochs=2)
 
 
 def test_val_loader():
     runner = Runner(
-        model=TestModel,
-        optimizer=TestOptimizer,
-        criterion=TestCriterion,
-        metrics=TestMetric,
-        callbacks=None,
+        model=TestModel, optimizer=TestOptimizer, criterion=TestCriterion, metrics=TestMetric, callbacks=None,
     )
     runner.fit(TestLoader, epochs=2, steps_per_epoch=10, val_loader=TestLoader, val_steps=20)
 
@@ -81,6 +75,7 @@ def test_val_loader():
 # We only test that callbacks don't crash NOT that they do what they should do
 TMP_PATH = "/tmp/pt_tools2/"
 os.makedirs(TMP_PATH, exist_ok=True)
+
 
 def test_Timer_callback():
     runner = Runner(
@@ -136,15 +131,17 @@ def test_TensorBoard():
     )
     runner.fit(TestLoader, epochs=2)
 
+
 def test_Cutmix():
     runner = Runner(
         model=TestModel,
         optimizer=TestOptimizer,
         criterion=TestCriterion,
         metrics=TestMetric,
-        callbacks=pt_clb.Cutmix(1.0, NUM_CLASSES)
+        callbacks=pt_clb.Cutmix(1.0, NUM_CLASSES),
     )
     runner.fit(TestLoader, epochs=2)
+
 
 def test_Mixup():
     runner = Runner(
@@ -152,6 +149,6 @@ def test_Mixup():
         optimizer=TestOptimizer,
         criterion=TestCriterion,
         metrics=TestMetric,
-        callbacks=pt_clb.Mixup(0.2, NUM_CLASSES)
+        callbacks=pt_clb.Mixup(0.2, NUM_CLASSES),
     )
     runner.fit(TestLoader, epochs=2)

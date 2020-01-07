@@ -56,20 +56,13 @@ def test_jaccard_score():
 
 
 def test_psnr():
-    img1 = torch.randint(
-        low=0, 
-        high=256, 
-        size=(BS, 3, IM_SIZE, IM_SIZE), 
-        dtype=torch.float32)
+    img1 = torch.randint(low=0, high=256, size=(BS, 3, IM_SIZE, IM_SIZE), dtype=torch.float32)
 
-    img2 = torch.randint(
-        low=0, 
-        high=256, 
-        size=(BS, 3, IM_SIZE, IM_SIZE), 
-        dtype=torch.float32)
-    
+    img2 = torch.randint(low=0, high=256, size=(BS, 3, IM_SIZE, IM_SIZE), dtype=torch.float32)
+
     psnr = PSNR()(img1, img2)
-    assert psnr > 0.
+    assert psnr > 0.0
+
 
 @pytest.mark.parametrize("metric", METRIC_NAMES)
 def test_has_name(metric):

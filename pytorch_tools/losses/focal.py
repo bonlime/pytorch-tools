@@ -4,7 +4,9 @@ from .functional import sigmoid_focal_loss, reduced_focal_loss
 
 
 class BinaryFocalLoss(Loss):
-    def __init__(self, alpha=0.5, gamma=2, ignore_index=None, reduction="mean", reduced=False, threshold=0.5):
+    def __init__(
+        self, alpha=0.5, gamma=2, ignore_index=None, reduction="mean", reduced=False, threshold=0.5,
+    ):
         """
 
         :param alpha:

@@ -17,29 +17,18 @@ class Runner:
             criterion: Loss used for training 
             metrics: Optional metrics to measure during training. Defaults to None.
             callbacks (List): List of Callbacks to use. Defaults to ConsoleLogger().
-        """        
+        """
         super().__init__()
 
         if not hasattr(amp._amp_state, "opt_properties"):
             model, optimizer = amp.initialize(model, optimizer, enabled=False)
 
-        self.state = RunnerState(
-            model=model,
-            optimizer=optimizer,
-            criterion=criterion,
-            metrics=metrics,
-        )
+        self.state = RunnerState(model=model, optimizer=optimizer, criterion=criterion, metrics=metrics,)
         self.callbacks = Callbacks(callbacks)
         self.callbacks.set_state(self.state)
 
     def fit(
-        self,
-        train_loader,
-        steps_per_epoch=None,
-        val_loader=None,
-        val_steps=None,
-        epochs=1,
-        start_epoch=0,
+        self, train_loader, steps_per_epoch=None, val_loader=None, val_steps=None, epochs=1, start_epoch=0,
     ):
         """
         Args:
@@ -50,11 +39,9 @@ class Runner:
             val_steps (int): same as `steps_per_epoch` but for val data. Defaults to None.
             epochs (int): Number of epochs to train for. Defaults to 1.
             start_epoch (int): From which epoch to start. Useful on restarts. Defaults to 0.
-        """    
+        """
         self.state.num_epochs = epochs
-        self.state.batch_size = (
-            train_loader.batch_size if hasattr(train_loader, "batch_size") else 1
-        )
+        self.state.batch_size = train_loader.batch_size if hasattr(train_loader, "batch_size") else 1
         self.callbacks.on_train_begin()
         for epoch in range(start_epoch, epochs):
             self.state.is_train = True

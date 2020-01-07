@@ -52,6 +52,7 @@ class Callback(object):
 
 class Callbacks(Callback):
     """Class that combines multiple callbacks into one. For internal use only"""
+
     def __init__(self, callbacks):
         super().__init__()
         self.callbacks = listify(callbacks)
@@ -190,9 +191,7 @@ class PhasesScheduler(Callback):
 
     def on_batch_begin(self):
         lr, mom = self._get_lr_mom(self.state.step)
-        if (self.current_lr == lr and self.current_mom == mom) or (
-            self.state.step % self.change_every != 0
-        ):
+        if (self.current_lr == lr and self.current_mom == mom) or (self.state.step % self.change_every != 0):
             return
         self.current_lr = lr
         self.current_mom = mom
@@ -236,7 +235,7 @@ class ReduceLROnPlateau(Callback):
         else:
             current = self.state.train_loss.avg
         self._steps_since_best += 1
-        
+
         if (self.mode == ReduceMode.MIN and current < self.best) or (
             self.mode == ReduceMode.MAX and current > self.best
         ):
@@ -258,6 +257,7 @@ class CheckpointSaver(Callback):
         mode (str): one of "min" of "max". Whether to decide to save based
             on minimizing or maximizing loss
     """
+
     def __init__(self, save_dir, save_name="model_{ep}_{metric:.2f}.chpn", mode="min"):
         super().__init__()
         self.save_dir = save_dir
@@ -276,7 +276,7 @@ class CheckpointSaver(Callback):
             current = self.state.train_loss.avg
         if (self.mode == ReduceMode.MIN and current < self.best) or (
             self.mode == ReduceMode.MAX and current > self.best
-        ):  
+        ):
             ep = self.state.epoch
             save_name = os.path.join(self.save_dir, self.save_name.format(ep=ep, metric=current))
             self._save_checkpoint(save_name)
@@ -304,6 +304,7 @@ class TensorBoard(Callback):
         log_dir (str): path where to store logs
         log_every (int): how often to write logs during training
     """
+
     def __init__(self, log_dir, log_every=20):
         super().__init__()
         self.log_dir = log_dir
@@ -320,20 +321,20 @@ class TensorBoard(Callback):
         if self.state.is_train and (self.current_step % self.log_every == 0):
             self.writer.add_scalar(
                 # need proper name
-                "train_/loss", self.state.loss_meter.val, self.current_step
+                "train_/loss",
+                self.state.loss_meter.val,
+                self.current_step,
             )
             for m in self.state.metric_meters:
-                self.writer.add_scalar("train_/{}".format(m.name), m.val, self.current_step)
+                self.writer.add_scalar(f"train_/{m.name}", m.val, self.current_step)
 
     def on_epoch_end(self):
-        self.writer.add_scalar(
-            "train/loss", self.state.train_loss.avg, self.current_step
-        )
+        self.writer.add_scalar("train/loss", self.state.train_loss.avg, self.current_step)
         for m in self.state.train_metrics:
-            self.writer.add_scalar("train/{}".format(m.name), m.avg, self.current_step)
+            self.writer.add_scalar(f"train/{m.name}", m.avg, self.current_step)
 
         lr = sorted([pg["lr"] for pg in self.state.optimizer.param_groups])[-1]  # largest lr
-        # TODO: select better name instead of train_ ? 
+        # TODO: select better name instead of train_ ?
         self.writer.add_scalar("train_/lr", lr, self.current_step)
 
         # don't log if no val
@@ -342,7 +343,7 @@ class TensorBoard(Callback):
 
         self.writer.add_scalar("val/loss", self.state.val_loss.avg, self.current_step)
         for m in self.state.val_metrics:
-            self.writer.add_scalar("val/{}".format(m.name), m.avg, self.current_step)
+            self.writer.add_scalar(f"val/{m.name}", m.avg, self.current_step)
 
     def on_train_end(self):
         self.writer.close()
@@ -363,10 +364,9 @@ class ConsoleLogger(Callback):
 
     def on_batch_end(self):
         desc = OrderedDict({"Loss": f"{self.state.loss_meter.avg_smooth:.4f}"})
-        desc.update(
-            {m.name: f"{m.avg_smooth:.3f}" for m in self.state.metric_meters}
-        )
+        desc.update({m.name: f"{m.avg_smooth:.3f}" for m in self.state.metric_meters})
         self.pbar.set_postfix(**desc)
+
 
 class FileLogger(Callback):
     """Logs loss and metrics every epoch into file
@@ -374,6 +374,7 @@ class FileLogger(Callback):
         log_dir (str): path where to store the logs
         logger (logging.Logger): external logger. Default None
     """
+
     def __init__(self, log_dir, logger=None):
         # logger - already created instance of logger
         super().__init__()
@@ -408,6 +409,7 @@ class FileLogger(Callback):
     def _format_meters(loss, metrics):
         return f"loss: {loss.avg:.4f} | " + " | ".join(f"{m.name}: {m.avg:.4f}" for m in metrics)
 
+
 class Mixup(Callback):
     """Performs mixup on input. Only for classification.
     Mixup blends two images by linear interpolation between them with small 
@@ -421,6 +423,7 @@ class Mixup(Callback):
             labels into one hot encoding and needs number of classes to do that
         prob (float): probability of applying mixup
     """
+
     def __init__(self, alpha, num_classes, prob=0.5):
         super().__init__()
         self.tb = torch.distributions.Beta(alpha, alpha)
@@ -448,6 +451,7 @@ class Mixup(Callback):
             mt = c * target_one_hot + (1 - c) * target_one_hot[perm, :]
             return md, mt
 
+
 class Cutmix(Callback):
     """Performs CutMix on input. Only for classification.
     Cutmix combines two images by replacing part of the image by part from another image. 
@@ -460,6 +464,7 @@ class Cutmix(Callback):
             labels into one hot encoding and needs number of classes to do that
         prob (float): probability of applying mixup
     """
+
     def __init__(self, alpha, num_classes, prob=0.5):
         super().__init__()
         self.tb = torch.distributions.Beta(alpha, alpha)

@@ -18,6 +18,7 @@ class PSNR:
         mse = torch.mean((img1 - img2) ** 2)
         return 20 * torch.log10(255.0 / torch.sqrt(mse))
 
+
 class SSIM:
     """Structure Similarity
     img1, img2: [0, 255]"""

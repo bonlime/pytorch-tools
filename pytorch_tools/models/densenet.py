@@ -61,7 +61,7 @@ class _DenseLayer(nn.Module):
     expansion = 4
 
     def __init__(
-        self, in_planes, growth_rate, drop_rate=0.0, memory_efficient=False, norm_layer=ABN, norm_act="relu"
+        self, in_planes, growth_rate, drop_rate=0.0, memory_efficient=False, norm_layer=ABN, norm_act="relu",
     ):
         super(_DenseLayer, self).__init__()
 

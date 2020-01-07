@@ -63,6 +63,7 @@ def test_model(model):
     del optimizer
     del model
 
+
 if __name__ == "__main__":
     # all models are first init to cpu memory to find errors earlier
     models_dict = {
@@ -87,5 +88,5 @@ if __name__ == "__main__":
     TARGET = torch.ones(BS).long().cuda(0)
     criterion = torch.nn.CrossEntropyLoss().cuda(0)
     for name, model in models_dict.items():
-        print(name + ' {:.2f}M params'.format(count_parameters(model)[0] / 1e6))
+        print(name + " {:.2f}M params".format(count_parameters(model)[0] / 1e6))
         test_model(model)

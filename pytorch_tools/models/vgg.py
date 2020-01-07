@@ -134,7 +134,7 @@ CFGS = {
     },
     "vgg13_bn": {
         "default": {
-            "params": {"layers": [64, 64, "M", 128, 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M"]},
+            "params": {"layers": [64, 64, "M", 128, 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M",]},
             **DEFAULT_IMAGENET_SETTINGS,
         },
         "imagenet": {"url": "https://download.pytorch.org/models/vgg13_bn-abd245e5.pth"},

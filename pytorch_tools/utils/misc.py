@@ -200,6 +200,7 @@ def filter_bn_from_wd(model):
     Returns:
         dict with parameters
     """
+
     def get_bn_params(module):
         if isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
             return module.parameters()

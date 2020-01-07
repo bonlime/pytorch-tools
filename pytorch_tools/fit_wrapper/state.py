@@ -8,16 +8,13 @@ class RunnerState:
     An object that is used to pass internal state during train/valid/infer.
     This class prohibits creating new attributes after init
     """
+
     __isfrozen = False
+
     def __init__(
-        self,
-        *,
-        model=None,
-        optimizer=None,
-        criterion=None,
-        metrics=None,
+        self, *, model=None, optimizer=None, criterion=None, metrics=None,
     ):
-        # base 
+        # base
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
