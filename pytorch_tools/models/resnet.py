@@ -95,7 +95,7 @@ class ResNet(nn.Module):
         deep_stem=False,
         dilated=False,
         norm_layer="abn",
-        norm_act="leaky_relu",
+        norm_act="relu",
         antialias=False,
         encoder=False,
         drop_rate=0.0,

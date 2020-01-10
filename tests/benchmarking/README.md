@@ -54,6 +54,17 @@ Mean of 10 runs 10 iters each BS=64: 54.97+-0.01 msecs Forward. 185.83+-5.13 mse
 **Resnet50 Baseline: 25.56M params**  
 Mean of 10 runs 10 iters each BS=64: 59.65+-0.07 msecs Forward. 164.39+-2.58 msecs Backward. Max memory: 5935.15Mb  
 
+
+**Resnet34 Leaky ReLU 21.82M params**  
+Mean of 10 runs 10 iters each BS=64: 30.81+-0.18 msecs Forward. 103.95+-1.05 msecs Backward. Max memory: 2766.59Mb  
+**Resnet34 ReLU 21.82M params**  
+Mean of 10 runs 10 iters each BS=64: 30.76+-0.01 msecs Forward. 103.90+-1.10 msecs Backward. Max memory: 2932.52Mb  
+**Resnet34 Mish 21.82M params**  
+Mean of 10 runs 10 iters each BS=64: 35.07+-0.02 msecs Forward. 112.40+-4.26 msecs Backward. Max memory: 3739.84Mb  
+**Resnet34 Mish Naive 21.82M params**  
+Mean of 10 runs 10 iters each BS=64: 37.73+-0.01 msecs Forward. 125.56+-5.10 msecs Backward. Max memory: 5846.58Mb  
+
+
 ## Methodology
 
 Check `benchmarking_example.py` for an example of how to measure speed and memory usage. NOTE: Memory usage reported by pytorch doesn't include memory used by internal CUDA libraries which also has to be loaded to device. It means that more memory is actually used than reported by this tests. But the number of additional memory is always constant for the same device.

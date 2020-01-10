@@ -111,7 +111,7 @@ class Mish(nn.Module):
         return MishFunction.apply(x)
 
 class MishNaive(nn.Module):
-    """Memory efficient and fast version of Mish. CAN NOT be exported by tracing"""
+    """Naive version of Mish CAN be exported by tracing"""
     def __init__(self, inplace=True):
         super().__init__()
 
