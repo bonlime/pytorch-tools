@@ -8,4 +8,5 @@ activations_name = ["Swish", "Swish_Naive", "Mish", "Mish_naive"]
 def test_activations_init(activation):
     inp = torch.ones(10)
     act = modules.activation_from_name(activation)
-    assert act(inp)
+    res = act(inp)
+    assert res.mean()

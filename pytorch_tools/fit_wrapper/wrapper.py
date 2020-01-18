@@ -14,8 +14,9 @@ class Runner:
         Args:
             model: model
             optimizer: optimizer
-            criterion: Loss used for training 
-            metrics: Optional metrics to measure during training. Defaults to None.
+            criterion: Loss used for training
+            metrics (List): Optional metrics to measure during training. All metrics
+                must have `name` attribute. Defaults to None.
             callbacks (List): List of Callbacks to use. Defaults to ConsoleLogger().
         """
         super().__init__()
@@ -34,7 +35,7 @@ class Runner:
         Args:
             train_loader: DataLoader with defined `len` and `batch_size`
             steps_per_epoch (int): How many steps to count as an epochs. Useful
-                when epoch is very long or it not clearly defined. Defaults to None.
+                when epoch is very long or it's not clearly defined. Defaults to None.
             val_loader: Validation DataLoader with defined `len` and `batch_size` Defaults to None.
             val_steps (int): same as `steps_per_epoch` but for val data. Defaults to None.
             epochs (int): Number of epochs to train for. Defaults to 1.

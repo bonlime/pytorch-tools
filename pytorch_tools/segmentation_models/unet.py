@@ -119,4 +119,4 @@ class Unet(EncoderDecoder):
         )
 
         super().__init__(encoder, decoder, activation)
-        self.name = "u-{}".format(encoder_name)
+        self.name = f"u-{encoder_name}"

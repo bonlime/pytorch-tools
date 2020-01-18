@@ -19,9 +19,9 @@ class Lookahead(Optimizer):
             la_steps (int): number of lookahead steps.
         """
         if not 0.0 <= la_alpha <= 1.0:
-            raise ValueError("Invalid slow update rate: {}".format(la_alpha))
+            raise ValueError(f"Invalid slow update rate: {la_alpha}")
         if not 1 <= la_steps:
-            raise ValueError("Invalid lookahead steps: {}".format(la_steps))
+            raise ValueError(f"Invalid lookahead steps: {la_steps}")
         self.optimizer = base_optimizer
         self.la_alpha = la_alpha
         self.la_steps = la_steps

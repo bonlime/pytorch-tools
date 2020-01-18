@@ -25,7 +25,7 @@ ENCODER_SHAPES = {
 
 def get_encoder(name, **kwargs):
     if name not in models.__dict__:
-        raise ValueError("No such encoder: {}".format(name))
+        raise ValueError(f"No such encoder: {name}")
     kwargs["encoder"] = True
     # if 'resne' in name:
     #    kwargs['dilated'] = True # dilate resnets for better performance

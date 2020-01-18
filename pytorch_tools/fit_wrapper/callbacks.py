@@ -224,14 +224,13 @@ class ReduceMode(Enum):
 class ReduceLROnPlateau(Callback):
     """
     Reduces learning rate by `factor` after `patience`epochs without improving
-    
+
     Args:
         factor (float): by how to reduce learning rate
         patience (int): how many epochs to wait until reducing lr
         min_lr (float): minimum learning rate which could be achieved
         mode (str): one of "min" of "max". Whether to decide reducing based
             on minimizing or maximizing loss
-        
     """
 
     def __init__(self, factor=0.5, patience=5, min_lr=1e-6, mode="min"):
@@ -265,7 +264,7 @@ class ReduceLROnPlateau(Callback):
 class CheckpointSaver(Callback):
     """
     Save best model every epoch based on loss
-    
+
     Args:
         save_dir (str): path to folder where to save the model
         save_name (str): name of the saved model. can additionally 
@@ -367,7 +366,7 @@ class TensorBoard(Callback):
 class TensorBoardWithCM(TensorBoard):
     """
     Saves training and validation statistics for TensorBoard
-    And also saves Confusion Matrix as image 
+    And also saves Confusion Matrix as image
 
     Args:
         log_dir (str): path where to store logs
@@ -415,6 +414,7 @@ class TensorBoardWithCM(TensorBoard):
             self.writer.add_image("val/confusion_matrix", self.val_cm_img, self.current_step)
 
 class ConsoleLogger(Callback):
+    """Prints training progress to console for monitoring."""
     def on_begin(self):
         if hasattr(tqdm, "_instances"):  # prevents many printing issues
             tqdm._instances.clear()

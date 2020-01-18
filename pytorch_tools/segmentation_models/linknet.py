@@ -83,4 +83,4 @@ class Linknet(EncoderDecoder):
 
         super().__init__(encoder, decoder, activation)
 
-        self.name = "link-{}".format(encoder_name)
+        self.name = f"link-{encoder_name}"

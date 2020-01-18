@@ -87,13 +87,15 @@ def reduced_focal_loss(y_pred, y_true, threshold=0.5, gamma=2.0, reduction="mean
 
 def soft_jaccard_score(y_pred, y_true, dims=None):
     """
+    `Soft` means than when `y_pred` and `y_true` are zero this function will
+    return 1, while in many other implementations it will return 0.
     Args:
         y_pred (torch.Tensor): Of shape `NxCx*` where * means any
             number of additional dimensions
         y_true (torch.Tensor): `NxCx*`, same shape as `y_pred`
         dims (Tuple[int], optional): Dims to use for calculating
     """
-    SMOOTH = 1e-3  # Laplace smoothing
+    SMOOTH = 1e-4  # Laplace smoothing
     if y_pred.size() != y_true.size():
         raise ValueError("Input and target shapes should match")
 
@@ -110,6 +112,8 @@ def soft_jaccard_score(y_pred, y_true, dims=None):
 
 def soft_dice_score(y_pred, y_true, dims=None):
     """
+    `Soft` means than when `y_pred` and `y_true` are zero this function will
+    return 1, while in many other implementations it will return 0.
     Args:
         y_pred (torch.Tensor): Of shape `NxCx*` where * means any
             number of additional dimensions

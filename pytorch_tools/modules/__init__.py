@@ -25,4 +25,4 @@ def bn_from_name(norm_name):
     elif norm_name == "inplaceabnsync":
         return InPlaceABNSync
     else:
-        raise ValueError("Normalization {} not supported".format(norm_name))
+        raise ValueError(f"Normalization {norm_name} not supported")

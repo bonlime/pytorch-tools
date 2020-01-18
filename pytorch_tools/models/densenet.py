@@ -178,11 +178,11 @@ class DenseNet(nn.Module):
         in_planes = stem_width
         for i, num_layers in enumerate(block_config):
             block = _DenseBlock(num_layers, in_planes, **largs)
-            setattr(self, "denseblock{}".format(i + 1), block)
+            setattr(self, f"denseblock{i+1}", block)
             in_planes += num_layers * growth_rate
             if i != len(block_config) - 1:
                 trans = _Transition(in_planes=in_planes, out_planes=in_planes // 2)
-                setattr(self, "transition{}".format(i + 1), trans)
+                setattr(self, f"transition{i+1}", trans)
                 in_planes //= 2
 
         # Final normalization

@@ -30,4 +30,4 @@ def optimizer_from_name(optim_name):
     elif optim_name in ["fused_novograd", "fusednovograd", "novograd"]:
         return FusedNovoGrad
     else:
-        raise ValueError("Optimizer {} not found".format(optim_name))
+        raise ValueError(f"Optimizer {optim_name} not found")
