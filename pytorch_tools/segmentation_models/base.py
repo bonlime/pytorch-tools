@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-from ..utils.misc import activation_from_name
+
+from pytorch_tools.modules import activation_from_name
 
 
 class EncoderDecoder(nn.Module):

@@ -39,7 +39,7 @@ class Augmentation(object):
         self.backward_params = [p[::-1] for p in transform_params]
 
         self.n_transforms = len(transform_params)
-        print("Will merge {} augmentations for each image.".format(self.n_transforms))
+        print(f"Will merge {self.n_transforms} augmentations for each image.")
 
     def forward(self, x):
         self.bs = x.shape[0]
@@ -131,9 +131,7 @@ class TTA(nn.Module):
         elif merge == "max":
             self.merge = F.max
         else:
-            raise ValueError(
-                "Merge type {} not implemented. Valid options are: `mean`, `gmean`, `max`".format(merge)
-            )
+            raise ValueError(f"Merge type {merge} not implemented. Choose from: `mean`, `gmean`, `max`")
 
     def forward(self, x):
         x = self.tta.forward(x)

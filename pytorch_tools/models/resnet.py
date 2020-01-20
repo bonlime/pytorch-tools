@@ -6,6 +6,10 @@ additional dropout and dynamic global avg/max pool.
 ResNeXt, SE-ResNeXt, SENet, and MXNet Gluon stem/downsample variants added by Ross Wightman
 """
 import math
+import logging
+from copy import deepcopy
+from collections import OrderedDict
+from functools import wraps, partial
 
 import torch
 import torch.nn as nn
@@ -15,13 +19,10 @@ from torchvision.models.utils import load_state_dict_from_url
 from pytorch_tools.modules import BasicBlock, Bottleneck, SEModule
 from pytorch_tools.modules import GlobalPool2d, BlurPool
 from pytorch_tools.modules.residual import conv1x1, conv3x3
-from pytorch_tools.utils.misc import activation_from_name, bn_from_name
+from pytorch_tools.modules import bn_from_name
+from pytorch_tools.modules import activation_from_name
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
-from collections import OrderedDict
-from functools import wraps, partial
-from copy import deepcopy
-import logging
 
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=("__module__", "__name__", "__qualname__", "__annotations__"))
@@ -103,9 +104,6 @@ class ResNet(nn.Module):
     ):
 
         stem_width = 64
-        if norm_layer.lower() == "abn":
-            norm_act = "relu"
-
         norm_layer = bn_from_name(norm_layer)
         self.inplanes = stem_width
         self.num_classes = num_classes

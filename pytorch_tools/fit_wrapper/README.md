@@ -1,7 +1,7 @@
 # Overview
 This module contains model runner (very close to `model.fit` in Keras) for **supervised** tasks.  
 `Runner` is used to actually run the train loop calling `Callbacks` at appropriate times.  
-Mixed precision (powered by apex) is supprted implicitly. Users are expected to initialize their models before creating runner using `apex.amp.initialize`.
+Mixed precision (powered by apex) is supported implicitly. Users are expected to initialize their models before creating runner using `apex.amp.initialize`.
 
 ## Minimal example
 This code will run training for 5 epochs.
@@ -13,7 +13,7 @@ optimizer = ... (any optimizer)
 criterions = ... (any loss function)
 metrics = ... (any metrics or None)
 train_loader = ... (dataloader with defined __len__)
-model, optimizer
+model, optimizer = apex.amp.initialize(model, optimizer)
 runner = Runner(model, optimizer, criterion, metrics)
 runner.fit(train_loader, epochs=5)
 ```

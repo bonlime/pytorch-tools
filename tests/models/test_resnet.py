@@ -12,10 +12,12 @@ resnet_names = sorted(
     if name.islower() and not name.startswith("__") and "resne" in name and callable(models.__dict__[name])
 )
 
+INP = torch.ones(2,3,128,128)
 
 @pytest.mark.parametrize("arch", resnet_names)
 def test_resnet_init(arch):
     m = models.__dict__[arch](pretrained=None)
+    res = m(INP)
 
 
 @pytest.mark.parametrize("arch", resnet_names[:5])  # test only part of the models
@@ -31,3 +33,5 @@ def test_resnet_imagenet_custom_cls(arch):
 @pytest.mark.parametrize("arch", resnet_names[:5])  # test only part of the models
 def test_resnet_custom_in_channels(arch):
     m = models.__dict__[arch](in_channels=5)
+
+

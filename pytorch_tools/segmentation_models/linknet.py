@@ -1,8 +1,8 @@
 import torch.nn as nn
-from ..modules.decoder import LinknetDecoderBlock
-from ..modules.residual import conv1x1
-from ..utils.misc import initialize
-from ..utils.misc import bn_from_name
+from pytorch_tools.modules.decoder import LinknetDecoderBlock
+from pytorch_tools.modules.residual import conv1x1
+from pytorch_tools.utils.misc import initialize
+from pytorch_tools.modules import bn_from_name
 from .base import EncoderDecoder
 from .encoders import get_encoder
 
@@ -83,4 +83,4 @@ class Linknet(EncoderDecoder):
 
         super().__init__(encoder, decoder, activation)
 
-        self.name = "link-{}".format(encoder_name)
+        self.name = f"link-{encoder_name}"

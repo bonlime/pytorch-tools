@@ -16,8 +16,9 @@ from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.modules import GlobalPool2d
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
-from pytorch_tools.utils.misc import activation_from_name, bn_from_name
-from inplace_abn import ABN
+from pytorch_tools.modules import bn_from_name
+from pytorch_tools.modules import activation_from_name
+from pytorch_tools.modules import ABN
 from copy import deepcopy
 import re
 import logging
@@ -177,11 +178,11 @@ class DenseNet(nn.Module):
         in_planes = stem_width
         for i, num_layers in enumerate(block_config):
             block = _DenseBlock(num_layers, in_planes, **largs)
-            setattr(self, "denseblock{}".format(i + 1), block)
+            setattr(self, f"denseblock{i+1}", block)
             in_planes += num_layers * growth_rate
             if i != len(block_config) - 1:
                 trans = _Transition(in_planes=in_planes, out_planes=in_planes // 2)
-                setattr(self, "transition{}".format(i + 1), trans)
+                setattr(self, f"transition{i+1}", trans)
                 in_planes //= 2
 
         # Final normalization

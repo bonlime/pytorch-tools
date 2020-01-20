@@ -305,7 +305,7 @@ def test_cross_entropy_weight():
     inp = torch.randn(BS, N_CLASSES)
     target = torch.randint(0, N_CLASSES, (BS,)).long()
     weight_1 = torch.randint(1, 100, (N_CLASSES,)).float()
-    weight_2 = weight_1.numpy()
+    weight_2 = weight_1.numpy().astype(int)
     weight_3 = list(weight_2)
 
     torch_ce_w = torch.nn.CrossEntropyLoss(weight=weight_1)(inp, target)

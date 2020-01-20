@@ -34,7 +34,7 @@ class ContentLoss(Loss):
             self.model = models.__dict__[model](pretrained=pretrained, **args)
             self.model.eval().to(device)
         except KeyError:
-            print("Model architecture not found in {}".format(MODELS_LIST))
+            print(f"Model architecture not found in {MODELS_LIST}")
 
         self.layers = listify(layers)
         self.weights = listify(weights)
@@ -95,7 +95,7 @@ class StyleLoss(Loss):
             self.model = models.__dict__[model](pretrained=pretrained, **args)
             self.model.eval().to(device)
         except KeyError:
-            print("Model architecture not found in {}".format(MODELS_LIST))
+            print(f"Model architecture not found in {MODELS_LIST}")
 
         self.layers = listify(layers)
         self.weights = listify(weights)

@@ -133,6 +133,15 @@ def test_TensorBoard():
     )
     runner.fit(TestLoader, epochs=2)
 
+def test_TensorBoardWithCM():
+    runner = Runner(
+        model=TestModel,
+        optimizer=TestOptimizer,
+        criterion=TestCriterion,
+        metrics=TestMetric,
+        callbacks=pt_clb.TensorBoardWithCM(log_dir=TMP_PATH),
+    )
+    runner.fit(TestLoader, epochs=2)
 
 def test_Cutmix():
     runner = Runner(

@@ -25,7 +25,7 @@ class CrossEntropyLoss(Loss):
         self.mode = Mode(mode)
         self.confidence = 1.0 - smoothing
         self.smoothing = smoothing
-        weight = torch.Tensor([1.0]) if weight is None else to_tensor(weight)
+        weight = torch.Tensor([1.0]) if weight is None else to_tensor(weight, torch.float32)
         self.register_buffer("weight", weight)
 
     def forward(self, y_pred, y_true):

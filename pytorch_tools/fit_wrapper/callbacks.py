@@ -7,9 +7,10 @@ from collections import OrderedDict
 import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from ..utils.misc import listify
 from .state import RunnerState
-
+from pytorch_tools.utils.misc import listify
+from pytorch_tools.utils.visualization import plot_confusion_matrix
+from pytorch_tools.utils.visualization import render_figure_to_tensor
 
 class Callback(object):
     """
@@ -223,24 +224,23 @@ class ReduceMode(Enum):
 class ReduceLROnPlateau(Callback):
     """
     Reduces learning rate by `factor` after `patience`epochs without improving
-    
+
     Args:
         factor (float): by how to reduce learning rate
         patience (int): how many epochs to wait until reducing lr
         min_lr (float): minimum learning rate which could be achieved
         mode (str): one of "min" of "max". Whether to decide reducing based
             on minimizing or maximizing loss
-        
     """
 
     def __init__(self, factor=0.5, patience=5, min_lr=1e-6, mode="min"):
         super().__init__()
         self.factor = factor
         self.patience = patience
-        self.min_lr = min_lr
-        self.best = float("inf") if mode == ReduceMode.MIN else -float("inf")
-        self._steps_since_best = 0
         self.mode = ReduceMode(mode)
+        self.min_lr = min_lr
+        self.best = float("inf") if self.mode == ReduceMode.MIN else -float("inf")
+        self._steps_since_best = 0
 
     def on_epoch_end(self):
         # TODO: zakirov(19.11.19) Add support for saving based on metric
@@ -264,7 +264,7 @@ class ReduceLROnPlateau(Callback):
 class CheckpointSaver(Callback):
     """
     Save best model every epoch based on loss
-    
+
     Args:
         save_dir (str): path to folder where to save the model
         save_name (str): name of the saved model. can additionally 
@@ -278,7 +278,7 @@ class CheckpointSaver(Callback):
         self.save_dir = save_dir
         self.save_name = save_name
         self.mode = ReduceMode(mode)
-        self.best = float("inf") if mode == ReduceMode.MIN else -float("inf")
+        self.best = float("inf") if self.mode == ReduceMode.MIN else -float("inf")
 
     def on_begin(self):
         os.makedirs(self.save_dir, exist_ok=True)
@@ -363,8 +363,58 @@ class TensorBoard(Callback):
     def on_end(self):
         self.writer.close()
 
+class TensorBoardWithCM(TensorBoard):
+    """
+    Saves training and validation statistics for TensorBoard
+    And also saves Confusion Matrix as image
+
+    Args:
+        log_dir (str): path where to store logs
+        log_every (int): how often to write logs during training
+        class_namess (List[str]): list of class names for proper visualization
+    """
+    def __init__(self, log_dir, log_every=20, class_names=None):
+        super().__init__(log_dir, log_every)
+        self.class_names = class_names
+        self.n_classes = None # will infer implicitly later
+        self.cmap = None
+        self.train_cm_img = None
+        self.val_cm_img = None
+    
+    def on_batch_end(self):
+        super().on_batch_end()
+        if self.cmap is None:
+            self.n_classes = self.state.output.shape[1]
+            self.cmap = np.zeros((self.n_classes, self.n_classes), dtype=int)
+            if self.class_names is None:
+                self.class_names = [str(i) for i in range(self.n_classes)]
+        
+        target = self.state.input[1]
+        if len(target.shape) == 2:
+            target = target.argmax(1)
+        predict = self.state.output.argmax(1)
+        for tr, pr in zip(target, predict):
+            self.cmap[tr, pr] += 1
+
+    def on_loader_end(self):
+        super().on_loader_end()
+        f = plot_confusion_matrix(self.cmap, self.class_names, show=False)
+        cm_img = render_figure_to_tensor(f)
+        if self.state.is_train:
+            self.train_cm_img = cm_img
+        else:
+            self.val_cm_img = cm_img
+        self.cmap = None
+
+    def on_epoch_end(self):
+        super().on_epoch_end()
+        if self.train_cm_img is not None:
+            self.writer.add_image("train/confusion_matrix", self.train_cm_img, self.current_step)
+        if self.val_cm_img is not None:
+            self.writer.add_image("val/confusion_matrix", self.val_cm_img, self.current_step)
 
 class ConsoleLogger(Callback):
+    """Prints training progress to console for monitoring."""
     def on_begin(self):
         if hasattr(tqdm, "_instances"):  # prevents many printing issues
             tqdm._instances.clear()

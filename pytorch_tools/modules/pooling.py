@@ -28,7 +28,7 @@ def global_pool2d(x, pool_type):
     elif pool_type == "catavgmax":
         x = global_catavgmax_pool2d(x)
     else:
-        raise ValueError("Invalid pool type: {}".format(pool_type))
+        raise ValueError(f"Invalid pool type: {pool_type}")
     return x
 
 

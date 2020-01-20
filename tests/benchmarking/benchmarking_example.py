@@ -40,4 +40,4 @@ end.record()
 torch.cuda.synchronize()
 gpu_time = start.elapsed_time(end)
 cpu_time = end_cpu - start_cpu
-print("Gpu msecs: {:.3f}. Cpu msecs: {:.3f}".format(gpu_time, cpu_time * 1e3))
+print(f"Gpu msecs: {gpu_time:.3f}. Cpu msecs: {cpu_time * 1e3:.3f}")
