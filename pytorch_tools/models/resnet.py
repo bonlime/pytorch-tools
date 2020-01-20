@@ -274,7 +274,7 @@ class ResNet(nn.Module):
                 state_dict[k.replace("layer0.", "")] = state_dict.pop(k)
         super().load_state_dict(state_dict, **kwargs)
 
-
+# fmt: off
 CFGS = {
     # RESNET MODELS
     "resnet18": {
@@ -432,7 +432,7 @@ CFGS = {
         "imagenet": {"url": "http://data.lip6.fr/cadene/pretrainedmodels/se_resnext101_32x4d-3b2fe3d8.pth"},
     },
 }
-
+# fmt: on
 
 def _resnet(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)
