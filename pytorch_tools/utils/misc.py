@@ -102,7 +102,7 @@ def to_numpy(x):
     if isinstance(x, np.ndarray):
         return x
     elif isinstance(x, torch.Tensor):
-        x = x.detach().cpu().numpy()
+        return x.detach().cpu().numpy()
     elif isinstance(x, list) or isinstance(x, tuple):
         return np.array(x)
     else:
