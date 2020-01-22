@@ -67,7 +67,7 @@ class BasicBlock(nn.Module):
         assert base_width == 64, "BasicBlock doest not support changing base width"
         outplanes = planes * self.expansion
         conv1_stride = 1 if antialias else stride
-        self.conv1 = conv3x3(inplanes, planes, conv1_stride, dilation)
+        self.conv1 = conv3x3(inplanes, planes, conv1_stride, groups, dilation)
         self.bn1 = norm_layer(planes, activation=norm_act)
         self.conv2 = conv3x3(planes, outplanes)
         self.bn2 = norm_layer(outplanes, activation="identity")

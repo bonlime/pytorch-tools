@@ -167,7 +167,7 @@ class ResNet(nn.Module):
             if antialias and stride == 2:  # using OrderedDict to preserve ordering and allow loading
                 downsample_layers += [("blur", BlurPool())]
             downsample_layers += [
-                ("0", conv1x1(self.inplanes, planes * self.expansion, stride=1 if antialias else stride,),),
+                ("0", conv1x1(self.inplanes, planes * self.expansion, stride=1 if antialias else stride)),
                 ("1", norm_layer(planes * self.expansion, activation="identity")),
             ]
             downsample = nn.Sequential(OrderedDict(downsample_layers))
