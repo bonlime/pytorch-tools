@@ -351,7 +351,7 @@ class TensorBoard(Callback):
         lr = sorted([pg["lr"] for pg in self.state.optimizer.param_groups])[-1]  # largest lr
         # TODO: select better name instead of train_ ?
         self.writer.add_scalar("train_/lr", lr, self.current_step)
-
+        self.writer.add_scalar("train/epoch", self.state.epoch, self.current_step)
         # don't log if no val
         if self.state.val_loss is None:
             return
@@ -425,7 +425,12 @@ class ConsoleLogger(Callback):
         self.pbar = tqdm(total=self.state.epoch_size, desc=desc, ncols=0)
 
     def on_loader_end(self):
-        self.pbar.close()   
+        # update to avg
+        desc = OrderedDict({"Loss": f"{self.state.loss_meter.avg:.4f}"})
+        desc.update({m.name: f"{m.avg:.3f}" for m in self.state.metric_meters})
+        self.pbar.set_postfix(**desc)
+        self.pbar.update()
+        self.pbar.close()
 
     def on_batch_end(self):
         desc = OrderedDict({"Loss": f"{self.state.loss_meter.avg_smooth:.4f}"})
