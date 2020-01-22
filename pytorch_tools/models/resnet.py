@@ -35,51 +35,49 @@ class ResNet(nn.Module):
       * have > 1 stride in the 3x3 conv layer of bottleneck
       * have conv-bn-act ordering
 
-    This ResNet impl supports a number of stem and downsample options based on 'Bag of Tricks' paper: 
-    https://arxiv.org/pdf/1812.01187. 
+    This ResNet impl supports a number of stem and downsample options based on 'Bag of Tricks' paper:
+    https://arxiv.org/pdf/1812.01187.
 
 
     Args:
-        block (Block): 
+        block (Block):
             Class for the residual block. Options are BasicBlock, Bottleneck.
-        layers (List[int]): 
+        layers (List[int]):
             Numbers of layers in each block.
-        pretrained (str, optional): 
-            If not, returns a model pre-trained on 'str' dataset. `imagenet` is available 
+        pretrained (str, optional):
+            If not, returns a model pre-trained on 'str' dataset. `imagenet` is available
             for every model but some have more. Check the code to find out.
-        num_classes (int): 
+        num_classes (int):
             Number of classification classes. Defaults to 1000.
-        in_channels (int): 
+        in_channels (int):
             Number of input (color) channels. Defaults to 3.
-        use_se (bool): 
+        use_se (bool):
             Enable Squeeze-Excitation module in blocks.
-        groups (int): 
+        groups (int):
             Number of convolution groups for 3x3 conv in Bottleneck. Defaults to 1.
-        base_width (int): 
+        base_width (int):
             Factor determining bottleneck channels. `planes * base_width / 64 * groups`. Defaults to 64.
-        deep_stem (bool): 
+        deep_stem (bool):
             Whether to replace the 7x7 conv1 with 3 3x3 convolution layers. Defaults to False.
-        dilated (bool): 
-            Applying dilation strategy to pretrained ResNet yielding a stride-8 model, 
-            typically used in Semantic Segmentation. Defaults to False.
-        norm_layer (str): 
-            Nomaliztion layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory footprint. 
+        output_stride (List[8, 16, 32]): Applying dilation strategy to pretrained ResNet. Typically used in
+            Semantic Segmentation. Defaults to 32.
+        norm_layer (str):
+            Nomaliztion layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory footprint.
             But increases backward time. Defaults to 'abn'.
-        norm_act (str): 
+        norm_act (str):
             Activation for normalizion layer. It's reccomended to use `relu` with `abn`.
-        antialias (bool): 
+        antialias (bool):
             Flag to turn on Rect-2 antialiasing from https://arxiv.org/abs/1904.11486. Defaults to False.
-        encoder (bool): 
+        encoder (bool):
             Flag to overwrite forward pass to return 5 tensors with different resolutions. Defaults to False.
-        drop_rate (float): 
+        drop_rate (float):
             Dropout probability before classifier, for training. Defaults to 0.0.
-        global_pool (str): 
+        global_pool (str):
             Global pooling type. One of 'avg', 'max', 'avgmax', 'catavgmax'. Defaults to 'avg'.
-        init_bn0 (bool): 
-            Zero-initialize the last BN in each residual branch, so that the residual 
+        init_bn0 (bool):
+            Zero-initialize the last BN in each residual branch, so that the residual
             branch starts with zeros, and each residual block behaves like an identity.
             This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677. Defaults to True.
-        
     """
 
     def __init__(
@@ -93,7 +91,7 @@ class ResNet(nn.Module):
         groups=1,
         base_width=64,
         deep_stem=False,
-        dilated=False,
+        output_stride=32,
         norm_layer="abn",
         norm_act="relu",
         antialias=False,
@@ -111,7 +109,6 @@ class ResNet(nn.Module):
         self.base_width = base_width
         self.block = block
         self.expansion = block.expansion
-        self.dilated = dilated
         self.norm_act = norm_act
         super(ResNet, self).__init__()
 
@@ -129,15 +126,19 @@ class ResNet(nn.Module):
         self.maxpool = nn.MaxPool2d(
             kernel_size=3, stride=2, padding=0 if use_se else 1, ceil_mode=True if use_se else False,
         )
-        # Output stride is 8 with dilated and 32 without
-        stride_3_4 = 1 if self.dilated else 2
-        dilation_3 = 2 if self.dilated else 1
-        dilation_4 = 4 if self.dilated else 1
+        if output_stride not in [8, 16, 32]:
+            raise ValueError("Output stride should be in [8, 16, 32]")
+        if output_stride == 8:
+            stride_3, stride_4, dilation_3, dilation_4 = 1, 1, 2, 4
+        elif output_stride == 16:
+            stride_3, stride_4, dilation_3, dilation_4 = 2, 1, 1, 2
+        elif output_stride == 32:
+            stride_3, stride_4, dilation_3, dilation_4 = 2, 2, 1, 1
         largs = dict(use_se=use_se, norm_layer=norm_layer, norm_act=norm_act, antialias=antialias)
         self.layer1 = self._make_layer(64, layers[0], stride=1, **largs)
         self.layer2 = self._make_layer(128, layers[1], stride=2, **largs)
-        self.layer3 = self._make_layer(256, layers[2], stride=stride_3_4, dilation=dilation_3, **largs)
-        self.layer4 = self._make_layer(512, layers[3], stride=stride_3_4, dilation=dilation_4, **largs)
+        self.layer3 = self._make_layer(256, layers[2], stride=stride_3, dilation=dilation_3, **largs)
+        self.layer4 = self._make_layer(512, layers[3], stride=stride_4, dilation=dilation_4, **largs)
         self.global_pool = GlobalPool2d(global_pool)
         self.num_features = 512 * self.expansion
         self.encoder = encoder
