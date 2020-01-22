@@ -71,7 +71,7 @@ class BlurPool(nn.Module):
 
     def __init__(self):
         super(BlurPool, self).__init__()
-        self.pool = nn.AvgPool2d(2, 2)
+        self.pool = nn.AvgPool2d(3, 2)
 
     def forward(self, inp):
         return self.pool(inp)

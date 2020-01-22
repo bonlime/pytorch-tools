@@ -119,22 +119,16 @@ class ResNet(nn.Module):
             self.conv1 = nn.Sequential(
                 conv3x3(in_channels, stem_width // 2, 2),
                 norm_layer(stem_width // 2, activation=norm_act),
-                conv3x3(stem_width // 2, stem_width // 2, 2),
+                conv3x3(stem_width // 2, stem_width // 2),
                 norm_layer(stem_width // 2, activation=norm_act),
                 conv3x3(stem_width // 2, stem_width),
             )
         else:
             self.conv1 = nn.Conv2d(in_channels, stem_width, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = norm_layer(stem_width, activation=norm_act)
-        if deep_stem:
-            self.maxpool = nn.Sequential()  # don't need it
-        elif antialias:
-            self.maxpool = nn.Sequential(nn.MaxPool2d(kernel_size=3, stride=1, padding=1), BlurPool())
-        else:
-            # for se resnets fist maxpool is slightly different
-            self.maxpool = nn.MaxPool2d(
-                kernel_size=3, stride=2, padding=0 if use_se else 1, ceil_mode=True if use_se else False,
-            )
+        self.maxpool = nn.MaxPool2d(
+            kernel_size=3, stride=2, padding=0 if use_se else 1, ceil_mode=True if use_se else False,
+        )
         # Output stride is 8 with dilated and 32 without
         stride_3_4 = 1 if self.dilated else 2
         dilation_3 = 2 if self.dilated else 1
