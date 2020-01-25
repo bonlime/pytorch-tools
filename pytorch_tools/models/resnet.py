@@ -166,7 +166,7 @@ class ResNet(nn.Module):
         if stride != 1 or self.inplanes != planes * self.expansion:
             downsample_layers = []
             if antialias and stride == 2:  # using OrderedDict to preserve ordering and allow loading
-                downsample_layers += [("blur", BlurPool())]
+                downsample_layers += [("blur", BlurPool(filt_size=2))]
             downsample_layers += [
                 ("0", conv1x1(self.inplanes, planes * self.expansion, stride=1 if antialias else stride)),
                 ("1", norm_layer(planes * self.expansion, activation="identity")),
