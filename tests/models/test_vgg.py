@@ -13,9 +13,11 @@ vgg_names = sorted(
 def test_vgg_init(arch, pretrained):
     m = models.__dict__[arch](pretrained=pretrained)
 
+
 @pytest.mark.parametrize("arch", vgg_names[:2])
 def test_vgg_imagenet_custom_cls(arch):
     m = models.__dict__[arch](pretrained="imagenet", num_classes=10)
+
 
 @pytest.mark.parametrize("arch", vgg_names[:2])  # test only part of the models
 def test_vgg_custom_in_channels(arch):

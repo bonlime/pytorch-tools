@@ -3,6 +3,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+
 class ACT(Enum):
     # Activation names
     CELU = "celu"
@@ -20,7 +21,9 @@ class ACT(Enum):
     SWISH = "swish"
     SWISH_NAIVE = "swish_naive"
 
-#### SWISH #### 
+
+#### SWISH ####
+
 
 @torch.jit.script
 def swish_jit_fwd(x):
@@ -32,11 +35,13 @@ def swish_jit_bwd(x, grad_output):
     x_sigmoid = torch.sigmoid(x)
     return grad_output * (x_sigmoid * (1 + x * (1 - x_sigmoid)))
 
+
 class SwishFunction(torch.autograd.Function):
     """ torch.jit.script optimised Swish
     Inspired by conversation btw Jeremy Howard & Adam Pazske
     https://twitter.com/jeremyphoward/status/1188251041835315200
     """
+
     @staticmethod
     def forward(ctx, x):
         ctx.save_for_backward(x)
@@ -52,25 +57,33 @@ def swish(x, inplace=False):
     # inplace ignored
     return SwishFunction.apply(x)
 
+
 def swish_naive(x, inplace=False):
     return x * x.sigmoid()
+
+
 class Swish(nn.Module):
     """Memory efficient and fast version of Swish. CAN NOT be exported by tracing"""
-    def __init__(self, inplace = False):
+
+    def __init__(self, inplace=False):
         super().__init__()
 
     def forward(self, x):
         return SwishFunction.apply(x)
 
+
 class SwishNaive(nn.Module):
     """Naive version of Swish CAN be exported by tracing"""
-    def __init__(self, inplace = False):
+
+    def __init__(self, inplace=False):
         super().__init__()
-        
+
     def forward(self, x):
         return swish_naive(x)
 
+
 #### MISH ####
+
 
 @torch.jit.script
 def mish_jit_fwd(x):
@@ -100,27 +113,35 @@ def mish(x, inplace=False):
     # inplace ignored
     return MishFunction.apply(x)
 
+
 def mish_naive(x, inplace=False):
     return x.mul(F.softplus(x).tanh())
+
+
 class Mish(nn.Module):
     """Memory efficient and fast version of Mish. CAN NOT be exported by tracing"""
-    def __init__(self, inplace = False):
+
+    def __init__(self, inplace=False):
         super().__init__()
 
     def forward(self, x):
         return MishFunction.apply(x)
 
+
 class MishNaive(nn.Module):
     """Naive version of Mish CAN be exported by tracing"""
+
     def __init__(self, inplace=True):
         super().__init__()
 
     def forward(self, x):
         return mish_naive(x)
 
+
 #### Helpfull functions ####
 def identity(x, *args, **kwargs):
     return x
+
 
 class Identity(nn.Module):
     def __init__(self, *args, **kwargs):
@@ -128,6 +149,7 @@ class Identity(nn.Module):
 
     def forward(self, x):
         return x
+
 
 ACT_DICT = {
     ACT.CELU: nn.CELU,
@@ -162,6 +184,7 @@ ACT_FUNC_DICT = {
     ACT.SWISH: swish,
     ACT.SWISH_NAIVE: swish_naive,
 }
+
 
 def activation_from_name(activation_name):
     if type(activation_name) == str:

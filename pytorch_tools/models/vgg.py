@@ -125,6 +125,7 @@ class VGG(nn.Module):
                 state_dict[features_map[k]] = state_dict.pop(k)
         super().load_state_dict(state_dict, **kwargs)
 
+
 # fmt: off
 CFGS = {
     "vgg11_bn": {
@@ -161,6 +162,7 @@ CFGS = {
     },
 }
 # fmt: on
+
 
 def _vgg(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)

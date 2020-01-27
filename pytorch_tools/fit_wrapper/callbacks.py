@@ -12,6 +12,7 @@ from pytorch_tools.utils.misc import listify
 from pytorch_tools.utils.visualization import plot_confusion_matrix
 from pytorch_tools.utils.visualization import render_figure_to_tensor
 
+
 class Callback(object):
     """
     Abstract class that all callback(e.g., Logger) classes extends from.
@@ -363,6 +364,7 @@ class TensorBoard(Callback):
     def on_end(self):
         self.writer.close()
 
+
 class TensorBoardWithCM(TensorBoard):
     """
     Saves training and validation statistics for TensorBoard
@@ -373,14 +375,15 @@ class TensorBoardWithCM(TensorBoard):
         log_every (int): how often to write logs during training
         class_namess (List[str]): list of class names for proper visualization
     """
+
     def __init__(self, log_dir, log_every=20, class_names=None):
         super().__init__(log_dir, log_every)
         self.class_names = class_names
-        self.n_classes = None # will infer implicitly later
+        self.n_classes = None  # will infer implicitly later
         self.cmap = None
         self.train_cm_img = None
         self.val_cm_img = None
-    
+
     def on_batch_end(self):
         super().on_batch_end()
         if self.cmap is None:
@@ -388,7 +391,7 @@ class TensorBoardWithCM(TensorBoard):
             self.cmap = np.zeros((self.n_classes, self.n_classes), dtype=int)
             if self.class_names is None:
                 self.class_names = [str(i) for i in range(self.n_classes)]
-        
+
         target = self.state.input[1]
         if len(target.shape) == 2:
             target = target.argmax(1)
@@ -413,8 +416,10 @@ class TensorBoardWithCM(TensorBoard):
         if self.val_cm_img is not None:
             self.writer.add_image("val/confusion_matrix", self.val_cm_img, self.current_step)
 
+
 class ConsoleLogger(Callback):
     """Prints training progress to console for monitoring."""
+
     def on_begin(self):
         if hasattr(tqdm, "_instances"):  # prevents many printing issues
             tqdm._instances.clear()

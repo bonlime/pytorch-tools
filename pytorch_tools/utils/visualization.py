@@ -10,6 +10,7 @@ def tensor_from_rgb_image(image: np.ndarray) -> torch.Tensor:
     image = torch.from_numpy(image)
     return image
 
+
 def plot_confusion_matrix(
     cm,
     class_names=None,
@@ -19,15 +20,17 @@ def plot_confusion_matrix(
     show=True,
     figsize=12,
     fontsize=32,
-    colormap="Blues"
+    colormap="Blues",
 ):
     """
     Render the confusion matrix and return matplotlib"s figure with it.
     Normalization can be applied by setting `normalize=True`.
     """
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
     plt.ioff()
 
     cmap = plt.cm.__dict__[colormap]
@@ -38,9 +41,7 @@ def plot_confusion_matrix(
     if normalize:
         cm = cm.astype(np.float32) / cm.sum(axis=1)[:, np.newaxis]
 
-    plt.rcParams.update(
-        {"font.size": int(fontsize / np.log2(len(class_names)))}
-    )
+    plt.rcParams.update({"font.size": int(fontsize / np.log2(len(class_names)))})
 
     f = plt.figure(figsize=(figsize, figsize))
     plt.title(title)
@@ -53,15 +54,15 @@ def plot_confusion_matrix(
     plt.yticks(tick_marks, class_names)
 
     fmt = ".2f" if normalize else "d"
-    thresh = cm.max() / 2.
-    if len(class_names) < 70: # otherwise it will take forever
+    thresh = cm.max() / 2.0
+    if len(class_names) < 70:  # otherwise it will take forever
         for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
             plt.text(
                 j,
                 i,
                 format(cm[i, j], fmt),
                 horizontalalignment="center",
-                color="white" if cm[i, j] > thresh else "black"
+                color="white" if cm[i, j] > thresh else "black",
             )
 
     plt.tight_layout()
@@ -79,8 +80,10 @@ def plot_confusion_matrix(
 
 def render_figure_to_tensor(figure):
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
     plt.ioff()
 
     figure.canvas.draw()

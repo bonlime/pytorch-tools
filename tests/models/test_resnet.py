@@ -11,11 +11,13 @@ RESNET_NAMES = sorted(
     if name.islower() and not name.startswith("__") and "resne" in name and callable(models.__dict__[name])
 )
 
-INP = torch.ones(2,3,128,128)
+INP = torch.ones(2, 3, 128, 128)
+
 
 def _test_forward(model):
     with torch.no_grad():
         model(INP)
+
 
 @pytest.mark.parametrize("arch", RESNET_NAMES)
 def test_resnet_init(arch):
@@ -28,16 +30,19 @@ def test_resnet_imagenet(arch):
     m = models.__dict__[arch](pretrained="imagenet")
     _test_forward(m)
 
+
 @pytest.mark.parametrize("arch", RESNET_NAMES[:3])  # test only part of the models
 def test_resnet_imagenet_custom_cls(arch):
     m = models.__dict__[arch](pretrained="imagenet", num_classes=10)
     _test_forward(m)
+
 
 @pytest.mark.parametrize("arch", RESNET_NAMES[:3])  # test only part of the models
 def test_resnet_custom_in_channels(arch):
     m = models.__dict__[arch](in_channels=5)
     with torch.no_grad():
         m(torch.ones(2, 5, 128, 128))
+
 
 @pytest.mark.parametrize("arch", RESNET_NAMES[:3])  # test only part of the models
 @pytest.mark.parametrize("output_stride", [8, 16])

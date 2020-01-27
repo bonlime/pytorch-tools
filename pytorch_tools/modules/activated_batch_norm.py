@@ -7,6 +7,7 @@ from torch.nn.parameter import Parameter
 from .activations import ACT
 from .activations import ACT_FUNC_DICT
 
+
 class ABN(nn.Module):
     """Activated Batch Normalization
     This gathers a BatchNorm and an activation function in a single module
@@ -25,14 +26,15 @@ class ABN(nn.Module):
     activation_param : float
         Negative slope for the `leaky_relu` activation.
     """
+
     def __init__(
-        self, 
-        num_features, 
-        eps=1e-5, 
-        momentum=0.1, 
-        affine=True, 
+        self,
+        num_features,
+        eps=1e-5,
+        momentum=0.1,
+        affine=True,
         activation="leaky_relu",
-        activation_param=0.01
+        activation_param=0.01,
     ):
         super(ABN, self).__init__()
         self.num_features = num_features
@@ -45,10 +47,10 @@ class ABN(nn.Module):
             self.weight = nn.Parameter(torch.ones(num_features))
             self.bias = nn.Parameter(torch.zeros(num_features))
         else:
-            self.register_parameter('weight', None)
-            self.register_parameter('bias', None)
-        self.register_buffer('running_mean', torch.zeros(num_features))
-        self.register_buffer('running_var', torch.ones(num_features))
+            self.register_parameter("weight", None)
+            self.register_parameter("bias", None)
+        self.register_buffer("running_mean", torch.zeros(num_features))
+        self.register_buffer("running_var", torch.ones(num_features))
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -59,8 +61,16 @@ class ABN(nn.Module):
             nn.init.constant_(self.bias, 0)
 
     def forward(self, x):
-        x = F.batch_norm(x, self.running_mean, self.running_var, self.weight, self.bias,
-                                  self.training, self.momentum, self.eps)
+        x = F.batch_norm(
+            x,
+            self.running_mean,
+            self.running_var,
+            self.weight,
+            self.bias,
+            self.training,
+            self.momentum,
+            self.eps,
+        )
         func = ACT_FUNC_DICT[self.activation]
         if self.activation == ACT.LEAKY_RELU:
             return func(x, inplace=True, negative_slope=self.activation_param)
@@ -69,18 +79,20 @@ class ABN(nn.Module):
         else:
             return func(x, inplace=True)
 
-    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys,
-                              error_msgs):
+    def _load_from_state_dict(
+        self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+    ):
         # Post-Pytorch 1.0 models using standard BatchNorm have a "num_batches_tracked" parameter that we need to ignore
         num_batches_tracked_key = prefix + "num_batches_tracked"
         if num_batches_tracked_key in state_dict:
             del state_dict[num_batches_tracked_key]
 
-        super(ABN, self)._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys,
-                                               error_msgs, unexpected_keys)
+        super(ABN, self)._load_from_state_dict(
+            state_dict, prefix, local_metadata, strict, missing_keys, error_msgs, unexpected_keys
+        )
 
     def extra_repr(self):
-        rep = '{num_features}, eps={eps}, momentum={momentum}, affine={affine}, activation={activation}'
+        rep = "{num_features}, eps={eps}, momentum={momentum}, affine={affine}, activation={activation}"
         if self.activation in ["leaky_relu", "elu"]:
-            rep += '[{activation_param}]'
+            rep += "[{activation_param}]"
         return rep.format(**self.__dict__)

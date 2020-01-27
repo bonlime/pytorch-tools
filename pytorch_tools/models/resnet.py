@@ -65,7 +65,7 @@ class ResNet(nn.Module):
             Nomaliztion layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory footprint.
             But increases backward time. Defaults to 'abn'.
         norm_act (str):
-            Activation for normalizion layer. It's reccomended to use `relu` with `abn`.
+            Activation for normalizion layer. It's reccomended to use `leacky_relu` with `inplaceabn`.
         antialias (bool):
             Flag to turn on Rect-2 antialiasing from https://arxiv.org/abs/1904.11486. Defaults to False.
         encoder (bool):
@@ -269,6 +269,7 @@ class ResNet(nn.Module):
                 state_dict[k.replace("layer0.", "")] = state_dict.pop(k)
         super().load_state_dict(state_dict, **kwargs)
 
+
 # fmt: off
 CFGS = {
     # RESNET MODELS
@@ -428,6 +429,7 @@ CFGS = {
     },
 }
 # fmt: on
+
 
 def _resnet(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)

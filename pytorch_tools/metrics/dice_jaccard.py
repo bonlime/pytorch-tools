@@ -1,5 +1,6 @@
 from pytorch_tools.losses.dice_jaccard import DiceLoss, JaccardLoss
 
+
 class DiceScore(DiceLoss):
     """Implementation of Dice score for image segmentation task"""
 

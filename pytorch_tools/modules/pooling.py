@@ -75,5 +75,6 @@ class BlurPool(nn.Module):
             self.pool = nn.AvgPool2d(3, stride=2, padding=1)
         elif filt_size == 2:
             self.pool = nn.AvgPool2d(2, 2)
+
     def forward(self, inp):
         return self.pool(inp)

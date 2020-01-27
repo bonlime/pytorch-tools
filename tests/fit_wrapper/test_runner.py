@@ -68,9 +68,7 @@ def test_default():
 
 
 def test_val_loader():
-    runner = Runner(
-        model=TestModel, optimizer=TestOptimizer, criterion=TestCriterion, metrics=TestMetric,
-    )
+    runner = Runner(model=TestModel, optimizer=TestOptimizer, criterion=TestCriterion, metrics=TestMetric,)
     runner.fit(TestLoader, epochs=2, steps_per_epoch=100, val_loader=TestLoader, val_steps=200)
 
 
@@ -133,6 +131,7 @@ def test_TensorBoard():
     )
     runner.fit(TestLoader, epochs=2)
 
+
 def test_TensorBoardWithCM():
     runner = Runner(
         model=TestModel,
@@ -142,6 +141,7 @@ def test_TensorBoardWithCM():
         callbacks=pt_clb.TensorBoardWithCM(log_dir=TMP_PATH),
     )
     runner.fit(TestLoader, epochs=2)
+
 
 def test_Cutmix():
     runner = Runner(
