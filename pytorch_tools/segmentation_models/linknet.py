@@ -42,13 +42,13 @@ class Linknet(EncoderDecoder):
     Note:
         This implementation by default has 4 skip connections (original - 3).
     Args:
-        encoder_name: name of classification model (without last dense layers) used as feature
+        encoder_name (str): name of classification model (without last dense layers) used as feature
             extractor to build segmentation model.
-        encoder_weights: one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
-        classes: a number of classes for output (output shape - ``(batch, classes, h, w)``).
-        activation: activation function used in ``.predict(x)`` method for inference.
-            One of [``sigmoid``, ``softmax``, callable, None]
-        norm_layer: abn or inplaceabn
+        encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
+        num_classes (int): a number of classes for output (output shape - ``(batch, classes, h, w)``).
+        norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory
+            footprint. But increases backward time. Defaults to 'abn'.
+        norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
     Returns:
         ``torch.nn.Module``: **Linknet**
     .. _Linknet:
@@ -59,24 +59,23 @@ class Linknet(EncoderDecoder):
         self,
         encoder_name="resnet34",
         encoder_weights="imagenet",
-        classes=1,
+        num_classes=1,
         norm_layer="abn",
         norm_act="relu",
-        **encoder_params
+        **encoder_params,
     ):
         encoder = get_encoder(
-            encoder_name, 
-            norm_layer=norm_layer, 
+            encoder_name,
+            norm_layer=norm_layer,
             norm_act=norm_act,
-            encoder_weights=encoder_weights, 
+            encoder_weights=encoder_weights,
             **encoder_params,
         )
-
 
         decoder = LinknetDecoder(
             encoder_channels=encoder.out_shapes,
             prefinal_channels=32,
-            final_channels=classes,
+            final_channels=num_classes,
             norm_layer=bn_from_name(norm_layer),
             norm_act=norm_act,
         )

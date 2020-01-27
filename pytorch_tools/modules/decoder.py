@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from .activated_batch_norm import ABN
 from .residual import conv3x3, conv1x1
 
+
 class UnetDecoderBlock(nn.Module):
     def __init__(self, in_channels, out_channels, norm_layer=ABN, norm_act="relu"):
         super(UnetDecoderBlock, self).__init__()
@@ -50,4 +51,105 @@ class LinknetDecoderBlock(nn.Module):
         x = self.block(x)
         if skip is not None:
             x = x + skip
+        return x
+
+
+## DeepLab V3+ Modules
+
+
+class SepConvBN(nn.Sequential):
+    """Depthwise separable conv with BN between depthwise & pointwise."""
+
+    def __init__(self, in_channels, out_channels, dilation=1, norm_layer=ABN, norm_act="relu"):
+        modules = [
+            conv3x3(in_channels, in_channels, groups=in_channels, dilation=dilation),
+            norm_layer(in_channels, activation=norm_act),
+            conv1x1(in_channels, out_channels),
+            norm_layer(out_channels, activation=norm_act),
+        ]
+        super().__init__(*modules)
+
+
+class ASPPPooling(nn.Sequential):
+    def __init__(self, in_channels, out_channels, norm_layer=ABN, norm_act="relu"):
+        super(ASPPPooling, self).__init__(
+            nn.AdaptiveAvgPool2d(1),
+            conv1x1(in_channels, out_channels),
+            norm_layer(out_channels, activation=norm_act),
+        )
+
+    def forward(self, x):
+        size = x.shape[-2:]
+        for mod in self:
+            x = mod(x)
+        return F.interpolate(x, size=size, mode="bilinear", align_corners=False)
+
+
+class ASPP(nn.Module):
+    def __init__(self, in_channels, atrous_rates, norm_layer=ABN, norm_act="relu"):
+        super(ASPP, self).__init__()
+        out_channels = 256
+        norm_params = {"norm_layer": norm_layer, "norm_act": norm_act}
+        self.conv0 = nn.Sequential(
+            conv1x1(in_channels, out_channels), norm_layer(out_channels, activation=norm_act)
+        )
+        self.pool = ASPPPooling(in_channels, out_channels, **norm_params)
+
+        self.project = nn.Sequential(
+            nn.Conv2d(out_channels * 5, out_channels, 1, bias=False),
+            norm_layer(out_channels, activation=norm_act),
+            nn.Dropout(0.1),
+        )
+
+        rate1, rate2, rate3 = atrous_rates
+        self.conv1 = SepConvBN(in_channels, out_channels, rate1, **norm_params)
+        self.conv2 = SepConvBN(in_channels, out_channels, rate2, **norm_params)
+        self.conv3 = SepConvBN(in_channels, out_channels, rate3, **norm_params)
+
+    def forward(self, x):
+        res = [
+            self.conv0(x),
+            self.conv1(x),
+            self.conv2(x),
+            self.conv3(x),
+            self.pool(x),
+        ]
+        res = torch.cat(res, dim=1)
+        return self.project(res)
+
+
+class DeepLabHead(nn.Module):
+    def __init__(
+        self, encoder_channels, num_classes, norm_layer=ABN, norm_act="relu",
+    ):
+        PROJ_CONV_CHANNELS = 48
+        OUT_CHANNELS = 256
+        super().__init__()
+        self.aspp = ASPP(encoder_channels[0], [12, 24, 36], norm_layer, norm_act)
+        self.conv0 = nn.Sequential(
+            conv3x3(OUT_CHANNELS, OUT_CHANNELS), norm_layer(OUT_CHANNELS, activation=norm_act)
+        )
+        self.proj_conv = nn.Sequential(
+            conv1x1(encoder_channels[3], PROJ_CONV_CHANNELS),
+            norm_layer(PROJ_CONV_CHANNELS, activation=norm_act),
+        )
+
+        self.sep_conv1 = SepConvBN(OUT_CHANNELS + PROJ_CONV_CHANNELS, 256)
+        self.sep_conv2 = SepConvBN(OUT_CHANNELS, OUT_CHANNELS)
+        self.final_conv = conv1x1(OUT_CHANNELS, num_classes)
+
+    def forward(self, x):
+        print([i.shape for i in x])
+        encoder_head = x[0]
+        skip = x[3]  # downsampled 4x times
+
+        x = self.aspp(encoder_head)
+        x = self.conv0(x)
+        x = F.interpolate(x, size=skip.shape[-2:], mode="bilinear", align_corners=False)
+        skip = self.proj_conv(skip)
+        x = self.sep_conv1(torch.cat([skip, x], dim=1))
+        x = self.sep_conv2(x)
+        x = self.final_conv(x)
+        # maybe don't need to upscale last time?
+        # x = F.interpolate(x, scale_factor=4, mode="bilinear", align_corners=False)
         return x
