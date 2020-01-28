@@ -27,7 +27,7 @@ class ContentLoss(Loss):
         weights=1,
         loss="mse",
         device="cuda",
-        **args
+        **args,
     ):
         super().__init__()
         try:
@@ -88,7 +88,7 @@ class StyleLoss(Loss):
         weights=[0.75, 0.5, 0.2, 0.2, 0.2],
         loss="mse",
         device="cuda",
-        **args
+        **args,
     ):
         super().__init__()
         try:

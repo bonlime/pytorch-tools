@@ -9,6 +9,7 @@ import torch.nn.functional as F
 import torch.distributed as dist
 from functools import partial
 
+
 def initialize(model):
     for m in model.modules():
         if isinstance(m, nn.Conv2d):
@@ -16,7 +17,7 @@ def initialize(model):
         elif isinstance(m, nn.BatchNorm2d):
             nn.init.constant_(m.weight, 1)
             nn.init.constant_(m.bias, 0)
-            
+
 
 def set_random_seed(seed):
     random.seed(seed)
@@ -66,6 +67,7 @@ def to_numpy(x):
         return np.array(x)
     else:
         raise ValueError("Unsupported type")
+
 
 def to_tensor(x, dtype=None):
     """Convert whatever to torch Tensor"""

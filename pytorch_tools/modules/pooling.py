@@ -67,11 +67,14 @@ class GlobalPool2d(nn.Module):
 
 class BlurPool(nn.Module):
     """Idea from https://arxiv.org/abs/1904.11486
-        Efficient implementation of Rect-2 using AvgPool"""
+        Efficient implementation of Rect-3 using AvgPool"""
 
-    def __init__(self):
+    def __init__(self, filt_size=3):
         super(BlurPool, self).__init__()
-        self.pool = nn.AvgPool2d(2, 2)
+        if filt_size == 3:
+            self.pool = nn.AvgPool2d(3, stride=2, padding=1)
+        elif filt_size == 2:
+            self.pool = nn.AvgPool2d(2, 2)
 
     def forward(self, inp):
         return self.pool(inp)

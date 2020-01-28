@@ -16,11 +16,12 @@ from .activations import Mish, MishNaive, Swish, SwishNaive
 from .activated_batch_norm import ABN
 from inplace_abn import InPlaceABN, InPlaceABNSync
 
+
 def bn_from_name(norm_name):
     norm_name = norm_name.lower()
     if norm_name == "abn":
         return ABN
-    elif norm_name == "inplaceabn":
+    elif norm_name == "inplaceabn" or "inplace_abn":
         return InPlaceABN
     elif norm_name == "inplaceabnsync":
         return InPlaceABNSync

@@ -18,26 +18,25 @@ class UnetDecoder(nn.Module):
         encoder_channels,
         decoder_channels=(256, 128, 64, 32, 16),
         final_channels=1,
-        use_bn=True,
         center=False,
-        **bn_params
-    ):  # norm layer, norm_act
+        **bn_params,  # norm layer, norm_act
+    ):
 
         super().__init__()
         if center:
             channels = encoder_channels[0]
-            self.center = UnetCenterBlock(channels, channels, use_bn=use_bn)
+            self.center = UnetCenterBlock(channels, channels)
         else:
             self.center = None
 
         in_channels = self.compute_channels(encoder_channels, decoder_channels)
         out_channels = decoder_channels
 
-        self.layer1 = UnetDecoderBlock(in_channels[0], out_channels[0], use_bn, **bn_params)
-        self.layer2 = UnetDecoderBlock(in_channels[1], out_channels[1], use_bn, **bn_params)
-        self.layer3 = UnetDecoderBlock(in_channels[2], out_channels[2], use_bn, **bn_params)
-        self.layer4 = UnetDecoderBlock(in_channels[3], out_channels[3], use_bn, **bn_params)
-        self.layer5 = UnetDecoderBlock(in_channels[4], out_channels[4], use_bn, **bn_params)
+        self.layer1 = UnetDecoderBlock(in_channels[0], out_channels[0], **bn_params)
+        self.layer2 = UnetDecoderBlock(in_channels[1], out_channels[1], **bn_params)
+        self.layer3 = UnetDecoderBlock(in_channels[2], out_channels[2], **bn_params)
+        self.layer4 = UnetDecoderBlock(in_channels[3], out_channels[3], **bn_params)
+        self.layer5 = UnetDecoderBlock(in_channels[4], out_channels[4], **bn_params)
         self.final_conv = conv1x1(out_channels[4], final_channels)
 
         initialize(self)
@@ -72,16 +71,15 @@ class UnetDecoder(nn.Module):
 class Unet(EncoderDecoder):
     """Unet_ is a fully convolution neural network for image semantic segmentation
     Args:
-        encoder_name: name of classification model (without last dense layers) used as feature
+        encoder_name (str): name of classification model (without last dense layers) used as feature
             extractor to build segmentation model.
-        encoder_weights: one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
-        decoder_channels: list of numbers of ``Conv2D`` layer filters in decoder blocks
-        decoder_use_batchnorm: if ``True``, ``BatchNormalisation`` layer between ``Conv2D`` and ``Activation`` layers
-            is used.
-        classes: a number of classes for output (output shape - ``(batch, classes, h, w)``).
-        activation: activation function used in ``.predict(x)`` method for inference.
-            One of [``sigmoid``, ``softmax``, callable, None]
+        encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
+        decoder_channels (List[int]): list of numbers of ``Conv2D`` layer filters in decoder blocks
+        num_classes (int): a number of classes for output (output shape - ``(batch, classes, h, w)``).
         center: if ``True`` add ``Conv2dReLU`` block on encoder head (useful for VGG models)
+        norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory
+            footprint. But increases backward time. Defaults to 'abn'.
+        norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
     Returns:
         ``torch.nn.Module``: **Unet**
     .. _Unet:
@@ -92,14 +90,12 @@ class Unet(EncoderDecoder):
         self,
         encoder_name="resnet34",
         encoder_weights="imagenet",
-        decoder_use_batchnorm=True,
         decoder_channels=(256, 128, 64, 32, 16),
-        classes=1,
-        activation="sigmoid",
+        num_classes=1,
         center=False,  # usefull for VGG models
         norm_layer="abn",
         norm_act="relu",
-        **encoder_params
+        **encoder_params,
     ):
         encoder = get_encoder(
             encoder_name,
@@ -111,12 +107,11 @@ class Unet(EncoderDecoder):
         decoder = UnetDecoder(
             encoder_channels=encoder.out_shapes,
             decoder_channels=decoder_channels,
-            final_channels=classes,
-            use_bn=decoder_use_batchnorm,
+            final_channels=num_classes,
             center=center,
             norm_layer=bn_from_name(norm_layer),
             norm_act=norm_act,
         )
 
-        super().__init__(encoder, decoder, activation)
+        super().__init__(encoder, decoder)
         self.name = f"u-{encoder_name}"

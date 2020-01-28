@@ -4,6 +4,7 @@ import pytorch_tools.modules as modules
 
 activations_name = ["Swish", "Swish_Naive", "Mish", "Mish_naive"]
 
+
 @pytest.mark.parametrize("activation", activations_name)
 def test_activations_init(activation):
     inp = torch.ones(10)

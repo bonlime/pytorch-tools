@@ -1,11 +1,12 @@
+import logging
+from copy import deepcopy
+from functools import wraps, partial
 import torch
 import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
 from pytorch_tools.modules import BlurPool
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.utils.misc import add_docs_for, DEFAULT_IMAGENET_SETTINGS
-from functools import wraps, partial
-from copy import deepcopy
 
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=("__module__", "__name__", "__qualname__", "__annotations__"))
@@ -125,6 +126,7 @@ class VGG(nn.Module):
         super().load_state_dict(state_dict, **kwargs)
 
 
+# fmt: off
 CFGS = {
     "vgg11_bn": {
         "default": {
@@ -135,7 +137,7 @@ CFGS = {
     },
     "vgg13_bn": {
         "default": {
-            "params": {"layers": [64, 64, "M", 128, 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M",]},
+            "params": {"layers": [64, 64, "M", 128, 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M"]},
             **DEFAULT_IMAGENET_SETTINGS,
         },
         "imagenet": {"url": "https://download.pytorch.org/models/vgg13_bn-abd245e5.pth"},
@@ -143,26 +145,7 @@ CFGS = {
     "vgg16_bn": {
         "default": {
             "params": {
-                "layers": [
-                    64,
-                    64,
-                    "M",
-                    128,
-                    128,
-                    "M",
-                    256,
-                    256,
-                    256,
-                    "M",
-                    512,
-                    512,
-                    512,
-                    "M",
-                    512,
-                    512,
-                    512,
-                    "M",
-                ]
+                "layers": [64, 64, "M", 128, 128, "M", 256, 256, 256, "M", 512, 512, 512, "M", 512, 512, 512, "M"]
             },
             **DEFAULT_IMAGENET_SETTINGS,
         },
@@ -171,35 +154,14 @@ CFGS = {
     "vgg19_bn": {
         "default": {
             "params": {
-                "layers": [
-                    64,
-                    64,
-                    "M",
-                    128,
-                    128,
-                    "M",
-                    256,
-                    256,
-                    256,
-                    256,
-                    "M",
-                    512,
-                    512,
-                    512,
-                    512,
-                    "M",
-                    512,
-                    512,
-                    512,
-                    512,
-                    "M",
-                ]
+                "layers": [64, 64, "M", 128, 128, "M", 256, 256, 256, 256, "M", 512, 512, 512, 512, "M", 512, 512, 512, 512, "M"]
             },
             **DEFAULT_IMAGENET_SETTINGS,
         },
         "imagenet": {"url": "https://download.pytorch.org/models/vgg19_bn-c79401a0.pth",},
     },
 }
+# fmt: on
 
 
 def _vgg(arch, pretrained=None, **kwargs):
@@ -221,6 +183,16 @@ def _vgg(arch, pretrained=None, **kwargs):
     model = VGG(**kwargs)
     if pretrained:
         state_dict = load_state_dict_from_url(cfgs[arch][pretrained]["url"])
+        kwargs_cls = kwargs.get("num_classes", None)
+        if kwargs_cls and kwargs_cls != cfg_settings["num_classes"]:
+            logging.warning(
+                "Using model pretrained for {} classes with {} classes. Last layer is initialized randomly".format(
+                    cfg_settings["num_classes"], kwargs_cls
+                )
+            )
+            # if there is last_linear in state_dict, it's going to be overwritten
+            state_dict["classifier.6.weight"] = model.state_dict()["classifier.6.weight"]
+            state_dict["classifier.6.bias"] = model.state_dict()["classifier.6.bias"]
         model.load_state_dict(state_dict)
     setattr(model, "pretrained_settings", cfg_settings)
     return model
