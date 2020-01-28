@@ -125,6 +125,7 @@ class DeepLabHead(nn.Module):
         PROJ_CONV_CHANNELS = 48
         OUT_CHANNELS = 256
         super().__init__()
+        norm_params = {"norm_layer": norm_layer, "norm_act": norm_act}
         self.aspp = ASPP(encoder_channels[0], [12, 24, 36], norm_layer, norm_act)
         self.conv0 = nn.Sequential(
             conv3x3(OUT_CHANNELS, OUT_CHANNELS), norm_layer(OUT_CHANNELS, activation=norm_act)
@@ -134,12 +135,11 @@ class DeepLabHead(nn.Module):
             norm_layer(PROJ_CONV_CHANNELS, activation=norm_act),
         )
 
-        self.sep_conv1 = SepConvBN(OUT_CHANNELS + PROJ_CONV_CHANNELS, 256)
-        self.sep_conv2 = SepConvBN(OUT_CHANNELS, OUT_CHANNELS)
+        self.sep_conv1 = SepConvBN(OUT_CHANNELS + PROJ_CONV_CHANNELS, 256, **norm_params)
+        self.sep_conv2 = SepConvBN(OUT_CHANNELS, OUT_CHANNELS, **norm_params)
         self.final_conv = conv1x1(OUT_CHANNELS, num_classes)
 
     def forward(self, x):
-        print([i.shape for i in x])
         encoder_head = x[0]
         skip = x[3]  # downsampled 4x times
 
@@ -150,6 +150,4 @@ class DeepLabHead(nn.Module):
         x = self.sep_conv1(torch.cat([skip, x], dim=1))
         x = self.sep_conv2(x)
         x = self.final_conv(x)
-        # maybe don't need to upscale last time?
-        # x = F.interpolate(x, scale_factor=4, mode="bilinear", align_corners=False)
         return x

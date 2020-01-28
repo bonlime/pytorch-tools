@@ -1,12 +1,6 @@
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
+import torch.nn.functional as F
 import logging
 from pytorch_tools.modules.decoder import DeepLabHead
-
-# from pytorch_tools.modules.residual import conv3x3, conv1x1
-# from pytorch_tools.modules import ABN
-# from pytorch_tools.utils.misc import initialize
 from pytorch_tools.modules import bn_from_name
 from .base import EncoderDecoder
 from .encoders import get_encoder
@@ -16,10 +10,12 @@ class DeepLabV3(EncoderDecoder):
     """Deeplabv3+ model for image segmentation
 
     Args:
-        encoder_name: name of classification model used as feature extractor to build segmentation model.
+        encoder_name (str): name of classification model used as feature extractor to build segmentation model.
             Models expects encoder to have output stride 16 or 8. Only Resnet family models are supported for now
-        encoder_weights: one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
-        num_classes: a number of classes for output (output shape - ``(batch, classes, h, w)``).
+        encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
+        num_classes (int): a number of classes for output (output shape - ``(batch, classes, h, w)``).
+        last_upsample (bool): Flag to enable upsampling predictions to the original image size. If set to `False` prediction
+            would be 4x times smaller than input image. Default True.
         norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory
             footprint. But increases backward time. Defaults to 'abn'.
         norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
@@ -34,6 +30,7 @@ class DeepLabV3(EncoderDecoder):
         encoder_name="resnet34",
         encoder_weights="imagenet",
         num_classes=1,
+        last_upsample=True,
         norm_layer="abn",
         norm_act="relu",
         **encoder_params,
@@ -57,5 +54,13 @@ class DeepLabV3(EncoderDecoder):
         )
 
         super().__init__(encoder, decoder)
-
+        self.last_upsample = last_upsample
         self.name = f"link-{encoder_name}"
+
+    def forward(self, x):
+        """Sequentially pass `x` trough model`s `encoder` and `decoder` (return logits!)"""
+        x = self.encoder(x)
+        x = self.decoder(x)
+        if self.last_upsample:
+            x = F.interpolate(x, scale_factor=4, mode="bilinear", align_corners=False)
+        return x
