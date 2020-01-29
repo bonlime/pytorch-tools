@@ -120,13 +120,14 @@ class ASPP(nn.Module):
 
 class DeepLabHead(nn.Module):
     def __init__(
-        self, encoder_channels, num_classes, norm_layer=ABN, norm_act="relu",
+        self, encoder_channels, num_classes, output_stride=16, norm_layer=ABN, norm_act="relu",
     ):
         PROJ_CONV_CHANNELS = 48
         OUT_CHANNELS = 256
         super().__init__()
         norm_params = {"norm_layer": norm_layer, "norm_act": norm_act}
-        self.aspp = ASPP(encoder_channels[0], [12, 24, 36], norm_layer, norm_act)
+        dilation_rates = [6, 12, 18] if output_stride == 16 else [12, 24, 36]
+        self.aspp = ASPP(encoder_channels[0], dilation_rates, norm_layer, norm_act)
         self.conv0 = nn.Sequential(
             conv3x3(OUT_CHANNELS, OUT_CHANNELS), norm_layer(OUT_CHANNELS, activation=norm_act)
         )
