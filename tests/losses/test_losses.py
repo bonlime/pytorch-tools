@@ -9,6 +9,11 @@ Some test were taken from repo by BloodAxe
 https://github.com/BloodAxe/pytorch-toolbelt/
 """
 
+EPS = 1e-3
+BS = 16
+N_CLASSES = 10
+IM_SIZE = 10
+
 LOSSES_NAMES = sorted(name for name in losses.__dict__ if not name.islower())
 
 
@@ -30,9 +35,6 @@ def test_reduced_focal_loss():
     loss_good = F.reduced_focal_loss(input_good, target)
     loss_bad = F.reduced_focal_loss(input_bad, target)
     assert loss_good < loss_bad
-
-
-EPS = 1e-3
 
 
 @pytest.mark.parametrize(
@@ -232,10 +234,6 @@ def test_loss_addition():
     assert res == d_res * 0.5 + bf_res * 5
 
 
-BS = 16
-N_CLASSES = 10
-
-
 @torch.no_grad()
 def test_cross_entropy():
     inp = torch.randn(BS, N_CLASSES)
@@ -263,7 +261,6 @@ def test_cross_entropy():
 @torch.no_grad()
 def test_binary_cross_entropy():
     # classification test
-    IM_SIZE = 10
     inp = torch.randn(16).float()
     target = torch.randint(0, 2, (BS,)).float()
 
@@ -317,3 +314,36 @@ def test_cross_entropy_weight():
 
     my_ce_w = losses.CrossEntropyLoss(weight=weight_3)(inp, target)
     assert torch.allclose(torch_ce_w, my_ce_w)
+
+
+# For lovasz tests only check that it doesn't fail, not that results are right
+
+
+def test_binary_lovasz():
+    inp = torch.randn(BS, 1, IM_SIZE, IM_SIZE).float()
+    target = torch.randint(0, 2, (BS, 1, IM_SIZE, IM_SIZE)).float()
+    criterion = losses.LovaszLoss(mode="binary")
+    loss = criterion(inp, target)
+    # try other target shape
+    target = target.view(BS, IM_SIZE, IM_SIZE)
+    loss2 = criterion(inp, target)
+    assert torch.allclose(loss, loss2)
+
+
+def test_multiclass_lovasz():
+    inp = torch.randn(BS, N_CLASSES, IM_SIZE, IM_SIZE).float()
+    target = torch.randint(0, N_CLASSES, (BS, 1, IM_SIZE, IM_SIZE)).float()
+    criterion = losses.LovaszLoss(mode="multiclass")
+    loss = criterion(inp, target)
+    # try other target shape
+    target = target.view(BS, IM_SIZE, IM_SIZE)
+    loss2 = criterion(inp, target)
+    assert torch.allclose(loss, loss2)
+
+
+def test_multilabel_lovasz():
+    inp = torch.randn(BS, N_CLASSES, IM_SIZE, IM_SIZE).float()
+    target = torch.randint(0, 2, (BS, N_CLASSES, IM_SIZE, IM_SIZE)).float()
+    criterion = losses.LovaszLoss(mode="multilabel")
+    loss = criterion(inp, target)
+    assert loss
