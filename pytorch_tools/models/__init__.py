@@ -24,5 +24,11 @@ from .densenet import densenet161
 from .densenet import densenet169
 from .densenet import densenet201
 
-from .preprocessing import get_preprocessing_fn
-from .preprocessing import preprocess_input
+from .efficientnet import efficientnet_b0
+from .efficientnet import efficientnet_b1
+from .efficientnet import efficientnet_b2
+from .efficientnet import efficientnet_b3
+from .efficientnet import efficientnet_b4
+from .efficientnet import efficientnet_b5
+from .efficientnet import efficientnet_b6
+from .efficientnet import efficientnet_b7

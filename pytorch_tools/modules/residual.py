@@ -8,6 +8,7 @@ from .activations import activation_from_name
 # from pytorch_tools.modules import activation_from_name
 from pytorch_tools.modules import BlurPool
 from pytorch_tools.modules import GlobalPool2d
+from pytorch_tools.utils.misc import make_divisible
 
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
@@ -27,6 +28,96 @@ def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
 def conv1x1(in_planes, out_planes, stride=1):
     """1x1 convolution"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
+
+
+class DepthwiseSeparableConv(nn.Sequential):
+    """Depthwise separable conv with BN between depthwise & pointwise."""
+
+    def __init__(self, in_channels, out_channels, dilation=1, use_se=False, norm_layer=ABN, norm_act="relu"):
+        modules = [
+            conv3x3(in_channels, in_channels, groups=in_channels, dilation=dilation),
+            norm_layer(in_channels, activation=norm_act),
+            SEModule(in_channels, in_channels // 4) if use_se else nn.Identity(),
+            conv1x1(in_channels, out_channels),
+            norm_layer(out_channels, activation=norm_act),
+        ]
+        super().__init__(*modules)
+
+
+class InvertedResidual(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        dw_kernel_size=3,
+        stride=1,
+        dilation=1,
+        use_se=False,
+        expand_ratio=1.0,  # expansion
+        keep_prob=1,  # drop connect param
+        noskip=False,
+        norm_layer=ABN,
+        norm_act="relu",
+    ):
+        super().__init__()
+        mid_chs = make_divisible(in_channels * expand_ratio)
+        self.has_residual = (in_channels == out_channels and stride == 1) and not noskip
+        self.has_expansion = expand_ratio != 1
+        if self.has_expansion:
+            self.conv_pw = conv1x1(in_channels, mid_chs)
+            self.bn1 = norm_layer(mid_chs, activation=norm_act)
+
+        self.conv_dw = nn.Conv2d(
+            mid_chs,
+            mid_chs,
+            dw_kernel_size,
+            stride=stride,
+            groups=mid_chs,
+            dilation=dilation,
+            bias=False,
+            padding=(dw_kernel_size - 1) // 2,
+        )
+        self.bn2 = norm_layer(mid_chs, activation=norm_act)
+        # some models like MobileNet use mid_chs here instead of in_channels. But I don't care for now
+        self.se = SEModule(mid_chs, in_channels // 4) if use_se else nn.Identity()
+        self.conv_pw1 = conv1x1(mid_chs, out_channels)
+        self.bn3 = norm_layer(out_channels, activation="identity")
+        # TODO: check speed without drop connect module
+        self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
+
+    def forward(self, x):
+        residual = x
+        if self.has_expansion:
+            x = self.conv_pw(x)
+            x = self.bn1(x)
+        x = self.conv_dw(x)
+        x = self.bn2(x)
+        x = self.se(x)
+        x = self.conv_pw1(x)
+        x = self.bn3(x)
+
+        if self.has_residual:
+            x = self.drop_connect(x)
+            x += residual
+        return x
+
+
+class DropConnect(nn.Module):
+    """Randomply drops samples from input"""
+
+    def __init__(self, keep_prob):
+        super().__init__()
+        self.keep_prob = keep_prob
+
+    def forward(self, x):
+        if not self.training:
+            return x
+        batch_size = x.size(0)
+        random_tensor = self.keep_prob
+        random_tensor += torch.rand([batch_size, 1, 1, 1], dtype=x.dtype, device=x.device)
+        binary_tensor = torch.floor(random_tensor)
+        output = x / self.keep_prob * binary_tensor
+        return output
 
 
 class SEModule(nn.Module):

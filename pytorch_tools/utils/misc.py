@@ -193,3 +193,11 @@ def filter_bn_from_wd(model):
     bn_params2 = [p for p in model.parameters() if p in bn_params]
     rem_params = [p for p in model.parameters() if p not in bn_params]
     return [{"params": bn_params2, "weight_decay": 0}, {"params": rem_params}]
+
+
+def make_divisible(v, divisor=8):
+    min_value = divisor
+    new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
+    if new_v < 0.9 * v:  # ensure round down does not go down by more than 10%.
+        new_v += divisor
+    return new_v
