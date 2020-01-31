@@ -34,7 +34,8 @@ def test_densenet_imagenet_custom_cls(arch):
 @pytest.mark.parametrize("arch", densenet_names[:2])  # test only part of the models
 def test_densenet_custom_in_channels(arch):
     m = models.__dict__[arch](in_channels=5)
-    _test_forward(m)
+    with torch.no_grad():
+        m(torch.ones(2, 5, 128, 128))
 
 
 @pytest.mark.parametrize("arch", densenet_names[:2])  # test only part of the models

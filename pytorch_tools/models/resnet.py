@@ -143,7 +143,7 @@ class ResNet(nn.Module):
         self.num_features = 512 * self.expansion
         self.encoder = encoder
         if not encoder:
-            self.dropout = nn.Dropout(p=drop_rate)
+            self.dropout = nn.Dropout(p=drop_rate, inplace=True)
             self.last_linear = nn.Linear(self.num_features * self.global_pool.feat_mult(), num_classes)
         else:
             self.forward = self.encoder_features

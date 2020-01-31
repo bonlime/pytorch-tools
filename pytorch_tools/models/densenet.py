@@ -181,7 +181,9 @@ class DenseNet(nn.Module):
             setattr(self, f"denseblock{i+1}", block)
             in_planes += num_layers * growth_rate
             if i != len(block_config) - 1:
-                trans = _Transition(in_planes=in_planes, out_planes=in_planes // 2)
+                trans = _Transition(
+                    in_planes=in_planes, out_planes=in_planes // 2, norm_layer=norm_layer, norm_act=norm_act
+                )
                 setattr(self, f"transition{i+1}", trans)
                 in_planes //= 2
 
