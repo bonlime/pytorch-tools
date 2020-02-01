@@ -4,6 +4,7 @@ import numpy as np
 import pytorch_tools as pt
 import pytorch_tools.models as models
 
+# TODO: combine test into one big file to avoid repeating the same things again and again
 
 RESNET_NAMES = sorted(
     name

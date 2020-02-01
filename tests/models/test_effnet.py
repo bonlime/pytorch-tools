@@ -23,33 +23,33 @@ def _test_forward(model):
 
 @pytest.mark.parametrize("arch", efficientnet_names)
 @pytest.mark.parametrize("pretrained", [None, "imagenet"])
-def test_densenet_init(arch, pretrained):
+def test_effnet_init(arch, pretrained):
     m = models.__dict__[arch](pretrained=pretrained)
     _test_forward(m)
 
 
 @pytest.mark.parametrize("arch", efficientnet_names[:2])
-def test_densenet_imagenet_custom_cls(arch):
+def test_effnet_imagenet_custom_cls(arch):
     m = models.__dict__[arch](pretrained="imagenet", num_classes=10)
     _test_forward(m)
 
 
 @pytest.mark.parametrize("arch", efficientnet_names[:2])  # test only part of the models
-def test_densenet_custom_in_channels(arch):
+def test_effnet_custom_in_channels(arch):
     m = models.__dict__[arch](in_channels=5)
     with torch.no_grad():
         m(torch.ones(2, 5, 128, 128))
 
 
-# @pytest.mark.parametrize("arch", efficientnet_names[:2])  # test only part of the models
-# def test_densenet_inplace_abn(arch):
-#     """check than passing `inplaceabn` really changes all norm activations"""
-#     m = models.__dict__[arch](norm_layer="inplaceabn", norm_act="leaky_relu")
-#     _test_forward(m)
+@pytest.mark.parametrize("arch", efficientnet_names[:2])  # test only part of the models
+def test_effnet_inplace_abn(arch):
+    """check than passing `inplaceabn` really changes all norm activations"""
+    m = models.__dict__[arch](norm_layer="inplaceabn", norm_act="leaky_relu")
+    _test_forward(m)
 
-#     def _check_bn(module):
-#         assert not isinstance(module, pt.modules.ABN)
-#         for child in module.children():
-#             _check_bn(child)
+    def _check_bn(module):
+        assert not isinstance(module, pt.modules.ABN)
+        for child in module.children():
+            _check_bn(child)
 
-#     _check_bn(m)
+    _check_bn(m)

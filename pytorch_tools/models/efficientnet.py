@@ -1,31 +1,27 @@
-# this implementation is based on two: rw , l... , TF, tpu.
+"""PyTorch EfficienNet
+This implementation is based on:
+https://github.com/lukemelas/EfficientNet-PyTorch
+https://github.com/rwightman/gen-efficientnet-pytorch
+but at the same time differs from them significantly
+
+Key differences:
+All normalizations and activations are changed to ABN
+Can be used as encoder out of the box
+"""
+
+import re
+import math
+import logging
+from copy import deepcopy
+from collections import OrderedDict
+from functools import wraps, partial
 
 import torch
 from torch import nn
-from torch.nn import functional as F
-import math
-from copy import deepcopy
-from functools import wraps, partial
-import re
 from torchvision.models.utils import load_state_dict_from_url
-import logging
 
-# from .utils import (
-#     round_filters,
-#     round_repeats,
-#     drop_connect,
-#     get_same_padding_conv2d,
-#     get_model_params,
-#     efficientnet_params,
-#     load_pretrained_weights,
-# Swish,
-# MemoryEfficientSwish,
-# )
-# from pytorch_tools.modules.activations import Swish
-# MemoryEfficientSwish = Swish
-
-from pytorch_tools.modules.residual import InvertedResidual, DepthwiseSeparableConv
 from pytorch_tools.modules import bn_from_name
+from pytorch_tools.modules.residual import InvertedResidual
 from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import make_divisible
@@ -36,7 +32,42 @@ wraps = partial(wraps, assigned=("__module__", "__name__", "__qualname__", "__an
 
 
 class EfficientNet(nn.Module):
-    """TODO: Add docs"""
+    """EfficientNet B0-B7
+
+    Ref: https://arxiv.org/pdf/1905.11946.pdf
+
+
+    Args:
+        blocks_args (List[Dict]):
+            Description of each block for the model. Check `decode_block_args` function for more details. Don't need to be
+            passed manually
+        width_multiplier (float): 
+            Multiplyer for number of channels in each block. Don't need to be passed manually
+        depth_multiplier (float):
+            Multiplyer for number of InvertedResiduals in each block
+        pretrained (str, optional):
+            If not, returns a model pre-trained on 'str' dataset. `imagenet` is available for every model.
+            NOTE: weights which are loaded into this model were ported from TF. There is a drop in
+            accuracy for Imagenet (~1-2% top1) but they work well for finetuning.
+            NOTE 2: models were pretrained on very different resolution. take into account for finetuning. Original model
+        num_classes (int):
+            Number of classification classes. Defaults to 1000.
+        in_channels (int):
+            Number of input (color) channels. Defaults to 3.
+        output_stride (List[8, 16, 32]): Applying dilation strategy to pretrained models. Typically used in
+            Semantic Segmentation. Defaults to 32.
+        encoder (bool):
+            Flag to overwrite forward pass to return 5 tensors with different resolutions. Defaults to False.
+        drop_rate (float):
+            Dropout probability before classifier, for training. Defaults to 0.0.
+        drop_connect_rate (float):
+            Drop rate for StochasticDepth.
+        norm_layer (str):
+            Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory footprint.
+            But increases backward time and doesn't support `swish` activation. Defaults to 'abn'.
+        norm_act (str):
+            Activation for normalizion layer. It's reccomended to use `leacky_relu` with `inplaceabn`. Defaults to `swish`
+    """
 
     def __init__(
         self,
@@ -46,11 +77,13 @@ class EfficientNet(nn.Module):
         pretrained=None,  # not used. here for proper signature
         num_classes=1000,
         in_channels=3,
+        output_stride=32,
+        encoder=False,
         drop_rate=0,
         drop_connect_rate=0,
         stem_size=32,
         norm_layer="abn",
-        norm_act="relu",
+        norm_act="swish",
     ):
         super().__init__()
         norm_layer = bn_from_name(norm_layer)
@@ -58,7 +91,6 @@ class EfficientNet(nn.Module):
         self.norm_act = norm_act
         self.width_multiplier = width_multiplier
         self.depth_multiplier = depth_multiplier
-        # if pretrained: norm_layer = partial( + eps + default momentum) TODO:
         stem_size = make_divisible(stem_size * width_multiplier)
         self.conv_stem = conv3x3(in_channels, stem_size, stride=2)
         self.bn1 = norm_layer(stem_size, activation=norm_act)
@@ -69,9 +101,10 @@ class EfficientNet(nn.Module):
             block = []
             block_arg["in_channels"] = make_divisible(block_arg["in_channels"] * self.width_multiplier)
             block_arg["out_channels"] = make_divisible(block_arg["out_channels"] * self.width_multiplier)
-            block_arg["keep_prob"] = 1 - drop_connect_rate * block_idx / len(
-                blocks_args
-            )  # linearly scale keep prob
+            block_arg["norm_layer"] = norm_layer
+            block_arg["norm_act"] = norm_act
+            # linearly scale keep prob
+            block_arg["keep_prob"] = 1 - drop_connect_rate * block_idx / len(blocks_args)
             repeats = block_arg.pop("num_repeat")
             repeats = int(math.ceil(repeats * self.depth_multiplier))
             # only first layer in block is strided
@@ -89,12 +122,21 @@ class EfficientNet(nn.Module):
         self.conv_head = conv1x1(out_channels, num_features)
         self.bn2 = norm_layer(num_features, activation=norm_act)
 
-        # TODO: encoder
+        # if encoder:
+        #     self.forward = self.encoder_features
+        # else:
         self.global_pool = nn.AdaptiveAvgPool2d(1)
         self.dropout = nn.Dropout(drop_rate, inplace=True)
         self.classifier = nn.Linear(num_features, num_classes)
 
         self._initialize_weights()
+
+    # # TODO: finish encoder and output stride
+    # def encoder_features(self, x):
+    #     x0 = self.conv_stem(x)
+    #     x0 = self.bn1(x0)
+    #     x1 = self.
+
 
     def features(self, x):
         x = self.conv_stem(x)
@@ -122,6 +164,15 @@ class EfficientNet(nn.Module):
                 m.bias.data.zero_()
             elif isinstance(m, nn.Linear):
                 nn.init.kaiming_uniform_(m.weight, mode="fan_in", nonlinearity="linear")
+
+    def load_state_dict(self, state_dict, **kwargs):
+        valid_weights = []
+        for key, value in state_dict.items():
+            if "num_batches_tracked" in key:
+                continue
+            valid_weights.append(value)
+        new_sd = OrderedDict(zip(self.state_dict().keys(), valid_weights))
+        super().load_state_dict(new_sd, **kwargs)
 
 
 EFFNET_BLOCKARGS = [
@@ -181,15 +232,21 @@ def decode_block_args(string_list):
 
 # fmt: off
 CFGS = {
-    # pretrained are from rwightman
-    # TODO: Double check pretrained settings! 
+    # All pretrained models were trained on TF by Google and ported to PyTorch by Ross Wightman @rwightman
+    # Due to framework little differences (BN epsilon and different padding in convs) this weights give slightly 
+    # worse performance when loaded into model above but the drop is only about ~1% on Imagenet and doesn't really mater for transfer
+    # learning 
     "efficientnet-b0": {
         "default": {
             "params": {
                 "blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.0, "depth_multiplier": 1.0}, 
                 **DEFAULT_IMAGENET_SETTINGS
+
             },
-        "imagenet": {"url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/efficientnet_b0_ra-3dd342df.pth"},
+        "imagenet": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b0_aa-827b6e33.pth",
+            "input_size": [3, 224, 224],
+        },
     },
     "efficientnet-b1": {
         "default": {
@@ -197,23 +254,70 @@ CFGS = {
                 "blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.0, "depth_multiplier": 1.1}, 
                 **DEFAULT_IMAGENET_SETTINGS
             },
-        "imagenet": {"url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/efficientnet_b1-533bc792.pth"},
+        "imagenet": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b1_aa-ea7a6ee0.pth",
+            "input_size": [3, 240, 240],
+        },
     },
     "efficientnet-b2": {
         "default": {
-            "params": {
-                "blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.1, "depth_multiplier": 1.2},
-                **DEFAULT_IMAGENET_SETTINGS
-            },
-        "imagenet": {"url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/efficientnet_b2_ra-bcdf34b7.pth"},
+            "params": {"blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.1, "depth_multiplier": 1.2},
+            **DEFAULT_IMAGENET_SETTINGS,
+            "input_size": [3, 260, 260],
+        },
+        "imagenet": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b2_aa-60c94f97.pth",
+        },
     },
     "efficientnet-b3": {
         "default": {
-            "params": {
-                "blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.2, "depth_multiplier": 1.4}, 
-                **DEFAULT_IMAGENET_SETTINGS
+            "params": {"blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.2, "depth_multiplier": 1.4},
+            **DEFAULT_IMAGENET_SETTINGS,
+            "input_size": [3, 300, 300],
+        },
+        "imagenet": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b3_aa-84b4657e.pth",
+        },
+    },
+    "efficientnet-b4": {
+        "default": {
+            "params": {"blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.4, "depth_multiplier": 1.8},
+            **DEFAULT_IMAGENET_SETTINGS,
             },
-        "imagenet": {"url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/efficientnet_b3_ra-a5e2fbc7.pth"},
+        "imagenet": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b4_aa-818f208c.pth",
+            "input_size": [3, 380, 380],
+        },
+    },
+    "efficientnet-b5": {
+        "default": {
+            "params": {"blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.6, "depth_multiplier": 2.2},
+            **DEFAULT_IMAGENET_SETTINGS,
+            },
+        "imagenet": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b5_ra-9a3e5369.pth",
+            "input_size": [3, 456, 456],
+        },
+    },
+    "efficientnet-b6": {
+        "default": {
+            "params": {"blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.8, "depth_multiplier": 2.6},
+            **DEFAULT_IMAGENET_SETTINGS,
+            },
+        "imagenet": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b6_aa-80ba17e4.pth",
+            "input_size": [3, 528, 528],
+        },
+    },
+    "efficientnet-b7": {
+        "default": {
+            "params": {"blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 2.0, "depth_multiplier": 3.1},
+            **DEFAULT_IMAGENET_SETTINGS,
+            },
+        "imagenet": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b7_ra-6c08e654.pth",
+            "input_size": [3, 600, 600],
+        },
     },
 }
 
@@ -248,7 +352,10 @@ def _efficientnet(arch, pretrained=None, **kwargs):
                     cfg_settings["num_classes"], kwargs_cls
                 )
             )
+            state_dict["classifier.weight"] = model.state_dict()["classifier.weight"]
+            state_dict["classifier.bias"] = model.state_dict()["classifier.bias"]
         model.load_state_dict(state_dict)
+    setattr(model, "pretrained_settings", cfg_settings)
     return model
 
 
