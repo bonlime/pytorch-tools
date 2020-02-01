@@ -420,11 +420,9 @@ class TensorBoardWithCM(TensorBoard):
 class ConsoleLogger(Callback):
     """Prints training progress to console for monitoring."""
 
-    def on_begin(self):
+    def on_loader_begin(self):
         if hasattr(tqdm, "_instances"):  # prevents many printing issues
             tqdm._instances.clear()
-
-    def on_loader_begin(self):
         stage_str = "train" if self.state.is_train else "validat"
         desc = f"Epoch {self.state.epoch_log:2d}/{self.state.num_epochs}. {stage_str}ing"
         self.pbar = tqdm(total=self.state.epoch_size, desc=desc, ncols=0)
