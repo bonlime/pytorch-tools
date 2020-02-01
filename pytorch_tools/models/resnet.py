@@ -5,7 +5,6 @@ additional dropout and dynamic global avg/max pool.
 
 ResNeXt, SE-ResNeXt, SENet, and MXNet Gluon stem/downsample variants added by Ross Wightman
 """
-import math
 import logging
 from copy import deepcopy
 from collections import OrderedDict
@@ -13,14 +12,12 @@ from functools import wraps, partial
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torchvision.models.utils import load_state_dict_from_url
 
-from pytorch_tools.modules import BasicBlock, Bottleneck, SEModule
+from pytorch_tools.modules import BasicBlock, Bottleneck
 from pytorch_tools.modules import GlobalPool2d, BlurPool
 from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.modules import bn_from_name
-from pytorch_tools.modules import activation_from_name
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 
@@ -62,7 +59,7 @@ class ResNet(nn.Module):
         output_stride (List[8, 16, 32]): Applying dilation strategy to pretrained ResNet. Typically used in
             Semantic Segmentation. Defaults to 32.
         norm_layer (str):
-            Nomaliztion layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory footprint.
+            Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory footprint.
             But increases backward time. Defaults to 'abn'.
         norm_act (str):
             Activation for normalizion layer. It's reccomended to use `leacky_relu` with `inplaceabn`.

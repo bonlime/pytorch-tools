@@ -79,10 +79,9 @@ class InvertedResidual(nn.Module):
         )
         self.bn2 = norm_layer(mid_chs, activation=norm_act)
         # some models like MobileNet use mid_chs here instead of in_channels. But I don't care for now
-        self.se = SEModule(mid_chs, in_channels // 4) if use_se else nn.Identity()
+        self.se = SEModule(mid_chs, in_channels // 4, norm_act) if use_se else nn.Identity()
         self.conv_pw1 = conv1x1(mid_chs, out_channels)
         self.bn3 = norm_layer(out_channels, activation="identity")
-        # TODO: check speed without drop connect module
         self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
 
     def forward(self, x):
@@ -97,13 +96,13 @@ class InvertedResidual(nn.Module):
         x = self.bn3(x)
 
         if self.has_residual:
-            x = self.drop_connect(x)
-            x += residual
+            x = self.drop_connect(x) + residual
         return x
 
 
 class DropConnect(nn.Module):
-    """Randomply drops samples from input"""
+    """Randomply drops samples from input.
+    Implements idea close to one from https://arxiv.org/abs/1603.09382"""
 
     def __init__(self, keep_prob):
         super().__init__()
@@ -121,18 +120,19 @@ class DropConnect(nn.Module):
 
 
 class SEModule(nn.Module):
-    def __init__(self, channels, reduction_channels):
+    def __init__(self, channels, reduction_channels, norm_act="relu"):
         super(SEModule, self).__init__()
+
         self.pool = GlobalPool2d("avg")
         # authors of original paper DO use bias
         self.fc1 = nn.Conv2d(channels, reduction_channels, kernel_size=1, stride=1, bias=True)
-        self.relu = nn.ReLU(inplace=True)
+        self.act1 = activation_from_name(norm_act)
         self.fc2 = nn.Conv2d(reduction_channels, channels, kernel_size=1, stride=1, bias=True)
 
     def forward(self, x):
         x_se = self.pool(x)
         x_se = self.fc1(x_se)
-        x_se = self.relu(x_se)
+        x_se = self.act1(x_se)
         x_se = self.fc2(x_se)
         return x * x_se.sigmoid()
 
@@ -182,7 +182,7 @@ class BasicBlock(nn.Module):
         if self.antialias:
             out = self.blurpool(out)
         out = self.conv2(out)
-        # avoid 2 inplace ops by chaining into one long op
+        # avoid 2 inplace ops by chaining into one long op. Neede for inplaceabn
         if self.se_module is not None:
             out = self.se_module(self.bn2(out)) + residual
         else:
