@@ -56,7 +56,7 @@ class DeepLabV3(EncoderDecoder):
 
         super().__init__(encoder, decoder)
         self.last_upsample = last_upsample
-        self.name = f"link-{encoder_name}"
+        self.name = f"deeplabv3plus-{encoder_name}"
 
     def forward(self, x):
         """Sequentially pass `x` trough model`s `encoder` and `decoder` (return logits!)"""

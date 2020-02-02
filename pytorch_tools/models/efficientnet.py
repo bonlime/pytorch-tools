@@ -96,7 +96,8 @@ class EfficientNet(nn.Module):
         self.bn1 = norm_layer(stem_size, activation=norm_act)
         in_channels = stem_size
         self.blocks = nn.ModuleList([])
-
+        # modify block args to account for output_stride strategy
+        blocks_args = _patch_block_args(blocks_args, output_stride)
         for block_idx, block_arg in enumerate(blocks_args):
             block = []
             block_arg["in_channels"] = make_divisible(block_arg["in_channels"] * self.width_multiplier)
@@ -107,9 +108,15 @@ class EfficientNet(nn.Module):
             block_arg["keep_prob"] = 1 - drop_connect_rate * block_idx / len(blocks_args)
             repeats = block_arg.pop("num_repeat")
             repeats = int(math.ceil(repeats * self.depth_multiplier))
-            # only first layer in block is strided
+            # when dilating conv with stride 2 we want it to have dilation // 2
+            # it prevents checkerboard artifacts with OS=16 and OS=8
+            dilation = block_arg.get("dilation", 1)  # save block values
+            if block_arg.pop("no_first_dilation", False):
+                block_arg["dilation"] = max(1, block_arg["dilation"] // 2)
             block.append(InvertedResidual(**block_arg))
+            # only first layer in block is strided
             block_arg["stride"] = 1
+            block_arg["dilation"] = dilation
             block_arg["in_channels"] = block_arg["out_channels"]
             for _ in range(repeats - 1):
                 block.append(InvertedResidual(**block_arg))
@@ -122,21 +129,28 @@ class EfficientNet(nn.Module):
         self.conv_head = conv1x1(out_channels, num_features)
         self.bn2 = norm_layer(num_features, activation=norm_act)
 
-        # if encoder:
-        #     self.forward = self.encoder_features
-        # else:
-        self.global_pool = nn.AdaptiveAvgPool2d(1)
-        self.dropout = nn.Dropout(drop_rate, inplace=True)
-        self.classifier = nn.Linear(num_features, num_classes)
+        if encoder:
+            self.forward = self.encoder_features
+        else:
+            self.global_pool = nn.AdaptiveAvgPool2d(1)
+            self.dropout = nn.Dropout(drop_rate, inplace=True)
+            self.classifier = nn.Linear(num_features, num_classes)
 
         self._initialize_weights()
 
-    # # TODO: finish encoder and output stride
-    # def encoder_features(self, x):
-    #     x0 = self.conv_stem(x)
-    #     x0 = self.bn1(x0)
-    #     x1 = self.
-
+    def encoder_features(self, x):
+        x0 = self.conv_stem(x)
+        x0 = self.bn1(x0)
+        x0 = self.blocks[0](x0)
+        x1 = self.blocks[1](x0)
+        x2 = self.blocks[2](x1)
+        x3 = self.blocks[3](x2)
+        x4 = self.blocks[4](x3)
+        x4 = self.blocks[5](x4)
+        x4 = self.blocks[6](x4)
+        x4 = self.conv_head(x4)
+        x4 = self.bn2(x4)
+        return [x4, x3, x2, x1, x0]
 
     def features(self, x):
         x = self.conv_stem(x)
@@ -184,6 +198,24 @@ EFFNET_BLOCKARGS = [
     "r4_k5_s22_e6_i112_o192_se0.25",
     "r1_k3_s11_e6_i192_o320_se0.25",
 ]
+
+
+def _patch_block_args(blocks_args, output_stride=32):
+    """iterate over block args and change `stride` and `dilation` according to `output_stride`"""
+    if output_stride not in [8, 16, 32]:
+        raise ValueError("Output stride should be in [8, 16, 32]")
+    if output_stride == 32:
+        return blocks_args
+    dilation = 4 if output_stride == 8 else 2
+    for ba in reversed(blocks_args):
+        ba["dilation"] = dilation
+        if ba["stride"][0] == 2:
+            ba["stride"] = (1, 1)
+            ba["no_first_dilation"] = True
+            dilation //= 2
+        if dilation == 1:
+            break
+    return blocks_args
 
 
 def _decode_block_string(block_string):

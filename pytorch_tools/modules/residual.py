@@ -75,7 +75,7 @@ class InvertedResidual(nn.Module):
             groups=mid_chs,
             dilation=dilation,
             bias=False,
-            padding=(dw_kernel_size - 1) // 2,
+            padding=dilation * (dw_kernel_size - 1) // 2,
         )
         self.bn2 = norm_layer(mid_chs, activation=norm_act)
         # some models like MobileNet use mid_chs here instead of in_channels. But I don't care for now

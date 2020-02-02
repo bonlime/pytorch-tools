@@ -169,7 +169,8 @@ class ResNet(nn.Module):
                 ("1", norm_layer(planes * self.expansion, activation="identity")),
             ]
             downsample = nn.Sequential(OrderedDict(downsample_layers))
-
+        # removes first dilation to avoid checkerboard artifacts
+        first_dilation = max(1, dilation // 2)
         layers = [
             self.block(
                 self.inplanes,
@@ -179,7 +180,7 @@ class ResNet(nn.Module):
                 self.groups,
                 self.base_width,
                 use_se,
-                dilation,
+                first_dilation,
                 norm_layer,
                 norm_act,
                 antialias,
