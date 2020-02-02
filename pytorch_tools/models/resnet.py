@@ -58,6 +58,7 @@ class ResNet(nn.Module):
             Whether to replace the 7x7 conv1 with 3 3x3 convolution layers. Defaults to False.
         output_stride (List[8, 16, 32]): Applying dilation strategy to pretrained ResNet. Typically used in
             Semantic Segmentation. Defaults to 32.
+            NOTE: Don't use this arg with `antialias` and `pretrained` together. it may produce weird results
         norm_layer (str):
             Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory footprint.
             But increases backward time. Defaults to 'abn'.
