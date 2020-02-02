@@ -49,7 +49,7 @@ class EfficientNet(nn.Module):
             If not, returns a model pre-trained on 'str' dataset. `imagenet` is available for every model.
             NOTE: weights which are loaded into this model were ported from TF. There is a drop in
             accuracy for Imagenet (~1-2% top1) but they work well for finetuning.
-            NOTE 2: models were pretrained on very different resolution. take into account for finetuning. Original model
+            NOTE 2: models were pretrained on very different resolution. take it into account during finetuning
         num_classes (int):
             Number of classification classes. Defaults to 1000.
         in_channels (int):
@@ -265,9 +265,9 @@ def decode_block_args(string_list):
 # fmt: off
 CFGS = {
     # All pretrained models were trained on TF by Google and ported to PyTorch by Ross Wightman @rwightman
-    # Due to framework little differences (BN epsilon and different padding in convs) this weights give slightly 
-    # worse performance when loaded into model above but the drop is only about ~1% on Imagenet and doesn't really mater for transfer
-    # learning 
+    # Due to framework little differences (BN epsilon and different padding in convs) this weights give slightly
+    # worse performance when loaded into model above but the drop is only about ~1% on Imagenet and doesn't really 
+    # mater for transfer learning 
     "efficientnet-b0": {
         "default": {
             "params": {
