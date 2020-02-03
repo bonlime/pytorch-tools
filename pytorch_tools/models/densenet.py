@@ -149,6 +149,7 @@ class DenseNet(nn.Module):
         encoder=False,
         global_pool="avg",
         memory_efficient=True,
+        output_stride=32, # not used! only here to allow using as encoder
     ):
 
         super(DenseNet, self).__init__()
