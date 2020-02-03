@@ -119,7 +119,7 @@ class Timer(Callback):
     def on_batch_end(self):
         self.state.timer.batch_end()
 
-    def on_epoch_end(self):
+    def on_loader_end(self):
         if not self.has_printed:
             self.has_printed = True
             d_time = self.state.timer.data_time.avg_smooth
@@ -232,9 +232,10 @@ class ReduceLROnPlateau(Callback):
         min_lr (float): minimum learning rate which could be achieved
         mode (str): one of "min" of "max". Whether to decide reducing based
             on minimizing or maximizing loss
+        vebose (bool): Whether or not to print messages about updating lr to console
     """
 
-    def __init__(self, factor=0.5, patience=5, min_lr=1e-6, mode="min"):
+    def __init__(self, factor=0.5, patience=5, min_lr=1e-6, mode="min", verbose=True):
         super().__init__()
         self.factor = factor
         self.patience = patience
@@ -242,10 +243,10 @@ class ReduceLROnPlateau(Callback):
         self.min_lr = min_lr
         self.best = float("inf") if self.mode == ReduceMode.MIN else -float("inf")
         self._steps_since_best = 0
+        self.verbose = verbose
 
     def on_epoch_end(self):
         # TODO: zakirov(19.11.19) Add support for saving based on metric
-        # TODO: zakirov(20.12.19) Add some logging when lr is reduced
         if self.state.val_loss is not None:
             current = self.state.val_loss.avg
         else:
@@ -260,6 +261,8 @@ class ReduceLROnPlateau(Callback):
             for param_group in self.state.optimizer.param_groups:
                 if param_group["lr"] * self.factor > self.min_lr:
                     param_group["lr"] *= self.factor
+            if self.verbose:
+                print(f"ReduceLROnPlateau reducing learning rate to {param_group['lr'] * self.factor}")
 
 
 class CheckpointSaver(Callback):
