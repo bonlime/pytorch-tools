@@ -275,14 +275,19 @@ class CheckpointSaver(Callback):
             add epoch and metric to model save name
         mode (str): one of "min" of "max". Whether to decide to save based
             on minimizing or maximizing loss
+        include_optimizer (bool): if True would also save `optimizers` state_dict. 
+            This increases checkpoint size 2x times.
     """
 
-    def __init__(self, save_dir, save_name="model_{ep}_{metric:.2f}.chpn", mode="min"):
+    def __init__(
+        self, save_dir, save_name="model_{ep}_{metric:.2f}.chpn", mode="min", include_optimizer=False
+    ):
         super().__init__()
         self.save_dir = save_dir
         self.save_name = save_name
         self.mode = ReduceMode(mode)
         self.best = float("inf") if self.mode == ReduceMode.MIN else -float("inf")
+        self.include_optimizer = include_optimizer
 
     def on_begin(self):
         os.makedirs(self.save_dir, exist_ok=True)
@@ -305,14 +310,10 @@ class CheckpointSaver(Callback):
             state_dict = self.state.model.module.state_dict()
         else:
             state_dict = self.state.model.state_dict()
-        torch.save(
-            {
-                "epoch": self.state.epoch,
-                "state_dict": state_dict,
-                "optimizer": self.state.optimizer.state_dict(),
-            },
-            path,
-        )
+        save_dict = {"epoch": self.state.epoch, "state_dict": state_dict}
+        if self.include_optimizer:
+            save_dict["optimizer"] = self.state.optimizer.state_dict()
+        torch.save(save_dict, path)
 
 
 class TensorBoard(Callback):

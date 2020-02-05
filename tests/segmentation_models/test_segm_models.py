@@ -6,7 +6,7 @@ import pytorch_tools.segmentation_models as pt_sm
 
 
 INP = torch.ones(2, 3, 64, 64)
-ENCODERS = ["resnet34", "se_resnet50", "efficientnet_b1", "densenet121",]
+ENCODERS = ["resnet34", "se_resnet50", "efficientnet_b1", "densenet121"]
 
 
 def _test_forward(model):

@@ -20,14 +20,14 @@ ENCODER_SHAPES = {
     "densenet169": (1664, 1280, 512, 256, 64),
     "densenet201": (1920, 1792, 512, 256, 64),
     #'densenet161': (2208, 2112, 768, 384, 96),
-    "efficientnet_b0" :  (1280, 80, 40, 24, 16),
-    "efficientnet_b1" :  (1280, 80, 40, 24, 16),
-    "efficientnet_b2" :  (1408, 88, 48, 24, 16),
-    "efficientnet_b3" :  (1536, 96, 48, 32, 24),
-    "efficientnet_b4" :  (1792, 112, 56, 32, 24),
-    "efficientnet_b5" :  (2048, 128, 64, 40, 24),
-    "efficientnet_b6" :  (2304, 144, 72, 40, 32),
-    "efficientnet_b7" :  (2560, 160, 80, 48, 32),
+    "efficientnet_b0": (1280, 80, 40, 24, 16),
+    "efficientnet_b1": (1280, 80, 40, 24, 16),
+    "efficientnet_b2": (1408, 88, 48, 24, 16),
+    "efficientnet_b3": (1536, 96, 48, 32, 24),
+    "efficientnet_b4": (1792, 112, 56, 32, 24),
+    "efficientnet_b5": (2048, 128, 64, 40, 24),
+    "efficientnet_b6": (2304, 144, 72, 40, 32),
+    "efficientnet_b7": (2560, 160, 80, 48, 32),
 }
 
 
