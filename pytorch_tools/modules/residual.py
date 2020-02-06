@@ -1,6 +1,6 @@
+import math
 import torch
 import torch.nn as nn
-import math
 from .activated_batch_norm import ABN
 from .activations import activation_from_name
 

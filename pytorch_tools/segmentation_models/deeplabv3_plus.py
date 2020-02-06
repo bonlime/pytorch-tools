@@ -1,5 +1,5 @@
-import torch.nn.functional as F
 import logging
+import torch.nn as nn
 from pytorch_tools.modules.decoder import DeepLabHead
 from pytorch_tools.modules import bn_from_name
 from .base import EncoderDecoder
@@ -55,13 +55,12 @@ class DeepLabV3(EncoderDecoder):
         )
 
         super().__init__(encoder, decoder)
-        self.last_upsample = last_upsample
+        self.upsample = nn.Upsample(scale_factor=4, mode="bilinear") if last_upsample else nn.Identity()
         self.name = f"deeplabv3plus-{encoder_name}"
 
     def forward(self, x):
         """Sequentially pass `x` trough model`s `encoder` and `decoder` (return logits!)"""
         x = self.encoder(x)
         x = self.decoder(x)
-        if self.last_upsample:
-            x = F.interpolate(x, scale_factor=4, mode="bilinear", align_corners=False)
+        x = self.upsample(x)
         return x
