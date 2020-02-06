@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from pytorch_tools.utils.misc import initialize
 from .activated_batch_norm import ABN
 from .residual import conv3x3, conv1x1, DepthwiseSeparableConv
-
 
 class UnetDecoderBlock(nn.Module):
     def __init__(self, in_channels, out_channels, norm_layer=ABN, norm_act="relu"):
@@ -126,6 +126,7 @@ class DeepLabHead(nn.Module):
         self.sep_conv1 = DepthwiseSeparableConv(OUT_CHANNELS + PROJ_CONV_CHANNELS, 256, **norm_params)
         self.sep_conv2 = DepthwiseSeparableConv(OUT_CHANNELS, OUT_CHANNELS, **norm_params)
         self.final_conv = conv1x1(OUT_CHANNELS, num_classes)
+        initialize(self)
 
     def forward(self, x):
         encoder_head = x[0]
@@ -139,3 +140,28 @@ class DeepLabHead(nn.Module):
         x = self.sep_conv2(x)
         x = self.final_conv(x)
         return x
+
+class Conv3x3NormAct(nn.Sequential):
+    """Perform 3x3 conv norm act and optional 2x upsample"""
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        upsample=False,
+        norm_layer=ABN,
+        norm_act="relu"
+    ):
+        super().__init__(
+            conv3x3(in_channels, out_channels),
+            norm_layer(out_channels, activation=norm_act),
+            nn.Upsample(scale_factor=2) if upsample else nn.Identity(),
+        )
+
+
+class SegmentationUpsample(nn.Sequential):
+    def __init__(self, in_channels, out_channels, n_upsamples=0, **bn_args):
+        blocks = [Conv3x3NormAct(in_channels, out_channels, upsample=bool(n_upsamples), **bn_args)]
+        if n_upsamples > 1:
+            for _ in range(1, n_upsamples):
+                blocks.append(Conv3x3NormAct(out_channels, out_channels, upsample=True, **bn_args))
+        super().__init__(*blocks)
