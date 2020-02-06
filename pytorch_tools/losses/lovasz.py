@@ -185,49 +185,44 @@ def mean(l, ignore_nan=False, empty=0):
 
 
 # --------------------------- Convinient classes ---------------------------
-from .base import Loss
-
-
-class BinaryLovaszLoss(Loss):
-    """    
-    The Binary Lovasz-Softmax loss: A tractable surrogate for the optimization of the 
-    intersection-over-union measure in neural networks
-    https://arxiv.org/pdf/1705.08790.pdf
-
-      y_pred: [B, 1, H, W] Variable, y_pred at each pixel (between -\infty and +\infty)
-      y_true: [B, H, W] Tensor, binary ground truth masks (0 or 1)
-      per_image (bool): compute the loss per image instead of per batch
-      ignore (int): void class id
-    """
-
-    def __init__(self, per_image=False, ignore=None):
-        super().__init__()
-        self.ignore = ignore
-        self.per_image = per_image
-
-    def forward(self, y_pred, y_true):
-        assert y_pred.size(1) == 1  # make sure it's binary case
-        return _lovasz_hinge(y_pred.squeeze(), y_true, per_image=self.per_image, ignore=self.ignore)
+from .base import Loss, Mode
 
 
 class LovaszLoss(Loss):
     """
-    The Lovasz-Softmax loss: A tractable surrogate for the optimization of the 
-    intersection-over-union measure in neural networks
+    The Lovasz loss: A tractable surrogate for the optimization of the
+    intersection-over-union measure in neural networks. This class combines
+    Binary Lovasz-Hinge and Lovasz-Softmax into one.
     https://arxiv.org/pdf/1705.08790.pdf
+
+    Args:
+        mode (str): Target mode {'binary', 'multiclass', 'multilabel'}
+                'multiclass', 'binary' - expects y_true of shape [N, H, W]
+                'multilabel' - expects y_true of shape [N, C, H, W]. Lovasz doesn't support
+                    multilabel case, so target would be turned to `multiclass` with max(dim=1)
+        per_image: compute the loss per image instead of per batch
+        ignore: void class y_true
     
-    y_pred: [B, C, H, W] Variable, class probabilities at each prediction (between 0 and 1).
-              Interpreted as binary (sigmoid) output with outputs of size [B, H, W].
-      y_true: [B, H, W] Tensor, ground truth y_true (between 0 and C - 1)
-      classes: 'all' for all, 'present' for classes present in y_true, or a list of classes to average.
-      per_image: compute the loss per image instead of per batch
-      ignore: void class y_true
+    Shape:
+        y_pred: [N, C, H, W]. Should be raw logits output
+        y_true: [N, C, H, W] or [N, H, W] depending on mode. Values in [0, C-1]
     """
 
-    def __init__(self, per_image=False, ignore=None):
+    def __init__(self, mode="binary", per_image=False, ignore=None):
         super().__init__()
+        self.mode = Mode(mode)
         self.ignore = ignore
         self.per_image = per_image
 
     def forward(self, y_pred, y_true):
+        if y_true.dim() == 4:
+            # select one class for every pixel
+            y_true = y_true.max(dim=1).values
+
+        if self.mode == Mode.BINARY:
+            if y_pred.size(1) != 1:
+                raise ValueError("Expected y_pred to have only 1 class in `binary` loss mode")
+            return _lovasz_hinge(y_pred.squeeze(), y_true, per_image=self.per_image, ignore=self.ignore)
+
+        y_pred = y_pred.softmax(dim=1)
         return _lovasz_softmax(y_pred, y_true, per_image=self.per_image, ignore=self.ignore)

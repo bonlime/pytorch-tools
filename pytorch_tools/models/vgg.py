@@ -1,9 +1,11 @@
 import logging
 from copy import deepcopy
 from functools import wraps, partial
+
 import torch
 import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
+
 from pytorch_tools.modules import BlurPool
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.utils.misc import add_docs_for, DEFAULT_IMAGENET_SETTINGS
@@ -34,14 +36,15 @@ class VGG(nn.Module):
         pretrained=None,  # not used. here for proper signature.
         num_classes=1000,
         in_channels=3,
-        norm_layer="abn",
         encoder=False,
         antialias=False,
+        norm_layer="abn",
+        norm_act="relu",
     ):
 
         super(VGG, self).__init__()
         self.in_channels = in_channels
-        self.norm_act = "relu" if norm_layer.lower() == "abn" else "leaky_relu"
+        self.norm_act = norm_act
         self.norm_layer = bn_from_name(norm_layer)
         self.encoder = encoder
         self.antialias = antialias

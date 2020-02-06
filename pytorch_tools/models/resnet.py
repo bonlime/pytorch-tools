@@ -5,7 +5,6 @@ additional dropout and dynamic global avg/max pool.
 
 ResNeXt, SE-ResNeXt, SENet, and MXNet Gluon stem/downsample variants added by Ross Wightman
 """
-import math
 import logging
 from copy import deepcopy
 from collections import OrderedDict
@@ -13,14 +12,12 @@ from functools import wraps, partial
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torchvision.models.utils import load_state_dict_from_url
 
-from pytorch_tools.modules import BasicBlock, Bottleneck, SEModule
+from pytorch_tools.modules import BasicBlock, Bottleneck
 from pytorch_tools.modules import GlobalPool2d, BlurPool
 from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.modules import bn_from_name
-from pytorch_tools.modules import activation_from_name
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 
@@ -61,8 +58,9 @@ class ResNet(nn.Module):
             Whether to replace the 7x7 conv1 with 3 3x3 convolution layers. Defaults to False.
         output_stride (List[8, 16, 32]): Applying dilation strategy to pretrained ResNet. Typically used in
             Semantic Segmentation. Defaults to 32.
+            NOTE: Don't use this arg with `antialias` and `pretrained` together. it may produce weird results
         norm_layer (str):
-            Nomaliztion layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory footprint.
+            Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory footprint.
             But increases backward time. Defaults to 'abn'.
         norm_act (str):
             Activation for normalizion layer. It's reccomended to use `leacky_relu` with `inplaceabn`.
@@ -143,7 +141,7 @@ class ResNet(nn.Module):
         self.num_features = 512 * self.expansion
         self.encoder = encoder
         if not encoder:
-            self.dropout = nn.Dropout(p=drop_rate)
+            self.dropout = nn.Dropout(p=drop_rate, inplace=True)
             self.last_linear = nn.Linear(self.num_features * self.global_pool.feat_mult(), num_classes)
         else:
             self.forward = self.encoder_features
@@ -172,7 +170,8 @@ class ResNet(nn.Module):
                 ("1", norm_layer(planes * self.expansion, activation="identity")),
             ]
             downsample = nn.Sequential(OrderedDict(downsample_layers))
-
+        # removes first dilation to avoid checkerboard artifacts
+        first_dilation = max(1, dilation // 2)
         layers = [
             self.block(
                 self.inplanes,
@@ -182,7 +181,7 @@ class ResNet(nn.Module):
                 self.groups,
                 self.base_width,
                 use_se,
-                dilation,
+                first_dilation,
                 norm_layer,
                 norm_act,
                 antialias,

@@ -76,6 +76,8 @@ def test_val_loader():
 TMP_PATH = "/tmp/pt_tools2/"
 os.makedirs(TMP_PATH, exist_ok=True)
 
+# TODO: (emil 05.02.20) use pytest parametrize instead
+
 
 def test_Timer_callback():
     runner = Runner(

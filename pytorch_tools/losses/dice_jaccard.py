@@ -14,11 +14,15 @@ class DiceLoss(Loss):
     def __init__(self, mode="binary", log_loss=False, from_logits=True):
         """
         Args:
-            mode (str): Metric mode {'binary', 'multiclass', 'multilabel'}
-                'multilabel' - expects y_true of shape NxCxHxW
-                'multiclass', 'binary' - expects y_true of shape NxHxW
+            mode (str): Target mode {'binary', 'multiclass', 'multilabel'}
+                'multilabel' - expects y_true of shape [N, C, H, W]
+                'multiclass', 'binary' - expects y_true of shape [N, H, W]
             log_loss (bool): If True, loss computed as `-log(jaccard)`; otherwise `1 - jaccard`
             from_logits (bool): If True assumes input is raw logits
+
+        Shape:
+            y_pred: [N, C, H, W]
+            y_true: [N, C, H, W] or [N, H, W] depending on mode
         """
 
         super(DiceLoss, self).__init__()
@@ -27,11 +31,6 @@ class DiceLoss(Loss):
         self.from_logits = from_logits
 
     def forward(self, y_pred, y_true):
-        """
-        Args:
-            y_pred: NxCxHxW
-            y_true: NxCxHxW or NxHxW depending on mode
-        """
         if self.from_logits:
             # Apply activations to get [0..1] class probabilities
             if self.mode == Mode.BINARY:

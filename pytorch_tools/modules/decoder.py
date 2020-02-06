@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .activated_batch_norm import ABN
-from .residual import conv3x3, conv1x1
+from .residual import conv3x3, conv1x1, DepthwiseSeparableConv
 
 
 class UnetDecoderBlock(nn.Module):
@@ -57,19 +57,6 @@ class LinknetDecoderBlock(nn.Module):
 ## DeepLab V3+ Modules
 
 
-class SepConvBN(nn.Sequential):
-    """Depthwise separable conv with BN between depthwise & pointwise."""
-
-    def __init__(self, in_channels, out_channels, dilation=1, norm_layer=ABN, norm_act="relu"):
-        modules = [
-            conv3x3(in_channels, in_channels, groups=in_channels, dilation=dilation),
-            norm_layer(in_channels, activation=norm_act),
-            conv1x1(in_channels, out_channels),
-            norm_layer(out_channels, activation=norm_act),
-        ]
-        super().__init__(*modules)
-
-
 class ASPPPooling(nn.Sequential):
     def __init__(self, in_channels, out_channels, norm_layer=ABN, norm_act="relu"):
         super(ASPPPooling, self).__init__(
@@ -102,9 +89,9 @@ class ASPP(nn.Module):
         )
 
         rate1, rate2, rate3 = atrous_rates
-        self.conv1 = SepConvBN(in_channels, out_channels, rate1, **norm_params)
-        self.conv2 = SepConvBN(in_channels, out_channels, rate2, **norm_params)
-        self.conv3 = SepConvBN(in_channels, out_channels, rate3, **norm_params)
+        self.conv1 = DepthwiseSeparableConv(in_channels, out_channels, rate1, **norm_params)
+        self.conv2 = DepthwiseSeparableConv(in_channels, out_channels, rate2, **norm_params)
+        self.conv3 = DepthwiseSeparableConv(in_channels, out_channels, rate3, **norm_params)
 
     def forward(self, x):
         res = [
@@ -120,13 +107,14 @@ class ASPP(nn.Module):
 
 class DeepLabHead(nn.Module):
     def __init__(
-        self, encoder_channels, num_classes, norm_layer=ABN, norm_act="relu",
+        self, encoder_channels, num_classes, output_stride=16, norm_layer=ABN, norm_act="relu",
     ):
         PROJ_CONV_CHANNELS = 48
         OUT_CHANNELS = 256
         super().__init__()
         norm_params = {"norm_layer": norm_layer, "norm_act": norm_act}
-        self.aspp = ASPP(encoder_channels[0], [12, 24, 36], norm_layer, norm_act)
+        dilation_rates = [6, 12, 18] if output_stride == 16 else [12, 24, 36]
+        self.aspp = ASPP(encoder_channels[0], dilation_rates, norm_layer, norm_act)
         self.conv0 = nn.Sequential(
             conv3x3(OUT_CHANNELS, OUT_CHANNELS), norm_layer(OUT_CHANNELS, activation=norm_act)
         )
@@ -135,8 +123,8 @@ class DeepLabHead(nn.Module):
             norm_layer(PROJ_CONV_CHANNELS, activation=norm_act),
         )
 
-        self.sep_conv1 = SepConvBN(OUT_CHANNELS + PROJ_CONV_CHANNELS, 256, **norm_params)
-        self.sep_conv2 = SepConvBN(OUT_CHANNELS, OUT_CHANNELS, **norm_params)
+        self.sep_conv1 = DepthwiseSeparableConv(OUT_CHANNELS + PROJ_CONV_CHANNELS, 256, **norm_params)
+        self.sep_conv2 = DepthwiseSeparableConv(OUT_CHANNELS, OUT_CHANNELS, **norm_params)
         self.final_conv = conv1x1(OUT_CHANNELS, num_classes)
 
     def forward(self, x):

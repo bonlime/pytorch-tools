@@ -119,7 +119,7 @@ class Timer(Callback):
     def on_batch_end(self):
         self.state.timer.batch_end()
 
-    def on_epoch_end(self):
+    def on_loader_end(self):
         if not self.has_printed:
             self.has_printed = True
             d_time = self.state.timer.data_time.avg_smooth
@@ -232,9 +232,10 @@ class ReduceLROnPlateau(Callback):
         min_lr (float): minimum learning rate which could be achieved
         mode (str): one of "min" of "max". Whether to decide reducing based
             on minimizing or maximizing loss
+        vebose (bool): Whether or not to print messages about updating lr to console
     """
 
-    def __init__(self, factor=0.5, patience=5, min_lr=1e-6, mode="min"):
+    def __init__(self, factor=0.5, patience=5, min_lr=1e-6, mode="min", verbose=True):
         super().__init__()
         self.factor = factor
         self.patience = patience
@@ -242,10 +243,10 @@ class ReduceLROnPlateau(Callback):
         self.min_lr = min_lr
         self.best = float("inf") if self.mode == ReduceMode.MIN else -float("inf")
         self._steps_since_best = 0
+        self.verbose = verbose
 
     def on_epoch_end(self):
         # TODO: zakirov(19.11.19) Add support for saving based on metric
-        # TODO: zakirov(20.12.19) Add some logging when lr is reduced
         if self.state.val_loss is not None:
             current = self.state.val_loss.avg
         else:
@@ -260,6 +261,8 @@ class ReduceLROnPlateau(Callback):
             for param_group in self.state.optimizer.param_groups:
                 if param_group["lr"] * self.factor > self.min_lr:
                     param_group["lr"] *= self.factor
+            if self.verbose:
+                print(f"ReduceLROnPlateau reducing learning rate to {param_group['lr'] * self.factor}")
 
 
 class CheckpointSaver(Callback):
@@ -272,14 +275,19 @@ class CheckpointSaver(Callback):
             add epoch and metric to model save name
         mode (str): one of "min" of "max". Whether to decide to save based
             on minimizing or maximizing loss
+        include_optimizer (bool): if True would also save `optimizers` state_dict. 
+            This increases checkpoint size 2x times.
     """
 
-    def __init__(self, save_dir, save_name="model_{ep}_{metric:.2f}.chpn", mode="min"):
+    def __init__(
+        self, save_dir, save_name="model_{ep}_{metric:.2f}.chpn", mode="min", include_optimizer=False
+    ):
         super().__init__()
         self.save_dir = save_dir
         self.save_name = save_name
         self.mode = ReduceMode(mode)
         self.best = float("inf") if self.mode == ReduceMode.MIN else -float("inf")
+        self.include_optimizer = include_optimizer
 
     def on_begin(self):
         os.makedirs(self.save_dir, exist_ok=True)
@@ -302,14 +310,10 @@ class CheckpointSaver(Callback):
             state_dict = self.state.model.module.state_dict()
         else:
             state_dict = self.state.model.state_dict()
-        torch.save(
-            {
-                "epoch": self.state.epoch,
-                "state_dict": state_dict,
-                "optimizer": self.state.optimizer.state_dict(),
-            },
-            path,
-        )
+        save_dict = {"epoch": self.state.epoch, "state_dict": state_dict}
+        if self.include_optimizer:
+            save_dict["optimizer"] = self.state.optimizer.state_dict()
+        torch.save(save_dict, path)
 
 
 class TensorBoard(Callback):
@@ -420,11 +424,9 @@ class TensorBoardWithCM(TensorBoard):
 class ConsoleLogger(Callback):
     """Prints training progress to console for monitoring."""
 
-    def on_begin(self):
+    def on_loader_begin(self):
         if hasattr(tqdm, "_instances"):  # prevents many printing issues
             tqdm._instances.clear()
-
-    def on_loader_begin(self):
         stage_str = "train" if self.state.is_train else "validat"
         desc = f"Epoch {self.state.epoch_log:2d}/{self.state.num_epochs}. {stage_str}ing"
         self.pbar = tqdm(total=self.state.epoch_size, desc=desc, ncols=0)

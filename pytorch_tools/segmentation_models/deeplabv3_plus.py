@@ -31,31 +31,32 @@ class DeepLabV3(EncoderDecoder):
         encoder_weights="imagenet",
         num_classes=1,
         last_upsample=True,
+        output_stride=16,
         norm_layer="abn",
         norm_act="relu",
         **encoder_params,
     ):
-        if encoder_params.get("output_stride") is None:
-            logging.warning("No output_stride was given. DeepLab expects OS=16 or 8.")
 
         encoder = get_encoder(
             encoder_name,
+            encoder_weights=encoder_weights,
+            output_stride=output_stride,
             norm_layer=norm_layer,
             norm_act=norm_act,
-            encoder_weights=encoder_weights,
             **encoder_params,
         )
 
         decoder = DeepLabHead(
             encoder_channels=encoder.out_shapes,
             num_classes=num_classes,
+            output_stride=output_stride,
             norm_layer=bn_from_name(norm_layer),
             norm_act=norm_act,
         )
 
         super().__init__(encoder, decoder)
         self.last_upsample = last_upsample
-        self.name = f"link-{encoder_name}"
+        self.name = f"deeplabv3plus-{encoder_name}"
 
     def forward(self, x):
         """Sequentially pass `x` trough model`s `encoder` and `decoder` (return logits!)"""
