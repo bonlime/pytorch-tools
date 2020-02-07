@@ -44,11 +44,11 @@ class FPN(nn.Module):
         self.p3 = FPNBlock(pyramid_channels, encoder_channels[2])
         self.p2 = FPNBlock(pyramid_channels, encoder_channels[3])
 
-    def forward(self, *features):
+    def forward(self, features):
         # only use resolutions from 1/32 to 1/4
         c5, c4, c3, c2, c1 = features
         p5 = self.p5(c5)
-        p4 = self.p4(p5, c4)
-        p3 = self.p3(p4, c3)
-        p2 = self.p2(p3, c2)
+        p4 = self.p4([p5, c4])
+        p3 = self.p3([p4, c3])
+        p2 = self.p2([p3, c2])
         return p5, p4, p3, p2, c1

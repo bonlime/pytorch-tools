@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from pytorch_tools.modules.fpn import FPN
 from pytorch_tools.modules import bn_from_name
@@ -11,7 +12,7 @@ from .encoders import get_encoder
 class PanopticDecoder(nn.Module):
     """ Takes a feature pyramid, upscales the feature map to the same size and merges by sum or concatenation"""
     def __init__(self, 
-        pyramid_channels=256, 
+        pyramid_channels=256,
         segmentation_channels=128,
         merge_policy="add",
         **bn_args,
@@ -26,13 +27,13 @@ class PanopticDecoder(nn.Module):
         initialize(self)
 
 
-    def forward(self, x):
-        c5, c4, c3, c2, c1 = x
+    def forward(self, features):
+        c5, c4, c3, c2, c1 = features
         feature_pyramid = [seg_block(p) for seg_block, p in zip(self.seg_blocks, [c5, c4, c3, c2])]
         if self.policy == "add":
             return sum(feature_pyramid)
         elif self.policy == "cat":
-            return torch.cat(x, dim=1)
+            return torch.cat(feature_pyramid, dim=1)
         else:
             raise ValueError("Merge policy must be in {`add`, `cat`}")
 
@@ -48,7 +49,7 @@ class SegmentationFPN(nn.Module):
         pyramid_channels (int): Feature pyramid output channels. Defaults to 256.
         segmentation_channels (int): Number of segmentation output channels. Defaults to 128.
         num_classes (int): a number of classes for output (output shape - ``(batch, classes, h, w)``).
-        merge_policy (str): One of `add` of `cat`. `sum` would sum resulting feature maps. 
+        merge_policy (str): One of `add` of `cat`. `sum` would sum resulting feature maps.
             `cat` would concatenate them. Defaults to "add".
         last_upsample (bool): Flag to enable upsampling predictions to the original image size. If set to `False` prediction
             would be 4x times smaller than input image. Default True.
@@ -89,7 +90,8 @@ class SegmentationFPN(nn.Module):
             norm_layer=bn_from_name(norm_layer),
             norm_act=norm_act,
         )
-        
+        if merge_policy == "cat":
+            segmentation_channels *= 4
         self.segm_head = conv1x1(segmentation_channels, num_classes)
         self.upsample = nn.Upsample(scale_factor=4, mode="bilinear") if last_upsample else nn.Identity()
         self.name = f"segm-fpn-{encoder_name}"
