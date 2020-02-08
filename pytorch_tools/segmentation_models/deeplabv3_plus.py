@@ -11,11 +11,14 @@ class DeepLabV3(EncoderDecoder):
 
     Args:
         encoder_name (str): name of classification model used as feature extractor to build segmentation model.
-            Models expects encoder to have output stride 16 or 8. Only Resnet family models are supported for now
+            Models expects encoder to have output stride 16 or 8. Only Resnet and Effnet family models are supported for now
         encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
         num_classes (int): a number of classes for output (output shape - ``(batch, classes, h, w)``).
         last_upsample (bool): Flag to enable upsampling predictions to the original image size. If set to `False` prediction
             would be 4x times smaller than input image. Default True.
+        aspp_dilation_rates (List[int]): Dilations in the aspp module for output_stride == 16.
+            If output_stride == 8 this numbers would be doubled implicitly.
+        output_stride (int): Output stride of encoder network.
         norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory
             footprint. But increases backward time. Defaults to 'abn'.
         norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
@@ -31,6 +34,7 @@ class DeepLabV3(EncoderDecoder):
         encoder_weights="imagenet",
         num_classes=1,
         last_upsample=True,
+        aspp_dilation_rates=[6, 12, 18],
         output_stride=16,
         norm_layer="abn",
         norm_act="relu",
@@ -49,6 +53,7 @@ class DeepLabV3(EncoderDecoder):
         decoder = DeepLabHead(
             encoder_channels=encoder.out_shapes,
             num_classes=num_classes,
+            dilation_rates=aspp_dilation_rates,
             output_stride=output_stride,
             norm_layer=bn_from_name(norm_layer),
             norm_act=norm_act,

@@ -5,6 +5,7 @@ from pytorch_tools.utils.misc import initialize
 from .activated_batch_norm import ABN
 from .residual import conv3x3, conv1x1, DepthwiseSeparableConv
 
+
 class UnetDecoderBlock(nn.Module):
     def __init__(self, in_channels, out_channels, norm_layer=ABN, norm_act="relu"):
         super(UnetDecoderBlock, self).__init__()
@@ -78,7 +79,7 @@ class ASPP(nn.Module):
         out_channels = 256
         norm_params = {"norm_layer": norm_layer, "norm_act": norm_act}
         self.conv0 = nn.Sequential(
-            conv1x1(in_channels, out_channels), norm_layer(out_channels, activation=norm_act)
+            conv1x1(in_channels, out_channels), norm_layer(out_channels, activation=norm_act),
         )
         self.pool = ASPPPooling(in_channels, out_channels, **norm_params)
 
@@ -107,16 +108,23 @@ class ASPP(nn.Module):
 
 class DeepLabHead(nn.Module):
     def __init__(
-        self, encoder_channels, num_classes, output_stride=16, norm_layer=ABN, norm_act="relu",
+        self,
+        encoder_channels,
+        num_classes,
+        dilation_rates=[6, 12, 18],
+        output_stride=16,
+        norm_layer=ABN,
+        norm_act="relu",
     ):
         PROJ_CONV_CHANNELS = 48
         OUT_CHANNELS = 256
         super().__init__()
         norm_params = {"norm_layer": norm_layer, "norm_act": norm_act}
-        dilation_rates = [6, 12, 18] if output_stride == 16 else [12, 24, 36]
+        if output_stride == 8:
+            dilation_rates = [i * 2 for i in dilation_rates]
         self.aspp = ASPP(encoder_channels[0], dilation_rates, norm_layer, norm_act)
         self.conv0 = nn.Sequential(
-            conv3x3(OUT_CHANNELS, OUT_CHANNELS), norm_layer(OUT_CHANNELS, activation=norm_act)
+            conv3x3(OUT_CHANNELS, OUT_CHANNELS), norm_layer(OUT_CHANNELS, activation=norm_act),
         )
         self.proj_conv = nn.Sequential(
             conv1x1(encoder_channels[3], PROJ_CONV_CHANNELS),
@@ -141,16 +149,11 @@ class DeepLabHead(nn.Module):
         x = self.final_conv(x)
         return x
 
+
 class Conv3x3NormAct(nn.Sequential):
     """Perform 3x3 conv norm act and optional 2x upsample"""
-    def __init__(
-        self,
-        in_channels,
-        out_channels,
-        upsample=False,
-        norm_layer=ABN,
-        norm_act="relu"
-    ):
+
+    def __init__(self, in_channels, out_channels, upsample=False, norm_layer=ABN, norm_act="relu"):
         super().__init__(
             conv3x3(in_channels, out_channels),
             norm_layer(out_channels, activation=norm_act),
