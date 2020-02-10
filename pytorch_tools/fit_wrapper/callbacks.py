@@ -533,7 +533,7 @@ class Mixup(Callback):
 class Cutmix(Callback):
     """Performs CutMix on input. Only for classification.
     Cutmix combines two images by replacing part of the image by part from another image. 
-    New label is proportional to area of inserted part. 
+    New label is proportional to area of inserted part.
     Ref: https://arxiv.org/abs/1905.04899
 
     Args:
@@ -588,3 +588,23 @@ class Cutmix(Callback):
         bbh2 = np.clip(ch + cut_h // 2, 0, H)
         bbw2 = np.clip(cw + cut_w // 2, 0, W)
         return bbh1, bbw1, bbh2, bbw2
+
+class SegmCutmix(Cutmix):
+    """Cutmix for segmentation tasks. see `Cutmix` for more details"""
+    def __init__(self, alpha=1., prob=0.5):
+        super().__init__()
+        self.tb = torch.distributions.Beta(alpha, alpha)
+        self.prob = prob
+
+    def cutmix(self, data, target):
+        with torch.no_grad():
+            if not self.state.is_train or np.random.rand() > self.prob:
+                return data, target
+            BS, C, H, W = data.size()
+            perm = torch.randperm(BS).cuda()
+            lam = self.tb.sample()
+            lam = min([lam, 1 - lam])
+            bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
+            data[:, bbh1:bbh2, bbw1:bbw2] = data[perm, bbh1:bbh2, bbw1:bbw2]
+            target[:, :, bbh1:bbh2, bbw1:bbw2] = target[perm, :, bbh1:bbh2, bbw1:bbw2]
+        return data, target
