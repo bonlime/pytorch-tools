@@ -1,9 +1,8 @@
 import torch.nn as nn
 
-from pytorch_tools.modules.bifpn import BiFPN
-from pytorch_tools.modules.residual import conv1x1
 from pytorch_tools.utils.misc import initialize
 from pytorch_tools.modules import bn_from_name
+from pytorch_tools.modules.bifpn import BiFPN
 
 from .base import EncoderDecoder
 from .encoders import get_encoder
@@ -44,21 +43,6 @@ class BiFPNModel(SegmentationModel):
 
     """
 
-    def __init__(
-        self,
-        encoder_name: str = "resnet34",
-
-        encoder_weights: Optional[str] = "imagenet",
-        decoder_pyramid_channels: int = 256,
-        decoder_segmentation_channels: int = 128,
-
-
-        in_channels: int = 3,
-        classes: int = 1,
-        activation: Optional[str] = None,
-        upsampling: int = 4,
-        aux_params: Optional[dict] = None,
-    ):
     
     def __init__(
         self,

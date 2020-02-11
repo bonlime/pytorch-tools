@@ -2,4 +2,4 @@ from .unet import Unet
 from .linknet import Linknet
 from .deeplabv3_plus import DeepLabV3
 from .segm_fpn import SegmentationFPN
-from .bifpn import BiFPN
+from .bifpn import BiFPNModel

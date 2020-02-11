@@ -82,13 +82,18 @@ class BiFPNLayer(nn.Module):
         # No need to interpolate last (P5) layer, thats why only 4 modules.
         self.down_x2 = partial(F.interpolate, scale_factor=2)
         self.down = [DepthwiseSeparableConv(channels, channels, stride=2) if downsample_by_stride \
-                else self.down_x2 for _ in range(4)])
+                else self.down_x2 for _ in range(4)]
+        
+        # if downsample_by_stride:
+        #     self.down = [DepthwiseSeparableConv(channels, channels, stride=2) for _ in range(4)]
+        # else:
+        #      self.down = [self.down_x2 for _ in range(4)]
 
         ## TODO (jamil) 11.02.2020 Rewrite this using list comprehensions
-        self.fuse_p4_td = FastNormalizedFusion(in_nodes=2)
-        self.fuse_p3_td = FastNormalizedFusion(in_nodes=2)
-        self.fuse_p2_td = FastNormalizedFusion(in_nodes=2)
-        self.fuse_p1_td = FastNormalizedFusion(in_nodes=2)
+        self.fuse_p4_td = BiFPNFeatureFusion(input_num=2)
+        self.fuse_p3_td = BiFPNFeatureFusion(input_num=2)
+        self.fuse_p2_td = BiFPNFeatureFusion(input_num=2)
+        self.fuse_p1_td = BiFPNFeatureFusion(input_num=2)
 
         # Top-down pathway, no block for P1 layer
         self.p5_td = DepthwiseSeparableConv(channels, channels, norm_act="relu")
@@ -98,10 +103,10 @@ class BiFPNLayer(nn.Module):
 
 
         # Bottom-up pathway
-        self.fuse_p5_out = FastNormalizedFusion(in_nodes=2)
-        self.fuse_p4_out = FastNormalizedFusion(in_nodes=3)
-        self.fuse_p3_out = FastNormalizedFusion(in_nodes=3)
-        self.fuse_p2_out = FastNormalizedFusion(in_nodes=3)
+        self.fuse_p5_out = BiFPNFeatureFusion(input_num=2)
+        self.fuse_p4_out = BiFPNFeatureFusion(input_num=3)
+        self.fuse_p3_out = BiFPNFeatureFusion(input_num=3)
+        self.fuse_p2_out = BiFPNFeatureFusion(input_num=3)
 
         self.p5_out = DepthwiseSeparableConv(channels, channels, norm_act="relu")
         self.p4_out = DepthwiseSeparableConv(channels, channels, norm_act="relu")
@@ -166,4 +171,5 @@ class BiFPN(nn.Module):
 
         print(p5.shape(), p4.shape(), p3.shape())
         # Apply BiFPN block `num_layers` times
-        return *self.bifpn(p5, p4, p3, p2, p1)
+        p5_out, p4_out, p3_out, p2_out, p1_out = self.bifpn(p5, p4, p3, p2, p1)
+        return p5_out, p4_out, p3_out, p2_out, p1_out
