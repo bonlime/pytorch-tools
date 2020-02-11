@@ -7,7 +7,7 @@ from pytorch_tools.modules.bifpn import BiFPN
 from .base import EncoderDecoder
 from .encoders import get_encoder
  
-class BiFPNModel(SegmentationModel):
+class BiFPNModel(EncoderDecoder):
     """BiFPN is a fully convolution neural network for image semantic segmentation
     Args:
         encoder_name: name of classification model (without last dense layers) used as feature
