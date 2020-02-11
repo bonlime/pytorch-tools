@@ -34,7 +34,6 @@ class BiFPNModel(EncoderDecoder):
                 - pooling (str): one of 'max', 'avg'. Default is 'avg'.
                 - dropout (float): dropout factor in [0, 1)
                 - activation (str): activation function to apply "sigmoid"/"softmax" (could be None to return logits)
-
     Returns:
         ``torch.nn.Module``: **FPN**
 
