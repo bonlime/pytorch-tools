@@ -33,9 +33,9 @@ def conv1x1(in_planes, out_planes, stride=1):
 class DepthwiseSeparableConv(nn.Sequential):
     """Depthwise separable conv with BN between depthwise & pointwise."""
 
-    def __init__(self, in_channels, out_channels, dilation=1, use_se=False, norm_layer=ABN, norm_act="relu"):
+    def __init__(self, in_channels, out_channels, stride=1, dilation=1, use_se=False, norm_layer=ABN, norm_act="relu"):
         modules = [
-            conv3x3(in_channels, in_channels, groups=in_channels, dilation=dilation),
+            conv3x3(in_channels, in_channels, stride=stride, groups=in_channels, dilation=dilation),
             norm_layer(in_channels, activation=norm_act),
             SEModule(in_channels, in_channels // 4) if use_se else nn.Identity(),
             conv1x1(in_channels, out_channels),
