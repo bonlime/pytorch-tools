@@ -2,67 +2,132 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from functools import partial
 from .residual import DepthwiseSeparableConv
 
-class BiFPNBlock(nn.Module):
-    r""" Basic block for Bi-directional Feature Pyramid Network
+class BiFPNFeatureFusion(nn.Module):
+    r"""Combines 2 or 3 feature maps into one with weights.
     Args:
-        pyramid_channels (int): Number of channels in each feature map after BiFPN. Defaults to 64.
-        num_layers (int): Number or repeats for BiFPN block. Default is 2 
-    
+        fast_fusion (bool): If False use softmax, else just normalize, see paper for details.
+        input_num (int): 2 for intermediate features, 3 for output features
+        epsilon (float): small value to avoid numerical instability. Default: 0.0001
+
     Input:
-        features (List): 5 feature maps from encoder with resolution from 1/128 to 1/8
+
 
     Returns:
         p_out: features processed by 1 layer of BiFPN
     """
-    def __init__(self, feature_size=64, epsilon=0.0001):
-        super(BiFPNBlock, self).__init__()
+
+    def __init__(self, input_num, fast_fusion=True, epsilon=0.0001):
+        super(BiFPNFeatureFusion, self).__init__()
+        self.input_num = input_num
+        self.fast_fusion = fast_fusion
+
+        ## Init weights with ones, as in the paper
+        self.weights = nn.Parameter(torch.ones(input_num, dtype=torch.float32))
         self.epsilon = epsilon
+
+    def forward(self, *features):
+        if len(features) != self.input_num:
+            raise RuntimeError(
+                "Expected to have {} input nodes, but have {}.".format(self.input_num, len(features))
+            )
+
+        # Assure that weights are positive (see paper)
+        weights = F.relu(self.weights)
+
+        # Normalize weights
+        if self.fast_fusion:
+            weights /= weights.sum() + self.epsilon
+        else:
+            # TODO (jamil) 11.02.2020: Add softmax fusion 
+            raise NotImplementedError(
+                    "Softmax fusion not implemented"
+                    )
+        
+        fused_features = sum([p * w for p, w in zip(features, weights)])
+        return fused_features
+
+
+
+class BiFPNLayer(nn.Module):
+    r"""Builds one layer of Bi-directional Feature Pyramid Network
+    Args:
+        channels (int): Number of channels in each feature map after BiFPN. Defaults to 64.
+        epsilon (float): small value to avoid numerical instability. Default: 0.0001
+        downsample_by_stride (bool): If True, use convolution layer with stride=2 instead of F.interpolate
+        upsample_mode (str): how to upsample low resolution features during top_down pathway. 
+            See F.interpolate mode for details.
+
+    Input:
+        features (List): 5 feature maps from encoder with resolution from 1/32 to 1/2
+
+    Returns:
+        p_out: features processed by 1 layer of BiFPN
+    """
+
+    def __init__(self, 
+                channels=64, 
+                epsilon=0.0001, 
+                downsample_by_stride=True, 
+                upsample_mode="bilinear"
+            ):
+        super(BiFPNLayer, self).__init__()
+        self.epsilon = epsilon
+
+        self.up_x2 = partial(F.interpolate, scale_factor=2, mode=upsample_mode) 
+        # TODO (jamil) 11.02.2020 Add PixelShuffle method for interpolation
+             
+        # No need to interpolate last (P5) layer, thats why only 4 modules.
+        self.down_x2 = partial(F.interpolate, scale_factor=2)
+        self.down = [DepthwiseSeparableConv(channels, channels, stride=2) if downsample_by_stride \
+                else self.down_x2 for _ in range(4)])
+
+        ## TODO (jamil) 11.02.2020 Rewrite this using list comprehensions
+        self.fuse_p4_td = FastNormalizedFusion(in_nodes=2)
+        self.fuse_p3_td = FastNormalizedFusion(in_nodes=2)
+        self.fuse_p2_td = FastNormalizedFusion(in_nodes=2)
+        self.fuse_p1_td = FastNormalizedFusion(in_nodes=2)
+
+        # Top-down pathway, no block for P1 layer
+        self.p5_td = DepthwiseSeparableConv(channels, channels, norm_act="relu")
+        self.p4_td = DepthwiseSeparableConv(channels, channels, norm_act="relu")
+        self.p3_td = DepthwiseSeparableConv(channels, channels, norm_act="relu")
+        self.p2_td = DepthwiseSeparableConv(channels, channels, norm_act="relu")
+
+
+        # Bottom-up pathway
+        self.fuse_p5_out = FastNormalizedFusion(in_nodes=2)
+        self.fuse_p4_out = FastNormalizedFusion(in_nodes=3)
+        self.fuse_p3_out = FastNormalizedFusion(in_nodes=3)
+        self.fuse_p2_out = FastNormalizedFusion(in_nodes=3)
+
+        self.p5_out = DepthwiseSeparableConv(channels, channels, norm_act="relu")
+        self.p4_out = DepthwiseSeparableConv(channels, channels, norm_act="relu")
+        self.p3_out = DepthwiseSeparableConv(channels, channels, norm_act="relu")
+        self.p2_out = DepthwiseSeparableConv(channels, channels, norm_act="relu")
+        self.p1_out = DepthwiseSeparableConv(channels, channels, norm_act="relu")
+        
+    
+    def forward(self, features):
+        p5_inp, p4_inp, p3_inp, p2_inp, p1_inp = features
         
         # Top-down pathway
-        self.p3_td = DepthwiseSeparableConv(feature_size, feature_size)
-        self.p4_td = DepthwiseSeparableConv(feature_size, feature_size)
-        self.p5_td = DepthwiseSeparableConv(feature_size, feature_size)
-        self.p6_td = DepthwiseSeparableConv(feature_size, feature_size)
-        
-        # Bottom-up pathway
-        self.p4_out = DepthwiseSeparableConv(feature_size, feature_size)
-        self.p5_out = DepthwiseSeparableConv(feature_size, feature_size)
-        self.p6_out = DepthwiseSeparableConv(feature_size, feature_size)
-        self.p7_out = DepthwiseSeparableConv(feature_size, feature_size)
-        
-        # Weights for top-down feature fusion
-        self.w1 = nn.Parameter(torch.Tensor(2, 4))
-        self.w1_relu = nn.ReLU()
+        p5_td = self.p5_td(p5_inp) ## Preprocess p5 feature
+        p4_td = self.p4_td(self.fuse_p4_td(p4_inp, self.up(p5_td)))
+        p3_td = self.p3_td(self.fuse_p3_td(p3_inp, self.up(p4_td)))
+        p2_td = self.p2_td(self.fuse_p2_td(p2_inp, self.up(p3_td)))
+        p1_td = self.p1_td(self.fuse_p1_td(p1_inp, self.up(p2_td)))
 
-        # Weights for bottom-up feature fusion
-        self.w2 = nn.Parameter(torch.Tensor(3, 4))
-        self.w2_relu = nn.ReLU()
-    
-    def forward(self, inputs):
-        p7_x, p6_x, p5_x, p4_x, p3_x = inputs
-        
-        # Calculate Top-Down Pathway
-        w1 = self.w1_relu(self.w1)
-        w1 /= torch.sum(w1, dim=0) + self.epsilon
-        w2 = self.w2_relu(self.w2)
-        w2 /= torch.sum(w2, dim=0) + self.epsilon
-        
-        p7_td = p7_x
-        p6_td = self.p6_td(w1[0, 0] * p6_x + w1[1, 0] * F.interpolate(p7_td, scale_factor=2))        
-        p5_td = self.p5_td(w1[0, 1] * p5_x + w1[1, 1] * F.interpolate(p6_td, scale_factor=2))
-        p4_td = self.p4_td(w1[0, 2] * p4_x + w1[1, 2] * F.interpolate(p5_td, scale_factor=2))
-        p3_td = self.p3_td(w1[0, 3] * p3_x + w1[1, 3] * F.interpolate(p4_td, scale_factor=2))
-        
         # Calculate Bottom-Up Pathway
-        p3_out = p3_td
-        p4_out = self.p4_out(w2[0, 0] * p4_x + w2[1, 0] * p4_td + w2[2, 0] * nn.Upsample(scale_factor=0.5)(p3_out))
-        p6_out = self.p5_out(w2[0, 1] * p5_x + w2[1, 1] * p5_td + w2[2, 1] * nn.Upsample(scale_factor=0.5)(p4_out))
-        p6_out = self.p6_out(w2[0, 2] * p6_x + w2[1, 2] * p6_td + w2[2, 2] * nn.Upsample(scale_factor=0.5)(p5_out))
-        p7_out = self.p7_out(w2[0, 3] * p7_x + w2[1, 3] * p7_td + w2[2, 3] * nn.Upsample(scale_factor=0.5)(p6_out))
+        p1_out = self.p1_out(p1_td) ## DepthWise conv without fusion
+        p2_out = self.p2_out(self.fuse_p2_out(p2_inp, p2_td, self.up(p1_out)))
+        p3_out = self.p3_out(self.fuse_p3_out(p3_inp, p3_td, self.up(p2_out)))
+        p4_out = self.p4_out(self.fuse_p4_out(p4_inp, p4_td, self.up(p3_out)))
+        p5_out = self.p5_out(self.fuse_p5_out(p5_td, self.down_p4(p4_out)))
 
-        return p7_out, p6_out, p5_out, p4_out, p3_out
+        return p5_out, p4_out, p3_out, p2_out, p1_out
 
 
 class BiFPN(nn.Module):
@@ -91,14 +156,14 @@ class BiFPN(nn.Module):
 
         bifpns = []
         for _ in range(num_layers):
-            bifpns.append(BiFPNBlock(pyramid_channels, epsilon=0.0001))
+            bifpns.append(BiFPNLayer(pyramid_channels, epsilon=0.0001))
         self.bifpn = nn.Sequential(*bifpns)
     
     def forward(self, features):
 
         # Preprocces raw encoder features 
-        p7, p6, p5, p4, p3 = [inp_conv(feature) for inp_conv, feature in zip(self.input_convs, features)]
+        p5, p4, p3, p2, p1 = [inp_conv(feature) for inp_conv, feature in zip(self.input_convs, features)]
 
-        print(p7.shape(), p6.shape(), p3.shape())
+        print(p5.shape(), p4.shape(), p3.shape())
         # Apply BiFPN block `num_layers` times
-        return *self.bifpn(p7, p6, p5, p4, p3)
+        return *self.bifpn(p5, p4, p3, p2, p1)
