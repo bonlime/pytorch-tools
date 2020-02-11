@@ -44,21 +44,6 @@ class BiFPNModel(SegmentationModel):
 
     """
 
-    def __init__(
-        self,
-        encoder_name: str = "resnet34",
-
-        encoder_weights: Optional[str] = "imagenet",
-        decoder_pyramid_channels: int = 256,
-        decoder_segmentation_channels: int = 128,
-
-
-        in_channels: int = 3,
-        classes: int = 1,
-        activation: Optional[str] = None,
-        upsampling: int = 4,
-        aux_params: Optional[dict] = None,
-    ):
     
     def __init__(
         self,
