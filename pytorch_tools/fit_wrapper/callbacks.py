@@ -592,9 +592,7 @@ class Cutmix(Callback):
 class SegmCutmix(Cutmix):
     """Cutmix for segmentation tasks. see `Cutmix` for more details"""
     def __init__(self, alpha=1., prob=0.5):
-        super().__init__()
-        self.tb = torch.distributions.Beta(alpha, alpha)
-        self.prob = prob
+        super().__init__(alpha, None, prob)
 
     def cutmix(self, data, target):
         with torch.no_grad():
