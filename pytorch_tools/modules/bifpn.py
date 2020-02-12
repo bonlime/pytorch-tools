@@ -2,9 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from functools import partial
 from .residual import DepthwiseSeparableConv
-from .decoder import Conv3x3NormAct
 
 # DepthwiseSeparableConv = Conv3x3NormAct
 
@@ -74,9 +72,9 @@ class BiFPNLayer(nn.Module):
         self.fuse_p1_td = FastNormalizedFusion(in_nodes=2)
 
         # Top-down pathway, no block for P1 layer
-        # self.p4_td = DepthwiseSeparableConv(channels, channels)
-        # self.p3_td = DepthwiseSeparableConv(channels, channels)
-        # self.p2_td = DepthwiseSeparableConv(channels, channels)
+        self.p4_td = DepthwiseSeparableConv(channels, channels)
+        self.p3_td = DepthwiseSeparableConv(channels, channels)
+        self.p2_td = DepthwiseSeparableConv(channels, channels)
         # self.p1_td = DepthwiseSeparableConv(channels, channels)
 
 
@@ -86,10 +84,10 @@ class BiFPNLayer(nn.Module):
         self.fuse_p4_out = FastNormalizedFusion(in_nodes=3)
         self.fuse_p5_out = FastNormalizedFusion(in_nodes=2)
 
-        # self.p5_out = DepthwiseSeparableConv(channels, channels)
-        # self.p4_out = DepthwiseSeparableConv(channels, channels)
-        # self.p3_out = DepthwiseSeparableConv(channels, channels)
-        # self.p2_out = DepthwiseSeparableConv(channels, channels)
+        self.p5_out = DepthwiseSeparableConv(channels, channels)
+        self.p4_out = DepthwiseSeparableConv(channels, channels)
+        self.p3_out = DepthwiseSeparableConv(channels, channels)
+        self.p2_out = DepthwiseSeparableConv(channels, channels)
         # self.p1_out = DepthwiseSeparableConv(channels, channels)
         
     
@@ -99,27 +97,27 @@ class BiFPNLayer(nn.Module):
         # Top-down pathway
         # p5_td = self.p5_td(p5_inp) ## Preprocess p5 feature
         # p4_td = self.p4_td(self.fuse_p4_td(p4_inp, self.up(p5_td)))
-        # p4_td = self.p4_td(self.fuse_p4_td(p4_inp, self.up(p5_inp)))
-        # p3_td = self.p3_td(self.fuse_p3_td(p3_inp, self.up(p4_td)))
-        # p2_out = self.p2_td(self.fuse_p2_td(p2_inp, self.up(p3_td)))
+        p4_td = self.p4_td(self.fuse_p4_td(p4_inp, self.up(p5_inp)))
+        p3_td = self.p3_td(self.fuse_p3_td(p3_inp, self.up(p4_td)))
+        p2_out = self.p2_td(self.fuse_p2_td(p2_inp, self.up(p3_td)))
         # p1_out = self.p1_td(self.fuse_p1_td(p1_inp, self.up(p2_td)))
 
         # the same as in FPN. simply add no conv in between
-        p4_td = self.fuse_p4_td(p4_inp, self.up(p5_inp))
-        p3_td = self.fuse_p3_td(p3_inp, self.up(p4_td))
-        p2_out = self.fuse_p2_td(p2_inp, self.up(p3_td))
+        # p4_td = self.fuse_p4_td(p4_inp, self.up(p5_inp))
+        # p3_td = self.fuse_p3_td(p3_inp, self.up(p4_td))
+        # p2_out = self.fuse_p2_td(p2_inp, self.up(p3_td))
 
 
         # Calculate Bottom-Up Pathway
         # p1_out = self.p1_out(p1_td) ## DepthWise conv without fusion
         # p2_out = self.p2_out(self.fuse_p2_out(p2_inp, p2_td, self.down(p1_out)))
-        # p3_out = self.p3_out(self.fuse_p3_out(p3_inp, p3_td, self.down(p2_out)))
-        # p4_out = self.p4_out(self.fuse_p4_out(p4_inp, p4_td, self.down(p3_out)))
-        # p5_out = self.p5_out(self.fuse_p5_out(p5_inp, self.down(p4_out)))
+        p3_out = self.p3_out(self.fuse_p3_out(p3_inp, p3_td, self.down_p2(p2_out)))
+        p4_out = self.p4_out(self.fuse_p4_out(p4_inp, p4_td, self.down_p3(p3_out)))
+        p5_out = self.p5_out(self.fuse_p5_out(p5_inp, self.down_p4(p4_out)))
 
-        p3_out = self.fuse_p3_out(p3_inp, p3_td, self.down_p2(p2_out))
-        p4_out = self.fuse_p4_out(p4_inp, p4_td, self.down_p3(p3_out))
-        p5_out = self.fuse_p5_out(p5_inp, self.down_p4(p4_out))
+        # p3_out = self.fuse_p3_out(p3_inp, p3_td, self.down_p2(p2_out))
+        # p4_out = self.fuse_p4_out(p4_inp, p4_td, self.down_p3(p3_out))
+        # p5_out = self.fuse_p5_out(p5_inp, self.down_p4(p4_out))
 
         return p5_out, p4_out, p3_out, p2_out, p1_inp
 
