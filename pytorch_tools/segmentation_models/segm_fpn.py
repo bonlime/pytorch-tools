@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from pytorch_tools.modules.fpn import FPN
+from pytorch_tools.modules.bifpn import BiFPN
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules.residual import conv1x1
 from pytorch_tools.modules.residual import conv3x3
@@ -47,6 +48,7 @@ class SegmentationFPN(nn.Module):
             extractor to build segmentation model.
         encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
         pyramid_channels (int): Feature pyramid output channels. Defaults to 256.
+        num_fpn_layers (int): a number of layers in FPN module. Only supprted in SegmentationBiFPN 
         segmentation_channels (int): Number of segmentation output channels. Defaults to 128.
         num_classes (int): a number of classes for output (output shape - ``(batch, classes, h, w)``).
         merge_policy (str): One of `add` of `cat`. `sum` would sum resulting feature maps.
@@ -58,12 +60,13 @@ class SegmentationFPN(nn.Module):
         norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
     
     """
-
+    FEATURE_PYRAMID = FPN
     def __init__(
         self,
         encoder_name="resnet34",
         encoder_weights="imagenet",
-        pyramid_channels=256, 
+        pyramid_channels=256,
+        num_fpn_layers=1,
         segmentation_channels=128,
         num_classes=1,
         merge_policy="add",
@@ -81,7 +84,11 @@ class SegmentationFPN(nn.Module):
             **encoder_params,
         )
 
-        self.fpn = FPN(self.encoder.out_shapes, pyramid_channels=pyramid_channels)
+        self.fpn = self.__class__.FEATURE_PYRAMID(
+           self.encoder.out_shapes, 
+           pyramid_channels=pyramid_channels, 
+           num_layers=num_fpn_layers
+        )
 
         self.decoder = PanopticDecoder(
             pyramid_channels=pyramid_channels,
@@ -103,3 +110,7 @@ class SegmentationFPN(nn.Module):
         x = self.segm_head(x)
         x = self.upsample(x)
         return x
+
+# the only difference is how feature maps are processed inside
+class SegmentationBiFPN(SegmentationFPN):
+    FEATURE_PYRAMID = BiFPN

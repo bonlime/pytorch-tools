@@ -27,7 +27,7 @@ class FPN(nn.Module):
     Args:
         encoder_channels (List[int]): Number of channels for each feature map
         pyramid_channels (int): Number of channels in each feature map after FPN. Defaults to 256.
-    
+        num_layers (int): Number of FPN layers. 
     Input:
         features (List): this module expects list of 5 feature maps of different resolution
     """     
@@ -36,8 +36,10 @@ class FPN(nn.Module):
             self,
             encoder_channels,
             pyramid_channels=256,
+            num_layers=1,
     ):     
         super().__init__()
+        assert num_layers == 1, "More that 1 layer is not supported in FPN"
 
         self.p5 = nn.Conv2d(encoder_channels[0], pyramid_channels, kernel_size=1)
         self.p4 = FPNBlock(pyramid_channels, encoder_channels[1])

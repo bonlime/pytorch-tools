@@ -90,9 +90,9 @@ class ASPP(nn.Module):
         )
 
         rate1, rate2, rate3 = atrous_rates
-        self.conv1 = DepthwiseSeparableConv(in_channels, out_channels, rate1, **norm_params)
-        self.conv2 = DepthwiseSeparableConv(in_channels, out_channels, rate2, **norm_params)
-        self.conv3 = DepthwiseSeparableConv(in_channels, out_channels, rate3, **norm_params)
+        self.conv1 = DepthwiseSeparableConv(in_channels, out_channels, dilation=rate1, **norm_params)
+        self.conv2 = DepthwiseSeparableConv(in_channels, out_channels, dilation=rate2, **norm_params)
+        self.conv3 = DepthwiseSeparableConv(in_channels, out_channels, dilation=rate3, **norm_params)
 
     def forward(self, x):
         res = [
