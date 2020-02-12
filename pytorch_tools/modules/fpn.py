@@ -41,7 +41,7 @@ class FPN(nn.Module):
         super().__init__()
         assert num_layers == 1, "More that 1 layer is not supported in FPN"
 
-        self.p5 = nn.Conv2d(encoder_channels[0], pyramid_channels, kernel_size=1)
+        self.p5 = conv1x1(encoder_channels[0], pyramid_channels)
         self.p4 = FPNBlock(pyramid_channels, encoder_channels[1])
         self.p3 = FPNBlock(pyramid_channels, encoder_channels[2])
         self.p2 = FPNBlock(pyramid_channels, encoder_channels[3])

@@ -46,12 +46,12 @@ class BiFPNLayer(nn.Module):
     def __init__(self,
                 channels=64,
                 # downsample_by_stride=True, 
-                upsample_mode="bilinear"
+                upsample_mode="nearest"
             ):
         super(BiFPNLayer, self).__init__()
 
         self.up = nn.Upsample(scale_factor=2, mode=upsample_mode)
-        self.down = nn.Upsample(scale_factor=0.5, mode=upsample_mode)
+        # self.down = nn.Upsample(scale_factor=0.5, mode=upsample_mode)
         # self.up = partial(F.interpolate, scale_factor=2, mode=upsample_mode) 
         # TODO (jamil) 11.02.2020 Add PixelShuffle method for interpolation
              
@@ -59,7 +59,9 @@ class BiFPNLayer(nn.Module):
         # self.down_x2 = partial(F.interpolate, scale_factor=2)
         # self.down = [DepthwiseSeparableConv(channels, channels, stride=2) if downsample_by_stride \
         #         else self.down_x2 for _ in range(4)]
-        
+        self.down_p2 = DepthwiseSeparableConv(channels, channels, stride=2)
+        self.down_p3 = DepthwiseSeparableConv(channels, channels, stride=2)
+        self.down_p4 = DepthwiseSeparableConv(channels, channels, stride=2)
         # if downsample_by_stride:
         #     self.down = [DepthwiseSeparableConv(channels, channels, stride=2) for _ in range(4)]
         # else:
@@ -72,9 +74,9 @@ class BiFPNLayer(nn.Module):
         self.fuse_p1_td = FastNormalizedFusion(in_nodes=2)
 
         # Top-down pathway, no block for P1 layer
-        self.p4_td = DepthwiseSeparableConv(channels, channels)
-        self.p3_td = DepthwiseSeparableConv(channels, channels)
-        self.p2_td = DepthwiseSeparableConv(channels, channels)
+        # self.p4_td = DepthwiseSeparableConv(channels, channels)
+        # self.p3_td = DepthwiseSeparableConv(channels, channels)
+        # self.p2_td = DepthwiseSeparableConv(channels, channels)
         # self.p1_td = DepthwiseSeparableConv(channels, channels)
 
 
@@ -84,9 +86,9 @@ class BiFPNLayer(nn.Module):
         self.fuse_p4_out = FastNormalizedFusion(in_nodes=3)
         self.fuse_p5_out = FastNormalizedFusion(in_nodes=2)
 
-        self.p5_out = DepthwiseSeparableConv(channels, channels)
-        self.p4_out = DepthwiseSeparableConv(channels, channels)
-        self.p3_out = DepthwiseSeparableConv(channels, channels)
+        # self.p5_out = DepthwiseSeparableConv(channels, channels)
+        # self.p4_out = DepthwiseSeparableConv(channels, channels)
+        # self.p3_out = DepthwiseSeparableConv(channels, channels)
         # self.p2_out = DepthwiseSeparableConv(channels, channels)
         # self.p1_out = DepthwiseSeparableConv(channels, channels)
         
@@ -97,17 +99,27 @@ class BiFPNLayer(nn.Module):
         # Top-down pathway
         # p5_td = self.p5_td(p5_inp) ## Preprocess p5 feature
         # p4_td = self.p4_td(self.fuse_p4_td(p4_inp, self.up(p5_td)))
-        p4_td = self.p4_td(self.fuse_p4_td(p4_inp, self.up(p5_inp)))
-        p3_td = self.p3_td(self.fuse_p3_td(p3_inp, self.up(p4_td)))
-        p2_out = self.p2_td(self.fuse_p2_td(p2_inp, self.up(p3_td)))
+        # p4_td = self.p4_td(self.fuse_p4_td(p4_inp, self.up(p5_inp)))
+        # p3_td = self.p3_td(self.fuse_p3_td(p3_inp, self.up(p4_td)))
+        # p2_out = self.p2_td(self.fuse_p2_td(p2_inp, self.up(p3_td)))
         # p1_out = self.p1_td(self.fuse_p1_td(p1_inp, self.up(p2_td)))
+
+        # the same as in FPN. simply add no conv in between
+        p4_td = self.fuse_p4_td(p4_inp, self.up(p5_inp))
+        p3_td = self.fuse_p3_td(p3_inp, self.up(p4_td))
+        p2_out = self.fuse_p2_td(p2_inp, self.up(p3_td))
+
 
         # Calculate Bottom-Up Pathway
         # p1_out = self.p1_out(p1_td) ## DepthWise conv without fusion
         # p2_out = self.p2_out(self.fuse_p2_out(p2_inp, p2_td, self.down(p1_out)))
-        p3_out = self.p3_out(self.fuse_p3_out(p3_inp, p3_td, self.down(p2_out)))
-        p4_out = self.p4_out(self.fuse_p4_out(p4_inp, p4_td, self.down(p3_out)))
-        p5_out = self.p5_out(self.fuse_p5_out(p5_inp, self.down(p4_out)))
+        # p3_out = self.p3_out(self.fuse_p3_out(p3_inp, p3_td, self.down(p2_out)))
+        # p4_out = self.p4_out(self.fuse_p4_out(p4_inp, p4_td, self.down(p3_out)))
+        # p5_out = self.p5_out(self.fuse_p5_out(p5_inp, self.down(p4_out)))
+
+        p3_out = self.fuse_p3_out(p3_inp, p3_td, self.down_p2(p2_out))
+        p4_out = self.fuse_p4_out(p4_inp, p4_td, self.down_p3(p3_out))
+        p5_out = self.fuse_p5_out(p5_inp, self.down_p4(p4_out))
 
         return p5_out, p4_out, p3_out, p2_out, p1_inp
 
@@ -134,7 +146,7 @@ class BiFPN(nn.Module):
         num_layers=1):
         super(BiFPN, self).__init__()
 
-        self.input_convs = nn.ModuleList([nn.Conv2d(in_ch, pyramid_channels, 1) for in_ch in encoder_channels])
+        self.input_convs = nn.ModuleList([nn.Conv2d(in_ch, pyramid_channels, 1) for in_ch in encoder_channels[:-1]])
 
         bifpns = []
         for _ in range(num_layers):
@@ -144,7 +156,8 @@ class BiFPN(nn.Module):
     def forward(self, features):
 
         # Preprocces raw encoder features 
-        p5, p4, p3, p2, p1 = [inp_conv(feature) for inp_conv, feature in zip(self.input_convs, features)]
+        p1 = features[-1]
+        p5, p4, p3, p2 = [inp_conv(feature) for inp_conv, feature in zip(self.input_convs, features[:-1])]
 
         # Apply BiFPN block `num_layers` times
         p5_out, p4_out, p3_out, p2_out, p1_out = self.bifpn([p5, p4, p3, p2, p1])
