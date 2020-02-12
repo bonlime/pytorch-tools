@@ -4,8 +4,6 @@ import torch.nn.functional as F
 
 from .residual import DepthwiseSeparableConv
 
-# DepthwiseSeparableConv = Conv3x3NormAct
-
 class FastNormalizedFusion(nn.Module):
     """Combines 2 or 3 feature maps into one with weights.
     Args:
@@ -26,6 +24,8 @@ class FastNormalizedFusion(nn.Module):
 
 
 
+
+# close to one in the paper
 class BiFPNLayer(nn.Module):
     r"""Builds one layer of Bi-directional Feature Pyramid Network
     Args:
@@ -41,29 +41,13 @@ class BiFPNLayer(nn.Module):
         p_out: features processed by 1 layer of BiFPN
     """
 
-    def __init__(self,
-                channels=64,
-                # downsample_by_stride=True, 
-                upsample_mode="nearest"
-            ):
+    def __init__(self, channels=64, upsample_mode="nearest"):
         super(BiFPNLayer, self).__init__()
 
         self.up = nn.Upsample(scale_factor=2, mode=upsample_mode)
-        # self.down = nn.Upsample(scale_factor=0.5, mode=upsample_mode)
-        # self.up = partial(F.interpolate, scale_factor=2, mode=upsample_mode) 
-        # TODO (jamil) 11.02.2020 Add PixelShuffle method for interpolation
-             
-        # No need to interpolate last (P5) layer, thats why only 4 modules.
-        # self.down_x2 = partial(F.interpolate, scale_factor=2)
-        # self.down = [DepthwiseSeparableConv(channels, channels, stride=2) if downsample_by_stride \
-        #         else self.down_x2 for _ in range(4)]
         self.down_p2 = DepthwiseSeparableConv(channels, channels, stride=2)
         self.down_p3 = DepthwiseSeparableConv(channels, channels, stride=2)
         self.down_p4 = DepthwiseSeparableConv(channels, channels, stride=2)
-        # if downsample_by_stride:
-        #     self.down = [DepthwiseSeparableConv(channels, channels, stride=2) for _ in range(4)]
-        # else:
-        #      self.down = [self.down_x2 for _ in range(4)]
 
         ## TODO (jamil) 11.02.2020 Rewrite this using list comprehensions
         self.fuse_p4_td = FastNormalizedFusion(in_nodes=2)
@@ -75,8 +59,6 @@ class BiFPNLayer(nn.Module):
         self.p4_td = DepthwiseSeparableConv(channels, channels)
         self.p3_td = DepthwiseSeparableConv(channels, channels)
         self.p2_td = DepthwiseSeparableConv(channels, channels)
-        # self.p1_td = DepthwiseSeparableConv(channels, channels)
-
 
         # Bottom-up pathway
         self.fuse_p2_out = FastNormalizedFusion(in_nodes=3)
@@ -87,37 +69,47 @@ class BiFPNLayer(nn.Module):
         self.p5_out = DepthwiseSeparableConv(channels, channels)
         self.p4_out = DepthwiseSeparableConv(channels, channels)
         self.p3_out = DepthwiseSeparableConv(channels, channels)
-        self.p2_out = DepthwiseSeparableConv(channels, channels)
-        # self.p1_out = DepthwiseSeparableConv(channels, channels)
         
     
     def forward(self, features):
         p5_inp, p4_inp, p3_inp, p2_inp, p1_inp = features
         
         # Top-down pathway
-        # p5_td = self.p5_td(p5_inp) ## Preprocess p5 feature
-        # p4_td = self.p4_td(self.fuse_p4_td(p4_inp, self.up(p5_td)))
         p4_td = self.p4_td(self.fuse_p4_td(p4_inp, self.up(p5_inp)))
         p3_td = self.p3_td(self.fuse_p3_td(p3_inp, self.up(p4_td)))
         p2_out = self.p2_td(self.fuse_p2_td(p2_inp, self.up(p3_td)))
-        # p1_out = self.p1_td(self.fuse_p1_td(p1_inp, self.up(p2_td)))
-
-        # the same as in FPN. simply add no conv in between
-        # p4_td = self.fuse_p4_td(p4_inp, self.up(p5_inp))
-        # p3_td = self.fuse_p3_td(p3_inp, self.up(p4_td))
-        # p2_out = self.fuse_p2_td(p2_inp, self.up(p3_td))
-
 
         # Calculate Bottom-Up Pathway
-        # p1_out = self.p1_out(p1_td) ## DepthWise conv without fusion
-        # p2_out = self.p2_out(self.fuse_p2_out(p2_inp, p2_td, self.down(p1_out)))
         p3_out = self.p3_out(self.fuse_p3_out(p3_inp, p3_td, self.down_p2(p2_out)))
         p4_out = self.p4_out(self.fuse_p4_out(p4_inp, p4_td, self.down_p3(p3_out)))
         p5_out = self.p5_out(self.fuse_p5_out(p5_inp, self.down_p4(p4_out)))
 
-        # p3_out = self.fuse_p3_out(p3_inp, p3_td, self.down_p2(p2_out))
-        # p4_out = self.fuse_p4_out(p4_inp, p4_td, self.down_p3(p3_out))
-        # p5_out = self.fuse_p5_out(p5_inp, self.down_p4(p4_out))
+        return p5_out, p4_out, p3_out, p2_out, p1_inp
+
+# very simplified
+class SimpleBiFPNLayer(nn.Module):
+    def __init__(self, channels=64):
+        super(SimpleBiFPNLayer, self).__init__()
+
+        self.up = nn.Upsample(scale_factor=2, mode="nearest")
+        self.down_p2 = DepthwiseSeparableConv(channels, channels, stride=2)
+        self.down_p3 = DepthwiseSeparableConv(channels, channels, stride=2)
+        self.down_p4 = DepthwiseSeparableConv(channels, channels, stride=2)
+
+        self.fuse = sum
+
+    def forward(self, features):
+        p5_inp, p4_inp, p3_inp, p2_inp, p1_inp = features
+        
+        # Top-down pathway
+        p4_td = self.fuse(p4_inp, self.up(p5_inp))
+        p3_td = self.fuse(p3_inp, self.up(p4_td))
+        p2_out = self.fuse(p2_inp, self.up(p3_td))
+
+        # Calculate Bottom-Up Pathway
+        p3_out = self.fuse(p3_inp, p3_td, self.down_p2(p2_out))
+        p4_out = self.fuse(p4_inp, p4_td, self.down_p3(p3_out))
+        p5_out = self.fuse(p5_inp, self.down_p4(p4_out))
 
         return p5_out, p4_out, p3_out, p2_out, p1_inp
 
