@@ -13,7 +13,7 @@ class FPNBlock(nn.Module):
     def forward(self, x):
         # TODO: (emil) 06.02.20 maybe interpolate to skip.size[-2:] to support dilation?
         x, skip = x
-        x = F.interpolate(x, scale_factor=2, mode="nearest")
+        x = F.interpolate(x, size=skip.shape[-2:], mode="nearest")
         skip = self.skip_conv(skip)
         x = x + skip
         return x

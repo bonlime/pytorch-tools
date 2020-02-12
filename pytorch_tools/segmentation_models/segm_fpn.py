@@ -16,13 +16,14 @@ class PanopticDecoder(nn.Module):
         pyramid_channels=256,
         segmentation_channels=128,
         merge_policy="add",
+        upsamples=[3, 2, 1, 0],
         **bn_args,
     ):
  
         super().__init__()
         self.seg_blocks = nn.ModuleList([
             SegmentationUpsample(pyramid_channels, segmentation_channels, n_upsamples=n_upsamples, **bn_args)
-            for n_upsamples in [3, 2, 1, 0]
+            for n_upsamples in upsamples
         ])
         self.policy = merge_policy
         initialize(self)
@@ -55,6 +56,7 @@ class SegmentationFPN(nn.Module):
             `cat` would concatenate them. Defaults to "add".
         last_upsample (bool): Flag to enable upsampling predictions to the original image size. If set to `False` prediction
             would be 4x times smaller than input image. Default True.
+        output_stride (int): one of 32 or 16. Changes the model output stride and upsampling blocks accordingly
         norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory
             footprint. But increases backward time. Defaults to 'abn'.
         norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
@@ -71,11 +73,14 @@ class SegmentationFPN(nn.Module):
         num_classes=1,
         merge_policy="add",
         last_upsample=True,
+        output_stride=32,
         norm_layer="abn",
         norm_act="relu",
         **encoder_params,
     ):  
         super().__init__()
+        if output_stride != 32:
+            encoder_params["output_stride"] = output_stride
         self.encoder = get_encoder(
             encoder_name,
             norm_layer=norm_layer,
@@ -94,6 +99,7 @@ class SegmentationFPN(nn.Module):
             pyramid_channels=pyramid_channels,
             segmentation_channels=segmentation_channels,
             merge_policy=merge_policy,
+            upsamples = [2, 2, 1, 0] if output_stride == 16 else [3, 2, 1, 0],
             norm_layer=bn_from_name(norm_layer),
             norm_act=norm_act,
         )
