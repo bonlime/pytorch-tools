@@ -162,3 +162,19 @@ def wing_loss(y_pred, y_true, width=5, curvature=0.5, reduction="mean"):
         loss = loss.mean()
 
     return loss
+
+
+def binary_hinge(y_pred, y_true, margin=1):
+    """
+    Implements Hinge loss.
+    Args:
+        y_pred (torch.Tensor): of shape `Nx*` where * means any number
+             of additional dimensions
+        y_true (torch.Tensor): same shape as y_pred
+        margin (float): margin for y_pred after which loss becomes 0. 
+    """
+    y_pred = y_pred.view(y_pred.size(0), -1)
+    y_true = y_true.view(y_true.size(0), -1)
+    y_true = 2 * y_true - 1  # [target == 0] = -1
+    hinge = torch.nn.functional.relu(margin - y_pred * y_true).mean(1)
+    return hinge.mean()  # reduction == mean

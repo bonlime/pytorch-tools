@@ -347,3 +347,11 @@ def test_multilabel_lovasz():
     criterion = losses.LovaszLoss(mode="multilabel")
     loss = criterion(inp, target)
     assert loss
+
+
+def test_binary_hinge():
+    inp = torch.randn(BS, 1, IM_SIZE, IM_SIZE).float()
+    target = torch.randint(0, 2, (BS, 1, IM_SIZE, IM_SIZE)).float()
+    criterion = losses.BinaryHinge()
+    loss = criterion(inp, target)
+    assert loss

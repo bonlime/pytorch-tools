@@ -8,5 +8,5 @@ class WingLoss(Loss):
         self.width = width
         self.curvature = curvature
 
-    def forward(self, prediction, target):
-        return F.wing_loss(prediction, target, self.width, self.curvature, self.reduction)
+    def forward(self, y_pred, y_true):
+        return F.wing_loss(y_pred, y_true, self.width, self.curvature, self.reduction)
