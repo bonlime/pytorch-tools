@@ -18,9 +18,6 @@ setup(
     classifiers=["Programming Language :: Python :: 3.6",],
     setup_requires=["setuptools_scm"],
     python_requires=">=3, <4",
-    install_requires=[
-        requirements,
-        "inplace-abn @ git+https://github.com/mapillary/inplace_abn.git@v1.0.11",
-    ],
+    install_requires=requirements,
     license="MIT License",
 )
