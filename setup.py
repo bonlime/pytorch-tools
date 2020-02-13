@@ -8,7 +8,7 @@ with open("requirements.txt") as f:
 
 setup(
     name="pytorch_tools",
-    version="0.1.0",
+    version="0.0.1",
     author="Emil Zakirov",
     author_email="bonlimezak@gmail.com",
     packages=find_packages(exclude=["test", "docs", "examples"]),
@@ -18,6 +18,9 @@ setup(
     classifiers=["Programming Language :: Python :: 3.6",],
     setup_requires=["setuptools_scm"],
     python_requires=">=3, <4",
-    install_requires=[requirements],
+    install_requires=[
+        requirements,
+        "inplace-abn @ git+https://github.com/mapillary/inplace_abn.git@v1.0.11",
+    ],
     license="MIT License",
 )
