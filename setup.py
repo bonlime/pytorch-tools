@@ -19,8 +19,5 @@ setup(
     setup_requires=["setuptools_scm"],
     python_requires=">=3, <4",
     install_requires=requirements,
-    dependency_links=[
-        'https://github.com/mapillary/inplace_abn/tarball/master/#egg=inplace_abn-1.0.11',
-    ],
     license="MIT License",
 )
