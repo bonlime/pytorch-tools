@@ -603,6 +603,6 @@ class SegmCutmix(Cutmix):
             lam = self.tb.sample()
             lam = min([lam, 1 - lam])
             bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
-            data[:, bbh1:bbh2, bbw1:bbw2] = data[perm, bbh1:bbh2, bbw1:bbw2]
+            data[:, :, bbh1:bbh2, bbw1:bbw2] = data[perm, :, bbh1:bbh2, bbw1:bbw2]
             target[:, :, bbh1:bbh2, bbw1:bbw2] = target[perm, :, bbh1:bbh2, bbw1:bbw2]
         return data, target
