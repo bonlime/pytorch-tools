@@ -1,5 +1,7 @@
 from __future__ import absolute_import
+import torch.nn as nn
 
+from .base import Loss
 from .focal import BinaryFocalLoss, FocalLoss
 from .dice_jaccard import DiceLoss, JaccardLoss
 from .lovasz import LovaszLoss
@@ -13,3 +15,11 @@ from .functional import soft_dice_score
 from .functional import soft_jaccard_score
 from .functional import wing_loss
 from .functional import binary_hinge
+
+
+class MSELoss(nn.MSELoss, Loss):
+    pass
+
+
+class L1Loss(nn.L1Loss, Loss):
+    pass
