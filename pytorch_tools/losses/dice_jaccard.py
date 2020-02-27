@@ -29,6 +29,7 @@ class DiceLoss(Loss):
         self.mode = Mode(mode)  # raises an error if not valid
         self.log_loss = log_loss
         self.from_logits = from_logits
+        self.eps = eps
 
     def forward(self, y_pred, y_true):
         if self.from_logits:
@@ -54,7 +55,7 @@ class DiceLoss(Loss):
             y_true = y_true.view(bs, num_classes, -1)
             y_pred = y_pred.view(bs, num_classes, -1)
 
-        scores = self.__class__.IOU_FUNCTION(y_pred, y_true.type(y_pred.dtype), dims=dims)
+        scores = self.__class__.IOU_FUNCTION(y_pred, y_true.type(y_pred.dtype), dims=dims, eps=self.eps)
 
         if self.log_loss:
             loss = -torch.log(scores)
