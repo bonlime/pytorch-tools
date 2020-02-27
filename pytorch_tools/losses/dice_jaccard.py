@@ -11,7 +11,7 @@ class DiceLoss(Loss):
 
     IOU_FUNCTION = soft_dice_score
 
-    def __init__(self, mode="binary", log_loss=False, from_logits=True):
+    def __init__(self, mode="binary", log_loss=False, from_logits=True, eps=1.):
         """
         Args:
             mode (str): Target mode {'binary', 'multiclass', 'multilabel'}
@@ -19,7 +19,7 @@ class DiceLoss(Loss):
                 'multiclass', 'binary' - expects y_true of shape [N, H, W]
             log_loss (bool): If True, loss computed as `-log(jaccard)`; otherwise `1 - jaccard`
             from_logits (bool): If True assumes input is raw logits
-
+            eps (float): small epsilon for numerical stability
         Shape:
             y_pred: [N, C, H, W]
             y_true: [N, C, H, W] or [N, H, W] depending on mode
@@ -60,6 +60,12 @@ class DiceLoss(Loss):
             loss = -torch.log(scores)
         else:
             loss = 1 - scores
+        
+        # IoU loss is defined for non-empty classes
+        # So we zero contribution of channel that does not have true pixels
+        mask = y_true.sum(dims) > 0
+        loss *= mask.float()
+
         return loss.mean()
 
 
