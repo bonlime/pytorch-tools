@@ -7,7 +7,7 @@ import pytorch_tools.segmentation_models as pt_sm
 
 INP = torch.ones(2, 3, 64, 64)
 ENCODERS = ["resnet34", "se_resnet50", "efficientnet_b1", "densenet121"]
-SEGM_ARCHS = [pt_sm.Unet, pt_sm.Linknet, pt_sm.DeepLabV3, pt_sm.SegmentationFPN]
+SEGM_ARCHS = [pt_sm.Unet, pt_sm.Linknet, pt_sm.DeepLabV3, pt_sm.SegmentationFPN, pt_sm.SegmentationBiFPN]
 
 def _test_forward(model):
     with torch.no_grad():

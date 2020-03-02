@@ -88,11 +88,14 @@ class SegmentationFPN(nn.Module):
             encoder_weights=encoder_weights,
             **encoder_params,
         )
+        
+        bn_args = {"norm_layer": bn_from_name(norm_layer), "norm_act": norm_act}
 
         self.fpn = self.__class__.FEATURE_PYRAMID(
-           self.encoder.out_shapes, 
-           pyramid_channels=pyramid_channels, 
-           num_layers=num_fpn_layers
+           self.encoder.out_shapes,
+           pyramid_channels=pyramid_channels,
+           num_layers=num_fpn_layers,
+           **bn_args,
         )
 
         self.decoder = PanopticDecoder(
@@ -100,8 +103,7 @@ class SegmentationFPN(nn.Module):
             segmentation_channels=segmentation_channels,
             merge_policy=merge_policy,
             upsamples = [2, 2, 1, 0] if output_stride == 16 else [3, 2, 1, 0],
-            norm_layer=bn_from_name(norm_layer),
-            norm_act=norm_act,
+            **bn_args,
         )
         if merge_policy == "cat":
             segmentation_channels *= 4

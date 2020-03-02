@@ -41,13 +41,13 @@ class BiFPNLayer(nn.Module):
         p_out: features processed by 1 layer of BiFPN
     """
 
-    def __init__(self, channels=64, upsample_mode="nearest"):
+    def __init__(self, channels=64, upsample_mode="nearest", **bn_args):
         super(BiFPNLayer, self).__init__()
 
         self.up = nn.Upsample(scale_factor=2, mode=upsample_mode)
-        self.down_p2 = DepthwiseSeparableConv(channels, channels, stride=2)
-        self.down_p3 = DepthwiseSeparableConv(channels, channels, stride=2)
-        self.down_p4 = DepthwiseSeparableConv(channels, channels, stride=2)
+        self.down_p2 = DepthwiseSeparableConv(channels, channels, stride=2, **bn_args)
+        self.down_p3 = DepthwiseSeparableConv(channels, channels, stride=2, **bn_args)
+        self.down_p4 = DepthwiseSeparableConv(channels, channels, stride=2, **bn_args)
 
         ## TODO (jamil) 11.02.2020 Rewrite this using list comprehensions
         self.fuse_p4_td = FastNormalizedFusion(in_nodes=2)
@@ -56,9 +56,9 @@ class BiFPNLayer(nn.Module):
         self.fuse_p1_td = FastNormalizedFusion(in_nodes=2)
 
         # Top-down pathway, no block for P1 layer
-        self.p4_td = DepthwiseSeparableConv(channels, channels)
-        self.p3_td = DepthwiseSeparableConv(channels, channels)
-        self.p2_td = DepthwiseSeparableConv(channels, channels)
+        self.p4_td = DepthwiseSeparableConv(channels, channels, **bn_args)
+        self.p3_td = DepthwiseSeparableConv(channels, channels, **bn_args)
+        self.p2_td = DepthwiseSeparableConv(channels, channels, **bn_args)
 
         # Bottom-up pathway
         self.fuse_p2_out = FastNormalizedFusion(in_nodes=3)
@@ -66,9 +66,9 @@ class BiFPNLayer(nn.Module):
         self.fuse_p4_out = FastNormalizedFusion(in_nodes=3)
         self.fuse_p5_out = FastNormalizedFusion(in_nodes=2)
 
-        self.p5_out = DepthwiseSeparableConv(channels, channels)
-        self.p4_out = DepthwiseSeparableConv(channels, channels)
-        self.p3_out = DepthwiseSeparableConv(channels, channels)
+        self.p5_out = DepthwiseSeparableConv(channels, channels, **bn_args)
+        self.p4_out = DepthwiseSeparableConv(channels, channels, **bn_args)
+        self.p3_out = DepthwiseSeparableConv(channels, channels, **bn_args)
         
     
     def forward(self, features):
@@ -88,7 +88,7 @@ class BiFPNLayer(nn.Module):
 
 # very simplified
 class SimpleBiFPNLayer(nn.Module):
-    def __init__(self, channels=64):
+    def __init__(self, channels=64, **bn_args):
         super(SimpleBiFPNLayer, self).__init__()
 
         self.up = nn.Upsample(scale_factor=2, mode="nearest")
@@ -133,14 +133,16 @@ class BiFPN(nn.Module):
         self,
         encoder_channels,
         pyramid_channels=64,
-        num_layers=1):
+        num_layers=1,
+        **bn_args,
+    ):
         super(BiFPN, self).__init__()
 
         self.input_convs = nn.ModuleList([nn.Conv2d(in_ch, pyramid_channels, 1) for in_ch in encoder_channels[:-1]])
 
         bifpns = []
         for _ in range(num_layers):
-            bifpns.append(BiFPNLayer(pyramid_channels))
+            bifpns.append(BiFPNLayer(pyramid_channels, **bn_args))
         self.bifpn = nn.Sequential(*bifpns)
     
     def forward(self, features):
