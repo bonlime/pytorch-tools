@@ -302,6 +302,8 @@ class CheckpointSaver(Callback):
             self.mode == ReduceMode.MAX and current > self.best
         ):
             ep = self.state.epoch
+            # print(f"Epoch {ep}: best loss improved from {self.best:.4f} to {current:.4f}")
+            self.best = current
             save_name = os.path.join(self.save_dir, self.save_name.format(ep=ep, metric=current))
             self._save_checkpoint(save_name)
 
