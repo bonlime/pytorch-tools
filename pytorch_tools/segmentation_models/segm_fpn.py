@@ -57,6 +57,7 @@ class SegmentationFPN(nn.Module):
         last_upsample (bool): Flag to enable upsampling predictions to the original image size. If set to `False` prediction
             would be 4x times smaller than input image. Default True.
         output_stride (int): one of 32 or 16. Changes the model output stride and upsampling blocks accordingly
+        drop_rate (float): Probability of spatial dropout on last feature map
         norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory
             footprint. But increases backward time. Defaults to 'abn'.
         norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
@@ -74,6 +75,7 @@ class SegmentationFPN(nn.Module):
         merge_policy="add",
         last_upsample=True,
         output_stride=32,
+        drop_rate=0,
         norm_layer="abn",
         norm_act="relu",
         **encoder_params,
@@ -102,11 +104,13 @@ class SegmentationFPN(nn.Module):
             pyramid_channels=pyramid_channels,
             segmentation_channels=segmentation_channels,
             merge_policy=merge_policy,
-            upsamples = [2, 2, 1, 0] if output_stride == 16 else [3, 2, 1, 0],
+            upsamples=[2, 2, 1, 0] if output_stride == 16 else [3, 2, 1, 0],
             **bn_args,
         )
         if merge_policy == "cat":
             segmentation_channels *= 4
+            
+        self.dropout = nn.Dropout2d(drop_rate, inplace=True)
         self.segm_head = conv1x1(segmentation_channels, num_classes)
         self.upsample = nn.Upsample(scale_factor=4, mode="bilinear") if last_upsample else nn.Identity()
         self.name = f"segm-fpn-{encoder_name}"
@@ -115,6 +119,7 @@ class SegmentationFPN(nn.Module):
         x = self.encoder(x) # return 5 features maps
         x = self.fpn(x) # returns 5 features maps
         x = self.decoder(x) # return 1 feature map
+        x = self.dropout(x)
         x = self.segm_head(x)
         x = self.upsample(x)
         return x

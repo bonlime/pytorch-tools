@@ -19,6 +19,7 @@ class UnetDecoder(nn.Module):
         decoder_channels=(256, 128, 64, 32, 16),
         final_channels=1,
         center=False,
+        drop_rate=0,
         **bn_params,  # norm layer, norm_act
     ):
 
@@ -37,6 +38,7 @@ class UnetDecoder(nn.Module):
         self.layer3 = UnetDecoderBlock(in_channels[2], out_channels[2], **bn_params)
         self.layer4 = UnetDecoderBlock(in_channels[3], out_channels[3], **bn_params)
         self.layer5 = UnetDecoderBlock(in_channels[4], out_channels[4], **bn_params)
+        self.dropout = nn.Dropout2d(drop_rate, inplace=True)
         self.final_conv = conv1x1(out_channels[4], final_channels)
 
         initialize(self)
@@ -63,6 +65,7 @@ class UnetDecoder(nn.Module):
         x = self.layer3([x, skips[2]])
         x = self.layer4([x, skips[3]])
         x = self.layer5([x, None])
+        x = self.dropout(x)
         x = self.final_conv(x)
 
         return x
@@ -76,7 +79,8 @@ class Unet(EncoderDecoder):
         encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
         decoder_channels (List[int]): list of numbers of ``Conv2D`` layer filters in decoder blocks
         num_classes (int): a number of classes for output (output shape - ``(batch, classes, h, w)``).
-        center: if ``True`` add ``Conv2dReLU`` block on encoder head (useful for VGG models)
+        center (bool): if ``True`` add ``Conv2dReLU`` block on encoder head (useful for VGG models)
+        drop_rate (float): Probability of spatial dropout on last feature map
         norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory
             footprint. But increases backward time. Defaults to 'abn'.
         norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
@@ -93,6 +97,7 @@ class Unet(EncoderDecoder):
         decoder_channels=(256, 128, 64, 32, 16),
         num_classes=1,
         center=False,  # usefull for VGG models
+        drop_rate=0,
         norm_layer="abn",
         norm_act="relu",
         **encoder_params,
@@ -109,6 +114,7 @@ class Unet(EncoderDecoder):
             decoder_channels=decoder_channels,
             final_channels=num_classes,
             center=center,
+            drop_rate=drop_rate,
             norm_layer=bn_from_name(norm_layer),
             norm_act=norm_act,
         )

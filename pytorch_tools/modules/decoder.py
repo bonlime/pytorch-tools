@@ -113,6 +113,7 @@ class DeepLabHead(nn.Module):
         num_classes,
         dilation_rates=[6, 12, 18],
         output_stride=16,
+        drop_rate=0,
         norm_layer=ABN,
         norm_act="relu",
     ):
@@ -133,6 +134,7 @@ class DeepLabHead(nn.Module):
 
         self.sep_conv1 = DepthwiseSeparableConv(OUT_CHANNELS + PROJ_CONV_CHANNELS, 256, **norm_params)
         self.sep_conv2 = DepthwiseSeparableConv(OUT_CHANNELS, OUT_CHANNELS, **norm_params)
+        self.dropout = nn.Dropout2d(drop_rate, inplace=True)
         self.final_conv = conv1x1(OUT_CHANNELS, num_classes)
         initialize(self)
 
@@ -146,6 +148,7 @@ class DeepLabHead(nn.Module):
         skip = self.proj_conv(skip)
         x = self.sep_conv1(torch.cat([skip, x], dim=1))
         x = self.sep_conv2(x)
+        x = self.dropout(x)
         x = self.final_conv(x)
         return x
 

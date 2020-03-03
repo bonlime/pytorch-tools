@@ -19,6 +19,7 @@ class DeepLabV3(EncoderDecoder):
         aspp_dilation_rates (List[int]): Dilations in the aspp module for output_stride == 16.
             If output_stride == 8 this numbers would be doubled implicitly.
         output_stride (int): Output stride of encoder network.
+        drop_rate (float): Probability of spatial dropout on last feature map
         norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory
             footprint. But increases backward time. Defaults to 'abn'.
         norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
@@ -36,6 +37,7 @@ class DeepLabV3(EncoderDecoder):
         last_upsample=True,
         aspp_dilation_rates=[6, 12, 18],
         output_stride=16,
+        drop_rate=0,
         norm_layer="abn",
         norm_act="relu",
         **encoder_params,
@@ -55,6 +57,7 @@ class DeepLabV3(EncoderDecoder):
             num_classes=num_classes,
             dilation_rates=aspp_dilation_rates,
             output_stride=output_stride,
+            drop_rate=drop_rate,
             norm_layer=bn_from_name(norm_layer),
             norm_act=norm_act,
         )

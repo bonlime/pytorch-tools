@@ -44,6 +44,12 @@ def test_num_classes(encoder_name, model_class):
     assert out.size(1) == 5
 
 @pytest.mark.parametrize("encoder_name", ENCODERS)
+@pytest.mark.parametrize("model_class", SEGM_ARCHS)
+def test_drop_rate(encoder_name, model_class):
+    m = model_class(encoder_name=encoder_name, drop_rate=0.2)
+    _test_forward(m)
+
+@pytest.mark.parametrize("encoder_name", ENCODERS)
 @pytest.mark.parametrize("model_class", [pt_sm.DeepLabV3])  # pt_sm.Unet, pt_sm.Linknet
 @pytest.mark.parametrize("output_stride", [32, 16, 8])
 def test_dilation(encoder_name, model_class, output_stride):
