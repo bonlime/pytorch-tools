@@ -11,8 +11,8 @@ class Lookahead(Optimizer):
     Lookahead Optimizer: https://arxiv.org/abs/1907.08610
     """
 
-    def __init__(self, base_optimizer, la_alpha=0.8, la_steps=5):
-        """       
+    def __init__(self, base_optimizer, la_alpha=0.5, la_steps=5):
+        """
         Args:
             base_optimizer : inner optimizer
             la_alpha (float): linear interpolation factor. 1.0 recovers the inner optimizer
