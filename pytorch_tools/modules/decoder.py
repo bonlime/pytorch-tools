@@ -134,7 +134,7 @@ class DeepLabHead(nn.Module):
 
         self.sep_conv1 = DepthwiseSeparableConv(OUT_CHANNELS + PROJ_CONV_CHANNELS, 256, **norm_params)
         self.sep_conv2 = DepthwiseSeparableConv(OUT_CHANNELS, OUT_CHANNELS, **norm_params)
-        self.dropout = nn.Dropout2d(drop_rate, inplace=True)
+        self.dropout = nn.Dropout2d(drop_rate)
         self.final_conv = conv1x1(OUT_CHANNELS, num_classes)
         initialize(self)
 
