@@ -1,3 +1,4 @@
+import re
 from setuptools import setup, find_packages
 
 with open("README.md") as f:
@@ -6,9 +7,13 @@ with open("README.md") as f:
 with open("requirements.txt") as f:
     requirements = f.read().split()
 
+with open("pytorch_tools/__init__.py") as f:
+    VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
+    version = re.search(VSRE, f.read()).group(1)
+
 setup(
     name="pytorch_tools",
-    version="0.0.1",
+    version=version,
     author="Emil Zakirov",
     author_email="bonlimezak@gmail.com",
     packages=find_packages(exclude=["test", "docs", "examples"]),
@@ -18,6 +23,6 @@ setup(
     classifiers=["Programming Language :: Python :: 3.6",],
     setup_requires=["setuptools_scm"],
     python_requires=">=3, <4",
-    install_requires=[requirements, "inplace-abn @ git+https://github.com/mapillary/inplace_abn.git@v1.0.8",],
+    install_requires=requirements,
     license="MIT License",
 )

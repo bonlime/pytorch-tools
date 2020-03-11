@@ -85,7 +85,7 @@ def reduced_focal_loss(y_pred, y_true, threshold=0.5, gamma=2.0, reduction="mean
     return loss
 
 
-def soft_jaccard_score(y_pred, y_true, dims=None):
+def soft_jaccard_score(y_pred, y_true, dims=None, eps=1e-4):
     """
     `Soft` means than when `y_pred` and `y_true` are zero this function will
     return 1, while in many other implementations it will return 0.
@@ -94,8 +94,8 @@ def soft_jaccard_score(y_pred, y_true, dims=None):
             number of additional dimensions
         y_true (torch.Tensor): `NxCx*`, same shape as `y_pred`
         dims (Tuple[int], optional): Dims to use for calculating
+        eps (float): Laplace smoothing
     """
-    SMOOTH = 1e-4  # Laplace smoothing
     if y_pred.size() != y_true.size():
         raise ValueError("Input and target shapes should match")
 
@@ -106,11 +106,11 @@ def soft_jaccard_score(y_pred, y_true, dims=None):
         intersection = torch.sum(y_pred * y_true)
         cardinality = torch.sum(y_pred + y_true)
     union = cardinality - intersection
-    jaccard_score = (intersection + SMOOTH) / (union + SMOOTH)
+    jaccard_score = (intersection + eps) / (union + eps)
     return jaccard_score
 
 
-def soft_dice_score(y_pred, y_true, dims=None):
+def soft_dice_score(y_pred, y_true, dims=None, eps=1e-4):
     """
     `Soft` means than when `y_pred` and `y_true` are zero this function will
     return 1, while in many other implementations it will return 0.
@@ -119,8 +119,8 @@ def soft_dice_score(y_pred, y_true, dims=None):
             number of additional dimensions
         y_true (torch.Tensor): `NxCx*`, same shape as `y_pred`
         dims (Tuple[int], optional): Dims to use for calculating
+        eps (float): Laplace smoothing
     """
-    SMOOTH = 1e-4  # Laplace smoothing
     if y_pred.size() != y_true.size():
         raise ValueError("Input and target shapes should match")
 
@@ -130,7 +130,7 @@ def soft_dice_score(y_pred, y_true, dims=None):
     else:
         intersection = torch.sum(y_pred * y_true)
         cardinality = torch.sum(y_pred + y_true)
-    dice_score = (2.0 * intersection + SMOOTH) / (cardinality + SMOOTH)
+    dice_score = (2.0 * intersection + eps) / (cardinality + eps)
     return dice_score
 
 
@@ -162,3 +162,22 @@ def wing_loss(y_pred, y_true, width=5, curvature=0.5, reduction="mean"):
         loss = loss.mean()
 
     return loss
+
+
+def binary_hinge(y_pred, y_true, margin=1, pos_weight=1.):
+    """
+    Implements Hinge loss.
+    Args:
+        y_pred (torch.Tensor): of shape `Nx*` where * means any number
+             of additional dimensions
+        y_true (torch.Tensor): same shape as y_pred
+        margin (float): margin for y_pred after which loss becomes 0.
+        pos_weight (float): weighting factor for positive class examples. Useful in case
+            of class imbalance.
+    """
+    y_pred = y_pred.view(y_pred.size(0), -1)
+    y_true = y_true.view(y_true.size(0), -1)
+    y_true_shifted = 2 * y_true - 1  # [target == 0] = -1
+    hinge = torch.nn.functional.relu(margin - y_pred * y_true_shifted)
+    hinge *= y_true * pos_weight + (1 - y_true)
+    return hinge.mean()  # reduction == mean

@@ -8,7 +8,9 @@ from torchvision.models.utils import load_state_dict_from_url
 
 from pytorch_tools.modules import BlurPool
 from pytorch_tools.modules import bn_from_name
-from pytorch_tools.utils.misc import add_docs_for, DEFAULT_IMAGENET_SETTINGS
+from pytorch_tools.utils.misc import initialize
+from pytorch_tools.utils.misc import add_docs_for
+from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=("__module__", "__name__", "__qualname__", "__annotations__"))
@@ -63,7 +65,7 @@ class VGG(nn.Module):
         else:
             self.forward = self.encoder_features
 
-        self._initialize_weights()
+        initialize(self)
 
     def encoder_features(self, x):
         features = []
@@ -88,15 +90,6 @@ class VGG(nn.Module):
         x = self.logits(x)
         return x
 
-    def _initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, 0, 0.01)
-                nn.init.constant_(m.bias, 0)
 
     def _make_layers(self, cfg):
         layers = []

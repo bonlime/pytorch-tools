@@ -6,6 +6,9 @@ All models here use `Activated Normalization` layers instead of traditional `Nor
 All default weights from TorchVision repository are supported. There are also weights for modified Resnet family models trained on Imagenet 2012. It's hard to keep this README up to date with new weights, so check the code for all available weight for particular model.  
 All models have `pretrained_settings` attribute with training size, mean, std and other useful information about the weights.
 
+## Encoders  
+All models from this repo could be used as feature extractors for both object detection and semantic segmentation. Passing `encoder=True` arg will overwrite `forward` method of the model to return features at 5 different resolutions starting from 1/32 to 1/2.
+
 ## Repositories used
 * [Torch Vision Main Repo](https://github.com/pytorch/vision)  
 * [Cadene pretrained models](https://github.com/Cadene/pretrained-models.pytorch/)

@@ -12,5 +12,7 @@ Tool box for PyTorch for fast prototyping.
 * [TTA wrapper](./pytorch_tools/tta_wrapper/) - wrapper for easy test-time augmentation
 
 # Installation
+Requeres GPU drivers and CUDA already installed.
+
 `pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git`  
 `pip install git+https://github.com/bonlime/pytorch-tools.git@master`

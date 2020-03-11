@@ -302,6 +302,8 @@ class CheckpointSaver(Callback):
             self.mode == ReduceMode.MAX and current > self.best
         ):
             ep = self.state.epoch
+            # print(f"Epoch {ep}: best loss improved from {self.best:.4f} to {current:.4f}")
+            self.best = current
             save_name = os.path.join(self.save_dir, self.save_name.format(ep=ep, metric=current))
             self._save_checkpoint(save_name)
 
@@ -490,10 +492,11 @@ class FileLogger(Callback):
 
 class Mixup(Callback):
     """Performs mixup on input. Only for classification.
-    Mixup blends two images by linear interpolation between them with small 
-    lambda drown from Beta distribution. Labels become a liner blend of true labels for 
-    original images.   
+    Mixup blends two images by linear interpolation between them with small
+    lambda drown from Beta distribution. Labels become a liner blend of true labels for
+    original images.
     Ref: https://arxiv.org/abs/1710.09412
+    According to https://arxiv.org/abs/2001.06268 mixing images from different batches give better results
 
     Args:
         alpha (float): hyperparameter from paper. Suggested default is 0.2 for Imagenet.
@@ -507,6 +510,7 @@ class Mixup(Callback):
         self.tb = torch.distributions.Beta(alpha, alpha)
         self.num_classes = num_classes
         self.prob = prob
+        self.prev_input = None
 
     def on_batch_begin(self):
         self.state.input = self.mixup(*self.state.input)
@@ -522,19 +526,20 @@ class Mixup(Callback):
                 target_one_hot = target
             if not self.state.is_train or np.random.rand() > self.prob:
                 return data, target_one_hot
-            bs = data.size(0)
+            prev_data, prev_target = data, target_one_hot if self.prev_input is None else self.prev_input
             c = self.tb.sample()
-            perm = torch.randperm(bs).cuda()
-            md = c * data + (1 - c) * data[perm, :]
-            mt = c * target_one_hot + (1 - c) * target_one_hot[perm, :]
+            md = c * data + (1 - c) * prev_data
+            mt = c * target_one_hot + (1 - c) * prev_target
+            self.prev_input = data, target_one_hot
             return md, mt
 
 
 class Cutmix(Callback):
     """Performs CutMix on input. Only for classification.
-    Cutmix combines two images by replacing part of the image by part from another image. 
-    New label is proportional to area of inserted part. 
+    Cutmix combines two images by replacing part of the image by part from another image.
+    New label is proportional to area of inserted part.
     Ref: https://arxiv.org/abs/1905.04899
+    According to https://arxiv.org/abs/2001.06268 mixing images from different batches give better results
 
     Args:
         alpha (float): hyperparameter from paper. Suggested default is 1.0 for Imagenet.
@@ -548,6 +553,7 @@ class Cutmix(Callback):
         self.tb = torch.distributions.Beta(alpha, alpha)
         self.num_classes = num_classes
         self.prob = prob
+        self.prev_input = None
 
     def on_batch_begin(self):
         self.state.input = self.cutmix(*self.state.input)
@@ -563,15 +569,15 @@ class Cutmix(Callback):
                 target_one_hot = target
             if not self.state.is_train or np.random.rand() > self.prob:
                 return data, target_one_hot
-            BS, C, H, W = data.size()
-            perm = torch.randperm(BS).cuda()
+            prev_data, prev_target = data, target_one_hot if self.prev_input is None else self.prev_input
+            _, _, H, W = data.size()
             lam = self.tb.sample()
             lam = min([lam, 1 - lam])
             bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
             # real lambda may be diffrent from sampled. adjust for it
             lam = (bbh2 - bbh1) * (bbw2 - bbw1) / (H * W)
-            data[:, bbh1:bbh2, bbw1:bbw2] = data[perm, bbh1:bbh2, bbw1:bbw2]
-            mixed_target = (1 - lam) * target_one_hot + lam * target_one_hot[perm, :]
+            data[:, bbh1:bbh2, bbw1:bbw2] = prev_data[:, bbh1:bbh2, bbw1:bbw2]
+            mixed_target = (1 - lam) * target_one_hot + lam * prev_target
         return data, mixed_target
 
     @staticmethod
@@ -588,3 +594,23 @@ class Cutmix(Callback):
         bbh2 = np.clip(ch + cut_h // 2, 0, H)
         bbw2 = np.clip(cw + cut_w // 2, 0, W)
         return bbh1, bbw1, bbh2, bbw2
+
+
+class SegmCutmix(Cutmix):
+    """Cutmix for segmentation tasks. see `Cutmix` for more details"""
+
+    def __init__(self, alpha=1.0, prob=0.5):
+        super().__init__(alpha, None, prob)
+
+    def cutmix(self, data, target):
+        with torch.no_grad():
+            if not self.state.is_train or np.random.rand() > self.prob:
+                return data, target
+            prev_data, prev_target = data, target if self.prev_input is None else self.prev_input
+            _, _, H, W = data.size()
+            lam = self.tb.sample()
+            lam = min([lam, 1 - lam])
+            bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
+            data[:, :, bbh1:bbh2, bbw1:bbw2] = prev_data[:, :, bbh1:bbh2, bbw1:bbw2]
+            target[:, :, bbh1:bbh2, bbw1:bbw2] = prev_target[:, :, bbh1:bbh2, bbw1:bbw2]
+        return data, target

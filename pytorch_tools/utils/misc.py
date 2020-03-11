@@ -17,6 +17,8 @@ def initialize(model):
         elif isinstance(m, nn.BatchNorm2d):
             nn.init.constant_(m.weight, 1)
             nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.Linear):
+            nn.init.kaiming_uniform_(m.weight, mode="fan_in", nonlinearity="linear")
 
 
 def set_random_seed(seed):

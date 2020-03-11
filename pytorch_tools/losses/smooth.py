@@ -19,7 +19,8 @@ class CrossEntropyLoss(Loss):
                 'multiclass' - calculate categorical cross entropy
             smoothing (float): How much to smooth values toward uniform 
             weight (Tensor): A manual rescaling weight given to each class.
-                If given, has to be a Tensor of size C
+                If given, has to be a Tensor of size C. If `mode` is binary 
+                weight should be weight of positive class
         """
         super().__init__()
         self.mode = Mode(mode)
@@ -32,7 +33,7 @@ class CrossEntropyLoss(Loss):
 
         if self.mode == Mode.BINARY:
             y_pred, y_true = y_pred.squeeze(), y_true.squeeze()
-            loss = F.binary_cross_entropy_with_logits(y_pred, y_true, weight=self.weight)
+            loss = F.binary_cross_entropy_with_logits(y_pred, y_true, pos_weight=self.weight)
             return loss
 
         if len(y_true.shape) != 1:

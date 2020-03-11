@@ -23,6 +23,7 @@ from torchvision.models.utils import load_state_dict_from_url
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules.residual import InvertedResidual
 from pytorch_tools.modules.residual import conv1x1, conv3x3
+from pytorch_tools.utils.misc import initialize
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import make_divisible
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
@@ -136,7 +137,7 @@ class EfficientNet(nn.Module):
             self.dropout = nn.Dropout(drop_rate, inplace=True)
             self.classifier = nn.Linear(num_features, num_classes)
 
-        self._initialize_weights()
+        initialize(self)
 
     def encoder_features(self, x):
         x0 = self.conv_stem(x)
@@ -168,16 +169,6 @@ class EfficientNet(nn.Module):
         x = self.dropout(x)
         x = self.classifier(x)
         return x
-
-    def _initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1.0)
-                m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_uniform_(m.weight, mode="fan_in", nonlinearity="linear")
 
     def load_state_dict(self, state_dict, **kwargs):
         valid_weights = []
