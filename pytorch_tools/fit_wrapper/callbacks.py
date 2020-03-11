@@ -515,23 +515,23 @@ class Mixup(Callback):
     def on_batch_begin(self):
         self.state.input = self.mixup(*self.state.input)
 
+    @torch.no_grad()
     def mixup(self, data, target):
-        with torch.no_grad():
-            if len(target.shape) == 1:  # if not one hot
-                target_one_hot = torch.zeros(
-                    target.size(0), self.num_classes, dtype=torch.float, device=data.device
-                )
-                target_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
-            else:
-                target_one_hot = target
-            if not self.state.is_train or np.random.rand() > self.prob:
-                return data, target_one_hot
-            prev_data, prev_target = data, target_one_hot if self.prev_input is None else self.prev_input
-            c = self.tb.sample()
-            md = c * data + (1 - c) * prev_data
-            mt = c * target_one_hot + (1 - c) * prev_target
-            self.prev_input = data, target_one_hot
-            return md, mt
+        if len(target.shape) == 1:  # if not one hot
+            target_one_hot = torch.zeros(
+                target.size(0), self.num_classes, dtype=torch.float, device=data.device
+            )
+            target_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
+        else:
+            target_one_hot = target
+        if not self.state.is_train or np.random.rand() > self.prob:
+            return data, target_one_hot
+        prev_data, prev_target = data, target_one_hot if self.prev_input is None else self.prev_input
+        c = self.tb.sample()
+        md = c * data + (1 - c) * prev_data
+        mt = c * target_one_hot + (1 - c) * prev_target
+        self.prev_input = data, target_one_hot
+        return md, mt
 
 
 class Cutmix(Callback):
@@ -558,26 +558,27 @@ class Cutmix(Callback):
     def on_batch_begin(self):
         self.state.input = self.cutmix(*self.state.input)
 
+    @torch.no_grad()
     def cutmix(self, data, target):
-        with torch.no_grad():
-            if len(target.shape) == 1:  # if not one hot
-                target_one_hot = torch.zeros(
-                    target.size(0), self.num_classes, dtype=torch.float, device=data.device
-                )
-                target_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
-            else:
-                target_one_hot = target
-            if not self.state.is_train or np.random.rand() > self.prob:
-                return data, target_one_hot
-            prev_data, prev_target = data, target_one_hot if self.prev_input is None else self.prev_input
-            _, _, H, W = data.size()
-            lam = self.tb.sample()
-            lam = min([lam, 1 - lam])
-            bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
-            # real lambda may be diffrent from sampled. adjust for it
-            lam = (bbh2 - bbh1) * (bbw2 - bbw1) / (H * W)
-            data[:, bbh1:bbh2, bbw1:bbw2] = prev_data[:, bbh1:bbh2, bbw1:bbw2]
-            mixed_target = (1 - lam) * target_one_hot + lam * prev_target
+        if len(target.shape) == 1:  # if not one hot
+            target_one_hot = torch.zeros(
+                target.size(0), self.num_classes, dtype=torch.float, device=data.device
+            )
+            target_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
+        else:
+            target_one_hot = target
+        if not self.state.is_train or np.random.rand() > self.prob:
+            return data, target_one_hot
+        prev_data, prev_target = data, target_one_hot if self.prev_input is None else self.prev_input
+        _, _, H, W = data.size()
+        lam = self.tb.sample()
+        lam = min([lam, 1 - lam])
+        bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
+        # real lambda may be diffrent from sampled. adjust for it
+        lam = (bbh2 - bbh1) * (bbw2 - bbw1) / (H * W)
+        data[:, bbh1:bbh2, bbw1:bbw2] = prev_data[:, bbh1:bbh2, bbw1:bbw2]
+        mixed_target = (1 - lam) * target_one_hot + lam * prev_target
+        self.prev_input = data, target_one_hot
         return data, mixed_target
 
     @staticmethod
@@ -602,15 +603,16 @@ class SegmCutmix(Cutmix):
     def __init__(self, alpha=1.0, prob=0.5):
         super().__init__(alpha, None, prob)
 
+    @torch.no_grad()
     def cutmix(self, data, target):
-        with torch.no_grad():
-            if not self.state.is_train or np.random.rand() > self.prob:
-                return data, target
-            prev_data, prev_target = data, target if self.prev_input is None else self.prev_input
-            _, _, H, W = data.size()
-            lam = self.tb.sample()
-            lam = min([lam, 1 - lam])
-            bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
-            data[:, :, bbh1:bbh2, bbw1:bbw2] = prev_data[:, :, bbh1:bbh2, bbw1:bbw2]
-            target[:, :, bbh1:bbh2, bbw1:bbw2] = prev_target[:, :, bbh1:bbh2, bbw1:bbw2]
+        if not self.state.is_train or np.random.rand() > self.prob:
+            return data, target
+        prev_data, prev_target = data, target if self.prev_input is None else self.prev_input
+        _, _, H, W = data.size()
+        lam = self.tb.sample()
+        lam = min([lam, 1 - lam])
+        bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
+        data[:, :, bbh1:bbh2, bbw1:bbw2] = prev_data[:, :, bbh1:bbh2, bbw1:bbw2]
+        target[:, :, bbh1:bbh2, bbw1:bbw2] = prev_target[:, :, bbh1:bbh2, bbw1:bbw2]
+        self.prev_input = data, target
         return data, target
