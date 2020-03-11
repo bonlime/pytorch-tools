@@ -1,3 +1,5 @@
+__version__ = "0.1.0"
+
 from . import fit_wrapper
 from . import losses
 from . import metrics
