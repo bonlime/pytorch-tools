@@ -39,7 +39,6 @@ class Augmentation(object):
         self.backward_params = [p[::-1] for p in transform_params]
 
         self.n_transforms = len(transform_params)
-        print(f"Will merge {self.n_transforms} augmentations for each image.")
 
     def forward(self, x):
         self.bs = x.shape[0]
@@ -124,6 +123,7 @@ class TTA(nn.Module):
             add=add,
             mul=mul,
         )
+        self.n_transforms = self.tta.n_transforms
         self.model = model
         self.segm = segm
         if merge == "mean":
