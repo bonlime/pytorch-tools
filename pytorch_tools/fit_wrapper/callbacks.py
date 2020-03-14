@@ -526,7 +526,7 @@ class Mixup(Callback):
             target_one_hot = target
         if not self.state.is_train or np.random.rand() > self.prob:
             return data, target_one_hot
-        prev_data, prev_target = data, target_one_hot if self.prev_input is None else self.prev_input
+        prev_data, prev_target = (data, target_one_hot) if self.prev_input is None else self.prev_input
         c = self.tb.sample()
         md = c * data + (1 - c) * prev_data
         mt = c * target_one_hot + (1 - c) * prev_target
@@ -569,7 +569,7 @@ class Cutmix(Callback):
             target_one_hot = target
         if not self.state.is_train or np.random.rand() > self.prob:
             return data, target_one_hot
-        prev_data, prev_target = data, target_one_hot if self.prev_input is None else self.prev_input
+        prev_data, prev_target = (data, target_one_hot) if self.prev_input is None else self.prev_input
         _, _, H, W = data.size()
         lam = self.tb.sample()
         lam = min([lam, 1 - lam])
@@ -607,7 +607,7 @@ class SegmCutmix(Cutmix):
     def cutmix(self, data, target):
         if not self.state.is_train or np.random.rand() > self.prob:
             return data, target
-        prev_data, prev_target = data, target if self.prev_input is None else self.prev_input
+        prev_data, prev_target = (data, target) if self.prev_input is None else self.prev_input
         _, _, H, W = data.size()
         lam = self.tb.sample()
         lam = min([lam, 1 - lam])
