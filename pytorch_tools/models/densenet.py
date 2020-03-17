@@ -14,6 +14,7 @@ from torchvision.models.utils import load_state_dict_from_url
 from functools import wraps, partial
 from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.modules import GlobalPool2d
+from pytorch_tools.utils.misc import initialize
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from pytorch_tools.modules import bn_from_name
@@ -199,6 +200,7 @@ class DenseNet(nn.Module):
         else:
             assert len(block_config) == 4, "Need 4 blocks to use as encoder"
             self.forward = self.encoder_features
+        initialize(self)
 
     def encoder_features(self, x):
         """
@@ -236,17 +238,6 @@ class DenseNet(nn.Module):
         x = self.features(x)
         x = self.logits(x)
         return x
-
-    def _initialize_weights(self):
-        # Official init from torch repo.
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Linear):
-                nn.init.constant_(m.bias, 0)
 
     def load_state_dict(self, state_dict, **kwargs):
         pattern = re.compile(

@@ -26,7 +26,6 @@ class PanopticDecoder(nn.Module):
             for n_upsamples in upsamples
         ])
         self.policy = merge_policy
-        initialize(self)
 
 
     def forward(self, features):
@@ -115,6 +114,9 @@ class SegmentationFPN(nn.Module):
         self.segm_head = conv1x1(segmentation_channels, num_classes)
         self.upsample = nn.Upsample(scale_factor=4, mode="bilinear") if last_upsample else nn.Identity()
         self.name = f"segm-fpn-{encoder_name}"
+        initialize(self.fpn)
+        initialize(self.decoder)
+        initialize(self.segm_head)
 
     def forward(self, x):
         x = self.encoder(x) # return 5 features maps
