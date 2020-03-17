@@ -41,13 +41,15 @@ class BiFPNLayer(nn.Module):
         p_out: features processed by 1 layer of BiFPN
     """
 
-    def __init__(self, channels=64, upsample_mode="nearest", **bn_args):
+    def __init__(self, channels=64, output_stride=32, upsample_mode="nearest", **bn_args):
         super(BiFPNLayer, self).__init__()
 
         self.up = nn.Upsample(scale_factor=2, mode=upsample_mode)
+        self.first_up = self.up if output_stride == 32 else nn.Identity()
+        last_stride = 2 if output_stride == 32 else 1
         self.down_p2 = DepthwiseSeparableConv(channels, channels, stride=2, **bn_args)
         self.down_p3 = DepthwiseSeparableConv(channels, channels, stride=2, **bn_args)
-        self.down_p4 = DepthwiseSeparableConv(channels, channels, stride=2, **bn_args)
+        self.down_p4 = DepthwiseSeparableConv(channels, channels, stride=last_stride, **bn_args)
 
         ## TODO (jamil) 11.02.2020 Rewrite this using list comprehensions
         self.fuse_p4_td = FastNormalizedFusion(in_nodes=2)
@@ -75,7 +77,7 @@ class BiFPNLayer(nn.Module):
         p5_inp, p4_inp, p3_inp, p2_inp, p1_inp = features
         
         # Top-down pathway
-        p4_td = self.p4_td(self.fuse_p4_td(p4_inp, self.up(p5_inp)))
+        p4_td = self.p4_td(self.fuse_p4_td(p4_inp, self.first_up(p5_inp)))
         p3_td = self.p3_td(self.fuse_p3_td(p3_inp, self.up(p4_td)))
         p2_out = self.p2_td(self.fuse_p2_td(p2_inp, self.up(p3_td)))
 
@@ -134,6 +136,7 @@ class BiFPN(nn.Module):
         encoder_channels,
         pyramid_channels=64,
         num_layers=1,
+        output_stride=32,
         **bn_args,
     ):
         super(BiFPN, self).__init__()
@@ -142,7 +145,7 @@ class BiFPN(nn.Module):
 
         bifpns = []
         for _ in range(num_layers):
-            bifpns.append(BiFPNLayer(pyramid_channels, **bn_args))
+            bifpns.append(BiFPNLayer(pyramid_channels, output_stride, **bn_args))
         self.bifpn = nn.Sequential(*bifpns)
     
     def forward(self, features):

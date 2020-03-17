@@ -97,6 +97,7 @@ class SegmentationFPN(nn.Module):
            self.encoder.out_shapes,
            pyramid_channels=pyramid_channels,
            num_layers=num_fpn_layers,
+           output_stride=output_stride,
            **bn_args,
         )
 
