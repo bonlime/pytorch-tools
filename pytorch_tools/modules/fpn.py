@@ -6,7 +6,7 @@ from .residual import conv1x1
 
 
 class FPNBlock(nn.Module):
-    def __init__(self, pyramid_channels, skip_channels):
+    def __init__(self, skip_channels, pyramid_channels):
         super().__init__()
         self.skip_conv = conv1x1(skip_channels, pyramid_channels)
 
@@ -43,9 +43,9 @@ class FPN(nn.Module):
         assert num_layers == 1, "More that 1 layer is not supported in FPN"
 
         self.p5 = conv1x1(encoder_channels[0], pyramid_channels)
-        self.p4 = FPNBlock(pyramid_channels, encoder_channels[1])
-        self.p3 = FPNBlock(pyramid_channels, encoder_channels[2])
-        self.p2 = FPNBlock(pyramid_channels, encoder_channels[3])
+        self.p4 = FPNBlock(encoder_channels[1], pyramid_channels)
+        self.p3 = FPNBlock(encoder_channels[2], pyramid_channels)
+        self.p2 = FPNBlock(encoder_channels[3], pyramid_channels)
 
     def forward(self, features):
         # only use resolutions from 1/32 to 1/4

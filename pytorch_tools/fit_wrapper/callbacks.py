@@ -407,7 +407,7 @@ class TensorBoardWithCM(TensorBoard):
 
     def on_loader_end(self):
         super().on_loader_end()
-        f = plot_confusion_matrix(self.cmap, self.class_names, show=False)
+        f = plot_confusion_matrix(self.cmap, self.class_names, normalize=True, show=False)
         cm_img = render_figure_to_tensor(f)
         if self.state.is_train:
             self.train_cm_img = cm_img
