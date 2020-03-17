@@ -617,3 +617,23 @@ class SegmCutmix(Cutmix):
         data[:, :, bbh1:bbh2, bbw1:bbw2] = prev_data[:, :, bbh1:bbh2, bbw1:bbw2]
         target[:, :, bbh1:bbh2, bbw1:bbw2] = prev_target[:, :, bbh1:bbh2, bbw1:bbw2]
         return data, target
+
+
+class ScheduledDropout(Callback):
+    def __init__(self, drop_rate=0.1, epochs=30, attr_name="dropout.p"):
+        """
+        Slowly changes dropout value for `attr_name` each epoch.
+        Ref: https://arxiv.org/abs/1703.06229
+        Args:
+            drop_rate (float): max dropout rate
+            epochs (int): num epochs to max dropout to fully take effect
+            attr_name (str): name of dropout block in model
+        """
+        super().__init__()
+        self.drop_rate = drop_rate
+        self.epochs = epochs
+        self.attr_name = attr_name
+
+    def on_epoch_end(self):
+        current_rate = self.drop_rate * min(1, self.state.epoch / self.epochs)
+        setattr(self.state.model, self.attr_name, current_rate)

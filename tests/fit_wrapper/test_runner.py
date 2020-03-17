@@ -22,6 +22,7 @@ class Model(nn.Module):
         self.bn1 = nn.BatchNorm2d(HIDDEN_DIM)
         self.conv2 = nn.Conv2d(HIDDEN_DIM, HIDDEN_DIM, kernel_size=3)
         self.pool = nn.AdaptiveAvgPool2d(1)
+        self.dropout = nn.Dropout2d(0.1)
         self.fc = nn.Linear(HIDDEN_DIM, NUM_CLASSES)
 
     def forward(self, x):
@@ -30,6 +31,7 @@ class Model(nn.Module):
         x = self.conv2(x)
         x = self.pool(x)
         x = torch.flatten(x, 1)
+        x = self.dropout(x)
         x = self.fc(x)
         return x
 
@@ -76,92 +78,28 @@ def test_val_loader():
 TMP_PATH = "/tmp/pt_tools2/"
 os.makedirs(TMP_PATH, exist_ok=True)
 
-# TODO: (emil 05.02.20) use pytest parametrize instead
 
-
-def test_Timer_callback():
+@pytest.mark.parametrize(
+    "callback",
+    [
+        pt_clb.Timer(),
+        pt_clb.ReduceLROnPlateau(),
+        pt_clb.CheckpointSaver(TMP_PATH, save_name="model.chpn"),
+        pt_clb.TensorBoard(log_dir=TMP_PATH),
+        pt_clb.TensorBoardWithCM(log_dir=TMP_PATH),
+        pt_clb.ConsoleLogger(),
+        pt_clb.FileLogger(TMP_PATH),
+        pt_clb.Mixup(0.2, NUM_CLASSES),
+        pt_clb.Cutmix(1.0, NUM_CLASSES),
+        pt_clb.ScheduledDropout(),
+    ],
+)
+def test_callback(callback):
     runner = Runner(
         model=TestModel,
         optimizer=TestOptimizer,
         criterion=TestCriterion,
         metrics=TestMetric,
-        callbacks=pt_clb.Timer(),
-    )
-    runner.fit(TestLoader, epochs=2)
-
-
-def test_ReduceLROnPlateau_callback():
-    runner = Runner(
-        model=TestModel,
-        optimizer=TestOptimizer,
-        criterion=TestCriterion,
-        metrics=TestMetric,
-        callbacks=pt_clb.ReduceLROnPlateau(),
-    )
-    runner.fit(TestLoader, epochs=2)
-
-
-def test_CheckpointSaver_callback():
-    runner = Runner(
-        model=TestModel,
-        optimizer=TestOptimizer,
-        criterion=TestCriterion,
-        metrics=TestMetric,
-        callbacks=pt_clb.CheckpointSaver(TMP_PATH, save_name="model.chpn"),
-    )
-    runner.fit(TestLoader, epochs=2)
-
-
-def test_FileLogger_callback():
-    runner = Runner(
-        model=TestModel,
-        optimizer=TestOptimizer,
-        criterion=TestCriterion,
-        metrics=TestMetric,
-        callbacks=pt_clb.FileLogger(TMP_PATH),
-    )
-    runner.fit(TestLoader, epochs=2)
-
-
-def test_TensorBoard():
-    runner = Runner(
-        model=TestModel,
-        optimizer=TestOptimizer,
-        criterion=TestCriterion,
-        metrics=TestMetric,
-        callbacks=pt_clb.TensorBoard(log_dir=TMP_PATH),
-    )
-    runner.fit(TestLoader, epochs=2)
-
-
-def test_TensorBoardWithCM():
-    runner = Runner(
-        model=TestModel,
-        optimizer=TestOptimizer,
-        criterion=TestCriterion,
-        metrics=TestMetric,
-        callbacks=pt_clb.TensorBoardWithCM(log_dir=TMP_PATH),
-    )
-    runner.fit(TestLoader, epochs=2)
-
-
-def test_Cutmix():
-    runner = Runner(
-        model=TestModel,
-        optimizer=TestOptimizer,
-        criterion=TestCriterion,
-        metrics=TestMetric,
-        callbacks=pt_clb.Cutmix(1.0, NUM_CLASSES),
-    )
-    runner.fit(TestLoader, epochs=2)
-
-
-def test_Mixup():
-    runner = Runner(
-        model=TestModel,
-        optimizer=TestOptimizer,
-        criterion=TestCriterion,
-        metrics=TestMetric,
-        callbacks=pt_clb.Mixup(0.2, NUM_CLASSES),
+        callbacks=callback,
     )
     runner.fit(TestLoader, epochs=2)
