@@ -11,7 +11,7 @@ from pytorch_tools.modules import GlobalPool2d
 from pytorch_tools.utils.misc import make_divisible
 
 
-def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
+def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1, bias=False):
     """3x3 convolution with padding"""
     return nn.Conv2d(
         in_planes,
@@ -20,14 +20,14 @@ def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
         stride=stride,
         padding=dilation,
         groups=groups,
-        bias=False,
+        bias=bias,
         dilation=dilation,
     )
 
 
-def conv1x1(in_planes, out_planes, stride=1):
+def conv1x1(in_planes, out_planes, stride=1, bias=False):
     """1x1 convolution"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
+    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=bias)
 
 
 class DepthwiseSeparableConv(nn.Sequential):

@@ -29,7 +29,7 @@ class PanopticDecoder(nn.Module):
 
 
     def forward(self, features):
-        c5, c4, c3, c2, c1 = features
+        c5, c4, c3, c2 = features
         feature_pyramid = [seg_block(p) for seg_block, p in zip(self.seg_blocks, [c5, c4, c3, c2])]
         if self.policy == "add":
             return sum(feature_pyramid)
@@ -93,7 +93,7 @@ class SegmentationFPN(nn.Module):
         bn_args = {"norm_layer": bn_from_name(norm_layer), "norm_act": norm_act}
 
         self.fpn = self.__class__.FEATURE_PYRAMID(
-           self.encoder.out_shapes,
+           self.encoder.out_shapes[:-1], # only want features from 1/4 to 1/32
            pyramid_channels=pyramid_channels,
            num_layers=num_fpn_layers,
            output_stride=output_stride,
@@ -119,8 +119,9 @@ class SegmentationFPN(nn.Module):
         initialize(self.segm_head)
 
     def forward(self, x):
-        x = self.encoder(x) # return 5 features maps
-        x = self.fpn(x) # returns 5 features maps
+        x = self.encoder(x) # returns 5 features maps
+        # only use first 4 feature maps
+        x = self.fpn(x[:-1])
         x = self.decoder(x) # return 1 feature map
         x = self.dropout(x)
         x = self.segm_head(x)
