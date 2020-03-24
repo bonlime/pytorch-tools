@@ -527,10 +527,11 @@ class Mixup(Callback):
         if not self.state.is_train or np.random.rand() > self.prob:
             return data, target_one_hot
         prev_data, prev_target = (data, target_one_hot) if self.prev_input is None else self.prev_input
-        self.prev_input = data, target_one_hot
+        self.prev_input = data.clone(), target_one_hot.clone()
+        perm = torch.randperm(data.size(0)).cuda()
         c = self.tb.sample()
-        md = c * data + (1 - c) * prev_data
-        mt = c * target_one_hot + (1 - c) * prev_target
+        md = c * data + (1 - c) * prev_data[perm]
+        mt = c * target_one_hot + (1 - c) * prev_target[perm]
         return md, mt
 
 
@@ -570,16 +571,17 @@ class Cutmix(Callback):
         if not self.state.is_train or np.random.rand() > self.prob:
             return data, target_one_hot
         prev_data, prev_target = (data, target_one_hot) if self.prev_input is None else self.prev_input
-        self.prev_input = data, target_one_hot
+        self.prev_input = data.clone(), target_one_hot.clone()
         # prev_data shape can be different from current. so need to take min
         H, W = min(data.size(2), prev_data.size(2)), min(data.size(3), prev_data.size(3))
+        perm = torch.randperm(data.size(0)).cuda()
         lam = self.tb.sample()
         lam = min([lam, 1 - lam])
         bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
         # real lambda may be diffrent from sampled. adjust for it
         lam = (bbh2 - bbh1) * (bbw2 - bbw1) / (H * W)
-        data[:, :, bbh1:bbh2, bbw1:bbw2] = prev_data[:, :, bbh1:bbh2, bbw1:bbw2]
-        mixed_target = (1 - lam) * target_one_hot + lam * prev_target
+        data[:, :, bbh1:bbh2, bbw1:bbw2] = prev_data[perm, :, bbh1:bbh2, bbw1:bbw2]
+        mixed_target = (1 - lam) * target_one_hot + lam * prev_target[perm]
         return data, mixed_target
 
     @staticmethod
@@ -609,13 +611,14 @@ class SegmCutmix(Cutmix):
         if not self.state.is_train or np.random.rand() > self.prob:
             return data, target
         prev_data, prev_target = (data, target) if self.prev_input is None else self.prev_input
-        self.prev_input = data, target
+        self.prev_input = data.clone(), target.clone()
         H, W = min(data.size(2), prev_data.size(2)), min(data.size(3), prev_data.size(3))
+        perm = torch.randperm(data.size(0)).cuda()
         lam = self.tb.sample()
         lam = min([lam, 1 - lam])
         bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
-        data[:, :, bbh1:bbh2, bbw1:bbw2] = prev_data[:, :, bbh1:bbh2, bbw1:bbw2]
-        target[:, :, bbh1:bbh2, bbw1:bbw2] = prev_target[:, :, bbh1:bbh2, bbw1:bbw2]
+        data[:, :, bbh1:bbh2, bbw1:bbw2] = prev_data[perm, :, bbh1:bbh2, bbw1:bbw2]
+        target[:, :, bbh1:bbh2, bbw1:bbw2] = prev_target[perm, :, bbh1:bbh2, bbw1:bbw2]
         return data, target
 
 
