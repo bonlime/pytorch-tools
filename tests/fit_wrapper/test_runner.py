@@ -18,12 +18,13 @@ BS = 2
 class Model(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(3, HIDDEN_DIM, kernel_size=3)
+        self.conv1 = nn.Conv2d(3, HIDDEN_DIM, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm2d(HIDDEN_DIM)
-        self.conv2 = nn.Conv2d(HIDDEN_DIM, HIDDEN_DIM, kernel_size=3)
+        self.conv2 = nn.Conv2d(HIDDEN_DIM, HIDDEN_DIM, kernel_size=3, padding=1)
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.dropout = nn.Dropout2d(0.1)
         self.fc = nn.Linear(HIDDEN_DIM, NUM_CLASSES)
+        self.last_conv = nn.Conv2d(HIDDEN_DIM, NUM_CLASSES, kernel_size=3, padding=1)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -33,6 +34,16 @@ class Model(nn.Module):
         x = torch.flatten(x, 1)
         x = self.dropout(x)
         x = self.fc(x)
+        return x
+
+
+class SegmModel(Model):
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.conv2(x)
+        x = self.dropout(x)
+        x = self.last_conv(x)
         return x
 
 
@@ -53,25 +64,40 @@ class Loader:
         return img.cuda(), target.cuda()
 
 
-TestLoader = Loader()
-TestModel = Model().cuda()
-TestOptimizer = torch.optim.SGD(TestModel.parameters(), lr=1e-3)
-TestCriterion = CrossEntropyLoss().cuda()
-TestMetric = Accuracy()
+class SegmLoader(Loader):
+    def __next__(self):
+        img = torch.randn(BS, 3, IMG_SHAPE, IMG_SHAPE)
+        target = torch.randint(2, (BS, NUM_CLASSES, IMG_SHAPE, IMG_SHAPE))
+        return img.cuda(), target.cuda()
 
-TestModel, TestOptimizer = apex.amp.initialize(TestModel, TestOptimizer, verbosity=0)
+
+TEST_LOADER = Loader()
+TEST_SEGM_LOADER = SegmLoader()
+TEST_MODEL = Model().cuda()
+TEST_SEGM_MODEL = SegmModel().cuda()
+TEST_OPTIMIZER = torch.optim.SGD(TEST_MODEL.parameters(), lr=1e-3)
+TEST_SEGM_OPTIMZER = torch.optim.SGD(TEST_SEGM_MODEL.parameters(), lr=1e-3)
+TEST_CRITERION = CrossEntropyLoss().cuda()
+TEST_METRIC = Accuracy()
+
+TEST_MODEL, TEST_OPTIMIZER = apex.amp.initialize(TEST_MODEL, TEST_OPTIMIZER, verbosity=0)
+TEST_SEGM_MODEL, TEST_SEGM_OPTIMZER = apex.amp.initialize(TEST_SEGM_MODEL, TEST_SEGM_OPTIMZER)
 
 
 def test_default():
     runner = Runner(
-        model=TestModel, optimizer=TestOptimizer, criterion=TestCriterion, metrics=TestMetric, callbacks=None
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        metrics=TEST_METRIC,
+        callbacks=None,
     )
-    runner.fit(TestLoader, epochs=2)
+    runner.fit(TEST_LOADER, epochs=2)
 
 
 def test_val_loader():
-    runner = Runner(model=TestModel, optimizer=TestOptimizer, criterion=TestCriterion, metrics=TestMetric,)
-    runner.fit(TestLoader, epochs=2, steps_per_epoch=100, val_loader=TestLoader, val_steps=200)
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, metrics=TEST_METRIC)
+    runner.fit(TEST_LOADER, epochs=2, steps_per_epoch=100, val_loader=TEST_LOADER, val_steps=200)
 
 
 # We only test that callbacks don't crash NOT that they do what they should do
@@ -96,10 +122,23 @@ os.makedirs(TMP_PATH, exist_ok=True)
 )
 def test_callback(callback):
     runner = Runner(
-        model=TestModel,
-        optimizer=TestOptimizer,
-        criterion=TestCriterion,
-        metrics=TestMetric,
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        metrics=TEST_METRIC,
         callbacks=callback,
     )
-    runner.fit(TestLoader, epochs=2)
+    runner.fit(TEST_LOADER, epochs=2)
+
+
+@pytest.mark.parametrize(
+    "callback", [pt_clb.SegmCutmix(1.0),],
+)
+def test_segm_callback(callback):
+    runner = Runner(
+        model=TEST_SEGM_MODEL,
+        optimizer=TEST_SEGM_OPTIMZER,
+        criterion=TEST_CRITERION,
+        callbacks=callback,
+    )
+    runner.fit(TEST_SEGM_LOADER, epochs=2)
