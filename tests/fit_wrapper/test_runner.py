@@ -111,6 +111,9 @@ os.makedirs(TMP_PATH, exist_ok=True)
         pt_clb.Timer(),
         pt_clb.ReduceLROnPlateau(),
         pt_clb.CheckpointSaver(TMP_PATH, save_name="model.chpn"),
+        pt_clb.CheckpointSaver(
+            TMP_PATH, save_name="model.chpn", monitor=TEST_METRIC.name, mode="max"
+        ),
         pt_clb.TensorBoard(log_dir=TMP_PATH),
         pt_clb.TensorBoardWithCM(log_dir=TMP_PATH),
         pt_clb.ConsoleLogger(),
