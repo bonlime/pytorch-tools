@@ -311,7 +311,7 @@ class CheckpointSaver(Callback):
     def on_epoch_end(self):
         current = self.get_monitor_value()
         if self.monitor_op(current, self.best):
-            ep = self.state.epoch
+            ep = self.state.epoch_log
             if self.verbose:
                 print(f"Epoch {ep:2d}: best {self.monitor} improved from {self.best:.4f} to {current:.4f}")
             self.best = current
