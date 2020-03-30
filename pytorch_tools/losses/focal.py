@@ -7,14 +7,14 @@ from .base import Reduction
 from .functional import focal_loss_with_logits
 
 class FocalLoss(Loss):
-    """Compute binary focal loss between target and output logits.
+    """Compute focal loss between target and output logits.
 
     Args:
         mode (str): Target mode {'binary', 'multiclass', 'multilabel'}
             'multilabel' - expects y_true of shape [N, C, *(any number of dimensions)]
-                with values in {0, 1, `ignore_index`}
+                with values in {0, 1, `ignore_label`}
             'multiclass' - expects y_true of shape [N, *(any number of dimensions)]
-                with values in {[0 - num_classes], `ignore_index`}
+                with values in {[0 - num_classes], `ignore_label`}
                 NOTE: in current implementation it would one-hot target but then use SIGMOID. be aware
             'binary' - expects y_true of shape [N, 1, *] or [N, *]
         gamma (float): Power factor for dampening weight (focal strenght).
@@ -28,8 +28,8 @@ class FocalLoss(Loss):
         combine_thr (float): Threshold for smooth combination of BCE and focal. 0 turns loss into
             pure focal, 1 turns loss into pure BCE. This is also known as `Reduced Focal Loss`.
             Reccomended value is `0.5`. See `Reference` for paper.
-        ignore_index (None or int): If not None, targets may contain values to be ignored.
-            Target values equal to ignore_index will be ignored from loss computation.
+        ignore_label (None or int): If not None, targets may contain values to be ignored.
+            Target values equal to ignore_label will be ignored from loss computation.
 
     Shape:
         y_pred (torch.Tensor): Tensor of arbitrary shape
@@ -49,7 +49,7 @@ class FocalLoss(Loss):
         reduction="mean",
         normalized=False,
         combine_thr=0,
-        ignore_index=None
+        ignore_label=-1
     ):  
         super().__init__()
         self.loss_fn = partial(
@@ -62,21 +62,18 @@ class FocalLoss(Loss):
         )
         self.reduction = Reduction(reduction)
         self.mode = Mode(mode)
-        self.ignore_index = ignore_index or -1
+        self.ignore_label = ignore_label
 
     def forward(self, y_pred, y_true):
-        ignore = y_true == self.ignore_index
+        ignore = y_true == self.ignore_label
         if self.mode == Mode.MULTICLASS:
             # to hangle ignore label we set it to 0, then scatter and set it to ignore index back
-            # ignore = y_true == self.ignore_index
             y_true[ignore] = 0
             y_true_one_hot = torch.zeros_like(y_pred)
             y_true_one_hot.scatter_(1, y_true.unsqueeze(1), 1.0)
             y_true = y_true_one_hot
             # need to avoid mask shape mismatch later
             ignore = torch.stack([ignore,] * y_pred.size(1), dim=1)
-            # y_true_one_hot[:, 0, ...][ignore] = self.ignore_index
-            # y_true_one_hot[ignore.unsqueeze(1)] = self.ignore_index
 
         loss = self.loss_fn(y_pred, y_true)
 
@@ -88,88 +85,3 @@ class FocalLoss(Loss):
         elif self.reduction == Reduction.SUM:
             loss = loss.sum()
         return loss
-        
-        # for cls in range(num_classes):
-        #     cls_label_target = (label_target == cls).long()
-        #     cls_label_input = label_input[:, cls, ...]
-
-        #     if self.ignore_index is not None:
-        #         cls_label_target = cls_label_target[not_ignored]
-        #         cls_label_input = cls_label_input[not_ignored]
-
-        #     loss += self.focal_loss_fn(cls_label_input, cls_label_target)
-        # return loss
-
-
-    
-# class BinaryFocalLoss(Loss):
-#     def __init__(
-#         self, alpha=0.5, gamma=2, ignore_index=None, reduction="mean", reduced=False, threshold=0.5,
-#     ):
-#         """
-
-#         :param alpha:
-#         :param gamma:
-#         :param ignore_index:
-#         :param reduced:
-#         :param threshold:
-#         """
-#         super().__init__()
-#         self.alpha = alpha
-#         self.gamma = gamma
-#         self.ignore_index = ignore_index
-#         if reduced:
-#             self.focal_loss = partial(
-#                 reduced_focal_loss, gamma=gamma, threshold=threshold, reduction=reduction
-#             )
-#         else:
-#             self.focal_loss = partial(sigmoid_focal_loss, gamma=gamma, alpha=alpha, reduction=reduction)
-
-#     def forward(self, y_pred, y_true):
-#         """Compute focal loss for binary classification problem.
-#         """
-#         y_true = y_true.reshape(-1)
-#         y_pred = y_pred.reshape(-1)
-
-#         if self.ignore_index is not None:
-#             # Filter predictions with ignore label from loss computation
-#             not_ignored = y_true != self.ignore_index
-#             y_pred = y_pred[not_ignored]
-#             y_true = y_true[not_ignored]
-
-#         loss = self.focal_loss(y_pred, y_true)
-#         return loss
-
-
-# class FocalLoss(Loss):
-#     def __init__(self, alpha=0.5, gamma=2, ignore_index=None):
-#         """
-#         Focal loss for multi-class problem.
-
-#         :param alpha:
-#         :param gamma:
-#         :param ignore_index: If not None, targets with given index are ignored
-#         """
-#         super().__init__()
-#         self.alpha = alpha
-#         self.gamma = gamma
-#         self.ignore_index = ignore_index
-
-#     def forward(self, y_pred, y_true):
-#         num_classes = y_pred.size(1)
-#         loss = 0
-
-#         # Filter anchors with -1 label from loss computation
-#         if self.ignore_index is not None:
-#             not_ignored = y_true != self.ignore_index
-
-#         for cls in range(num_classes):
-#             cls_y_true = (y_true == cls).long()
-#             cls_y_pred = y_pred[:, cls, ...]
-
-#             if self.ignore_index is not None:
-#                 cls_y_true = cls_y_true[not_ignored]
-#                 cls_y_pred = cls_y_pred[not_ignored]
-
-#             loss += sigmoid_focal_loss(cls_y_pred, cls_y_true, gamma=self.gamma, alpha=self.alpha)
-#         return loss

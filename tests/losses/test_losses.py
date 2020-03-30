@@ -1,10 +1,10 @@
 import pytest
 import numpy as np
 import torch
-import torch.nn.functional as torch_F
+import torch.nn.functional as F
 
 from pytorch_tools.utils.misc import set_random_seed
-import pytorch_tools.losses.functional as F
+import pytorch_tools.losses.functional as pt_F
 import pytorch_tools.losses as losses
 
 """
@@ -45,44 +45,44 @@ def test_focal_loss_fn_basic():
     input_bad = torch.Tensor([-1, 2, 0]).float()
     target = torch.Tensor([1, 0, 1])
 
-    loss_good = F.focal_loss_with_logits(input_good, target)
-    loss_bad = F.focal_loss_with_logits(input_bad, target)
+    loss_good = pt_F.focal_loss_with_logits(input_good, target)
+    loss_bad = pt_F.focal_loss_with_logits(input_bad, target)
     assert loss_good < loss_bad
 
 
 @pytest.mark.parametrize("reduction", ["sum", "mean", "none"])
 def test_focal_loss_fn_reduction(reduction):
-    torch_ce = torch_F.binary_cross_entropy_with_logits(
+    torch_ce = F.binary_cross_entropy_with_logits(
         INP_BINARY, TARGET_BINARY.float(), reduction=reduction
     )
-    my_ce = F.focal_loss_with_logits(INP_BINARY, TARGET_BINARY, alpha=0.5, gamma=0, reduction=reduction)
+    my_ce = pt_F.focal_loss_with_logits(INP_BINARY, TARGET_BINARY, alpha=0.5, gamma=0, reduction=reduction)
     assert torch.allclose(torch_ce, my_ce * 2)
 
 
 def test_focal_loss_fn():
     # classification test
-    torch_ce = torch_F.binary_cross_entropy_with_logits(INP_BINARY, TARGET_BINARY.float())
-    my_ce = F.focal_loss_with_logits(INP_BINARY, TARGET_BINARY, alpha=None, gamma=0)
+    torch_ce = F.binary_cross_entropy_with_logits(INP_BINARY, TARGET_BINARY.float())
+    my_ce = pt_F.focal_loss_with_logits(INP_BINARY, TARGET_BINARY, alpha=None, gamma=0)
     assert torch.allclose(torch_ce, my_ce)
 
     # check that smooth combination works
-    my_ce_not_reduced = F.focal_loss_with_logits(INP_BINARY, TARGET_BINARY, combine_thr=0)
-    my_ce_reduced = F.focal_loss_with_logits(INP_BINARY, TARGET_BINARY, combine_thr=0.2)
-    my_ce_reduced2 = F.focal_loss_with_logits(INP_BINARY, TARGET_BINARY, combine_thr=0.8)
+    my_ce_not_reduced = pt_F.focal_loss_with_logits(INP_BINARY, TARGET_BINARY, combine_thr=0)
+    my_ce_reduced = pt_F.focal_loss_with_logits(INP_BINARY, TARGET_BINARY, combine_thr=0.2)
+    my_ce_reduced2 = pt_F.focal_loss_with_logits(INP_BINARY, TARGET_BINARY, combine_thr=0.8)
     assert my_ce_not_reduced < my_ce_reduced
     assert my_ce_reduced < my_ce_reduced2
 
     # images test
-    torch_ce = torch_F.binary_cross_entropy_with_logits(INP_IMG_BINARY, TARGET_IMG_BINARY)
-    my_ce = F.focal_loss_with_logits(INP_IMG_BINARY, TARGET_IMG_BINARY, alpha=None, gamma=0)
+    torch_ce = F.binary_cross_entropy_with_logits(INP_IMG_BINARY, TARGET_IMG_BINARY)
+    my_ce = pt_F.focal_loss_with_logits(INP_IMG_BINARY, TARGET_IMG_BINARY, alpha=None, gamma=0)
     assert torch.allclose(torch_ce, my_ce)
 
 
 def test_focal_loss_fn_normalize():
     # simulate very accurate predictions
     inp = TARGET_BINARY * 5 - (1 - TARGET_BINARY) * 5
-    my_ce = F.focal_loss_with_logits(inp, TARGET_BINARY, normalized=False)
-    my_ce_normalized = F.focal_loss_with_logits(inp, TARGET_BINARY, normalized=True)
+    my_ce = pt_F.focal_loss_with_logits(inp, TARGET_BINARY, normalized=False)
+    my_ce_normalized = pt_F.focal_loss_with_logits(inp, TARGET_BINARY, normalized=True)
     assert my_ce_normalized > my_ce
 
 
@@ -97,7 +97,7 @@ def test_focal_loss():
     loss_diff = fl[:, :, :2, :2].sum()
     y_true = TARGET_IMG_MULTICLASS.clone()
     y_true[:, :2, :2] = -100
-    fl_i = losses.FocalLoss(mode="multiclass", reduction="sum", ignore_index=-100)(INP_IMG, y_true)
+    fl_i = losses.FocalLoss(mode="multiclass", reduction="sum", ignore_label=-100)(INP_IMG, y_true)
     assert torch.allclose(fl.sum() - loss_diff, fl_i)
 
     # check that ignore index works for binary
@@ -105,7 +105,7 @@ def test_focal_loss():
     loss_diff = fl[:, :, :2, :2].sum()
     y_true = TARGET_IMG_BINARY.clone()
     y_true[:, :, :2, :2] = -100
-    fl_i = losses.FocalLoss(mode="binary", reduction="sum", ignore_index=-100)(INP_IMG_BINARY, y_true)
+    fl_i = losses.FocalLoss(mode="binary", reduction="sum", ignore_label=-100)(INP_IMG_BINARY, y_true)
     assert torch.allclose(fl.sum() - loss_diff, fl_i)
 
 @pytest.mark.parametrize(
@@ -119,7 +119,7 @@ def test_focal_loss():
 def test_soft_jaccard_score(y_true, y_pred, expected):
     y_true = torch.tensor(y_true, dtype=torch.float32)
     y_pred = torch.tensor(y_pred, dtype=torch.float32)
-    actual = F.soft_jaccard_score(y_pred, y_true)
+    actual = pt_F.soft_jaccard_score(y_pred, y_true)
     assert float(actual) == pytest.approx(expected, EPS)
 
 
@@ -134,7 +134,7 @@ def test_soft_jaccard_score(y_true, y_pred, expected):
 def test_soft_jaccard_score_2(y_true, y_pred, expected):
     y_true = torch.tensor(y_true, dtype=torch.float32)
     y_pred = torch.tensor(y_pred, dtype=torch.float32)
-    actual = F.soft_jaccard_score(y_pred, y_true, dims=[1])
+    actual = pt_F.soft_jaccard_score(y_pred, y_true, dims=[1])
     actual = actual.mean()
     assert float(actual) == pytest.approx(expected, abs=EPS)
 
@@ -150,7 +150,7 @@ def test_soft_jaccard_score_2(y_true, y_pred, expected):
 def test_soft_dice_score(y_true, y_pred, expected):
     y_true = torch.tensor(y_true, dtype=torch.float32)
     y_pred = torch.tensor(y_pred, dtype=torch.float32)
-    dice_good = F.soft_dice_score(y_pred, y_true)
+    dice_good = pt_F.soft_dice_score(y_pred, y_true)
     assert float(dice_good) == pytest.approx(expected, abs=EPS)
 
 
@@ -327,13 +327,13 @@ def test_cross_entropy():
 @pytest.mark.parametrize("reduction", ["sum", "mean", "none"])
 def test_binary_cross_entropy(reduction):
     # classification test
-    torch_ce = torch_F.binary_cross_entropy_with_logits(INP_BINARY, TARGET_BINARY, reduction=reduction)
+    torch_ce = F.binary_cross_entropy_with_logits(INP_BINARY, TARGET_BINARY, reduction=reduction)
     my_ce_loss = losses.CrossEntropyLoss(mode="binary", reduction=reduction)
     my_ce = my_ce_loss(INP_BINARY, TARGET_BINARY)
     assert torch.allclose(torch_ce, my_ce)
 
     # test for images
-    torch_ce = torch_F.binary_cross_entropy_with_logits(
+    torch_ce = F.binary_cross_entropy_with_logits(
         INP_IMG_BINARY, TARGET_IMG_BINARY, reduction=reduction
     )
     my_ce = my_ce_loss(INP_IMG_BINARY, TARGET_IMG_BINARY)
