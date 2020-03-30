@@ -2,15 +2,16 @@ from __future__ import absolute_import
 import torch.nn as nn
 
 from .base import Loss
-from .focal import BinaryFocalLoss, FocalLoss
-from .dice_jaccard import DiceLoss, JaccardLoss
+from .focal import FocalLoss
+from .dice_jaccard import DiceLoss
+from .dice_jaccard import JaccardLoss
 from .lovasz import LovaszLoss
 from .wing_loss import WingLoss
 from .vgg_loss import ContentLoss, StyleLoss
 from .smooth import CrossEntropyLoss
 from .hinge import BinaryHinge
 
-from .functional import sigmoid_focal_loss
+from .functional import focal_loss_with_logits
 from .functional import soft_dice_score
 from .functional import soft_jaccard_score
 from .functional import wing_loss

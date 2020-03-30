@@ -1,89 +1,40 @@
 import math
 import torch
 import torch.nn.functional as F
+from .base import Reduction
 
-
-def sigmoid_focal_loss(y_pred, y_true, gamma=2.0, alpha=0.25, reduction="mean"):
-    """Compute binary focal loss between target and output logits.
-
-    See :class:`~pytorch_toolbelt.losses.FocalLoss` for details.
-
-    Args:
-        y_pred: Tensor of arbitrary shape
-        y_true: Tensor of the same shape as y_pred
-        reduction (string, optional): Specifies the reduction to apply to the output:
-            'none' | 'mean' | 'sum' | 'batchwise_mean'. 'none': no reduction will be applied,
-            'mean': the sum of the output will be divided by the number of
-            elements in the output, 'sum': the output will be summed. Note: :attr:`size_average`
-            and :attr:`reduce` are in the process of being deprecated, and in the meantime,
-            specifying either of those two args will override :attr:`reduction`.
-            'batchwise_mean' computes mean loss per sample in batch. Default: 'mean'
-
-    References::
-
-        https://github.com/open-mmlab/mmdetection/blob/master/mmdet/core/loss/losses.py
-    """
+# code for focal loss was borrowed from Bloodaxe
+def focal_loss_with_logits(
+    y_pred, y_true, gamma=2.0, alpha=0.25, reduction="mean", normalized=False, combine_thr=0,
+    ):
+    """see pytorch_tools.losses.focal.FocalLoss for docstring"""
+    reduction = Reduction(reduction)
     y_true = y_true.type(y_pred.type())
 
-    logpt = -F.binary_cross_entropy_with_logits(y_pred, y_true, reduction="none")
-    pt = torch.exp(logpt)
+    logpt = F.binary_cross_entropy_with_logits(y_pred, y_true, reduction="none")
+    pt = torch.exp(-logpt)
 
-    # compute the loss
-    loss = -((1 - pt).pow(gamma)) * logpt
+    # compute the smooth combination
+    if combine_thr is None or combine_thr == 0:
+        focal_term = (1 - pt).pow(gamma)
+    else:
+        focal_term = ((1.0 - pt) / (1 - combine_thr)).pow(gamma)
+        focal_term[pt < combine_thr] = 1
+
+    loss = focal_term * logpt
 
     if alpha is not None:
         loss = loss * (alpha * y_true + (1 - alpha) * (1 - y_true))
 
-    if reduction == "mean":
+    if normalized:
+        norm_factor = focal_term.sum() + 1e-5
+        loss = loss / norm_factor
+
+    if reduction == Reduction.MEAN:
         loss = loss.mean()
-    if reduction == "sum":
+    elif reduction == Reduction.SUM:
         loss = loss.sum()
-    if reduction == "batchwise_mean":
-        loss = loss.sum(0)
-
     return loss
-
-
-def reduced_focal_loss(y_pred, y_true, threshold=0.5, gamma=2.0, reduction="mean"):
-    """Compute reduced focal loss between target and output logits.
-
-    See :class:`~pytorch_toolbelt.losses.FocalLoss` for details.
-
-    Args:
-        y_pred: Tensor of arbitrary shape
-        y_true: Tensor of the same shape as y_pred
-        reduction (string, optional): Specifies the reduction to apply to the output:
-            'none' | 'mean' | 'sum' | 'batchwise_mean'. 'none': no reduction will be applied,
-            'mean': the sum of the output will be divided by the number of
-            elements in the output, 'sum': the output will be summed. Note: :attr:`size_average`
-            and :attr:`reduce` are in the process of being deprecated, and in the meantime,
-            specifying either of those two args will override :attr:`reduction`.
-            'batchwise_mean' computes mean loss per sample in batch. Default: 'mean'
-
-    References::
-
-        https://arxiv.org/abs/1903.01347
-    """
-    y_true = y_true.type(y_pred.type())
-
-    logpt = -F.binary_cross_entropy_with_logits(y_pred, y_true, reduction="none")
-    pt = torch.exp(logpt)
-
-    # compute the loss
-    focal_reduction = ((1.0 - pt) / threshold).pow(gamma)
-    focal_reduction[pt < threshold] = 1
-
-    loss = -focal_reduction * logpt
-
-    if reduction == "mean":
-        loss = loss.mean()
-    if reduction == "sum":
-        loss = loss.sum()
-    if reduction == "batchwise_mean":
-        loss = loss.sum(0)
-
-    return loss
-
 
 def soft_jaccard_score(y_pred, y_true, dims=None, eps=1e-4):
     """

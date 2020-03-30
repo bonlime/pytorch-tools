@@ -9,6 +9,10 @@ INP = torch.ones(2, 3, 64, 64)
 ENCODERS = ["resnet34", "se_resnet50", "efficientnet_b1", "densenet121"]
 SEGM_ARCHS = [pt_sm.Unet, pt_sm.Linknet, pt_sm.DeepLabV3, pt_sm.SegmentationFPN, pt_sm.SegmentationBiFPN]
 
+# this lines are usefull for quick tests
+# ENCODERS = ["se_resnet50"]
+# SEGM_ARCHS = [pt_sm.SegmentationFPN, pt_sm.SegmentationFPN]
+
 def _test_forward(model):
     with torch.no_grad():
         return model(INP)

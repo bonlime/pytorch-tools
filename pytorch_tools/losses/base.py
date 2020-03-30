@@ -8,7 +8,11 @@ class Mode(Enum):
     MULTICLASS = "multiclass"
     MULTILABEL = "multilabel"
 
-
+class Reduction(Enum):
+    SUM = "sum"
+    MEAN = "mean"
+    NONE = "none"
+    
 class Loss(_Loss):
     """Loss which supports addition and multiplication"""
 
