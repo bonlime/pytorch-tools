@@ -4,6 +4,8 @@ import torch
 import pytest
 import argparse
 import numpy as np
+from apex import amp
+import torchvision as tv
 import torch.backends.cudnn as cudnn
 
 import pytorch_tools as pt
@@ -14,7 +16,6 @@ from pytorch_tools.utils.misc import AverageMeter, count_parameters
 
 @pytest.mark.skip("Not meant for pytest")
 def test_model(model, forward_only=False):
-    model = model.cuda(0)
     optimizer = torch.optim.SGD(model.parameters(), 0.01, momentum=0.9, weight_decay=1e-4)
     f_times = []
     fb_times = []
@@ -77,6 +78,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--forward", "-f", action="store_true", help="Flag to only run forward. Disables grads"
     )
+    parser.add_argument(
+        "--amp", action="store_true", help="Measure speed using apex mixed precision"
+    )
     args = parser.parse_args()
     # all models are first init to cpu memory to find errors earlier
     models_dict = {
@@ -89,7 +93,10 @@ if __name__ == "__main__":
         # "Resnet50 D:": models.resnet50(deep_stem=True, antialias=True),  # norm_layer='inplaceabn', ),
         # "Se-Resnet50 D": models.resnet50(deep_stem=True, antialias=True, use_se=True),
         # 'Resnet50 OS 8 InPlace:': models.resnet50(deep_stem=True, antialias=True, output_stride=8, norm_layer='inplaceabn', norm_act='leaky_relu'),
-        # 'Resnet50 D Antialias:': models.resnet50(antialias=True, deep_stem=True),
+        'Resnet50': models.resnet50(norm_act="leaky_relu"),
+        'Resnet50 tv': tv.models.resnet50(),
+        # 'Resnet50 D Antialias:': models.resnet50(antialias=True),
+        # 'Resnet50 Inplace': models.resnet50(norm_act="leaky_relu", norm_layer="inplaceabn")
         # 'Resnet50 ABN:' : models.se_resnet50(norm_layer='abn'),
         # 'Resnet50 InPlaceABN:': models.se_resnet50(norm_layer='inplaceabn', norm_act='leaky_relu'),
         # 'Densenet121 MemEff' : models.densenet121(memory_efficient=True),
@@ -103,8 +110,8 @@ if __name__ == "__main__":
         # "Unet Resnet34": pt_sm.Unet("resnet34"),
         # "Unet SEResnet50": pt_sm.Unet("se_resnet50"),
         # "Linknet SEResnet50": pt_sm.Linknet("se_resnet50"),
-        "Segm BiFPN SEResnet50": pt_sm.SegmentationBiFPN("se_resnet50"),
-        "Segm FPN SEResnet50": pt_sm.SegmentationFPN("se_resnet50"),
+        # "Segm BiFPN SEResnet50": pt_sm.SegmentationBiFPN("se_resnet50"),
+        # "Segm FPN SEResnet50": pt_sm.SegmentationFPN("se_resnet50"),
         # "Deeplab SEResnet50": pt_sm.DeepLabV3("se_resnet50"),
         # "Unet SEResnet50": pt_sm.Unet("se_resnet50"),
     }
@@ -118,6 +125,9 @@ if __name__ == "__main__":
     criterion = torch.nn.CrossEntropyLoss().cuda(0)
     for name, model in models_dict.items():
         print(f"{name} {count_parameters(model)[0] / 1e6:.2f}M params")
+        model = model.cuda(0)
+        if args.amp:
+            model = amp.initialize(model, verbosity=0, opt_level="O1")
         test_model(model, forward_only=args.forward)
 
     # now test segmentation models
