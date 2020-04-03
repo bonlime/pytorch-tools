@@ -1,11 +1,15 @@
 from functools import partial
 
+from .pooling import FastGlobalAvgPool2d
+from .pooling import SpaceToDepth
 from .pooling import GlobalPool2d
 from .pooling import BlurPool
 from .pooling import Flatten
 
 from .residual import BasicBlock
 from .residual import Bottleneck
+from .residual import TBasicBlock
+from .residual import TBottleneck
 from .residual import SEModule
 
 # from .residual import Transition, DenseLayer

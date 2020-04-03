@@ -64,17 +64,54 @@ class GlobalPool2d(nn.Module):
     def __repr__(self):
         return self.__class__.__name__ + " (" + ", pool_type=" + self.pool_type + ")"
 
+# https://github.com/mrT23/TResNet/
+class FastGlobalAvgPool2d(nn.Module):
+    def __init__(self, flatten=False):
+        super(FastGlobalAvgPool2d, self).__init__()
+        self.flatten = flatten
+
+    def forward(self, x):
+        if self.flatten:
+            in_size = x.size()
+            return x.view((in_size[0], in_size[1], -1)).mean(dim=2)
+        else:
+            return x.view(x.size(0), x.size(1), -1).mean(-1).view(x.size(0), x.size(1), 1, 1)
+
 
 class BlurPool(nn.Module):
-    """Idea from https://arxiv.org/abs/1904.11486
-        Efficient implementation of Rect-3 using AvgPool"""
+    """
+    Idea from https://arxiv.org/abs/1904.11486
+    Efficient implementation of Rect-3 using AvgPool
+    Args:
+        channels (int): numbers of channels. needed for gaussian blur
+        gauss (bool): flag to use Gaussian Blur instead of Average Blur. Uses more memory
+    """
 
-    def __init__(self, filt_size=3):
+    def __init__(self, channels=0, gauss=False):
         super(BlurPool, self).__init__()
-        if filt_size == 3:
-            self.pool = nn.AvgPool2d(3, stride=2, padding=1)
-        elif filt_size == 2:
-            self.pool = nn.AvgPool2d(2, 2)
+        self.gauss = gauss
+        self.channels = channels
+        # init both options to be able to switch
+        a = torch.tensor([1., 2., 1.])
+        filt = (a[:, None] * a[None, :]).clone().detach()
+        filt = filt / torch.sum(filt)
+        filt = filt[None, None, :, :].repeat((self.channels, 1, 1, 1))
+        self.register_buffer("filt", filt)
+        self.pool = nn.AvgPool2d(3, stride=2, padding=1)
 
     def forward(self, inp):
-        return self.pool(inp)
+        if self.gauss:
+            inp_pad = F.pad(inp, (1, 1, 1, 1), 'reflect')
+            return F.conv2d(inp_pad, self.filt, stride=2, padding=0, groups=inp.shape[1])
+        else:
+            return self.pool(inp)
+
+# from https://github.com/mrT23/TResNet/
+class SpaceToDepth(nn.Module):
+    def forward(self, x):
+        # assuming hard-coded that block_size==4 for acceleration
+        N, C, H, W = x.size()
+        x = x.view(N, C, H // 4, 4, W // 4, 4)  # (N, C, H//bs, bs, W//bs, bs)
+        x = x.permute(0, 3, 5, 1, 2, 4).contiguous()  # (N, bs, bs, C, H//bs, W//bs)
+        x = x.view(N, C * 16, H // 4, W // 4)  # (N, C*bs^2, H//bs, W//bs)
+        return x

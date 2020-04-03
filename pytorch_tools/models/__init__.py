@@ -32,3 +32,7 @@ from .efficientnet import efficientnet_b4
 from .efficientnet import efficientnet_b5
 from .efficientnet import efficientnet_b6
 from .efficientnet import efficientnet_b7
+
+from .tresnet import tresnetm
+from .tresnet import tresnetl
+from .tresnet import tresnetxl
