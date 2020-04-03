@@ -189,7 +189,7 @@ ACT_FUNC_DICT = {
 def activation_from_name(activation_name):
     if type(activation_name) == str:
         activation_name = ACT(activation_name.lower())
-    return ACT_DICT[activation_name]()
+    return ACT_DICT[activation_name](inplace=True)
 
 
 def sanitize_activation_name(activation_name: str) -> str:

@@ -164,7 +164,7 @@ class ResNet(nn.Module):
         if stride != 1 or self.inplanes != planes * self.expansion:
             downsample_layers = []
             if antialias and stride == 2:  # using OrderedDict to preserve ordering and allow loading
-                downsample_layers += [("blur", BlurPool(filt_size=2))]
+                downsample_layers += [("blur", nn.AvgPool2d(2, 2))]
             downsample_layers += [
                 ("0", conv1x1(self.inplanes, planes * self.expansion, stride=1 if antialias else stride)),
                 ("1", norm_layer(planes * self.expansion, activation="identity")),
@@ -174,17 +174,17 @@ class ResNet(nn.Module):
         first_dilation = max(1, dilation // 2)
         layers = [
             self.block(
-                self.inplanes,
-                planes,
-                stride,
-                downsample,
-                self.groups,
-                self.base_width,
-                use_se,
-                first_dilation,
-                norm_layer,
-                norm_act,
-                antialias,
+                inplanes=self.inplanes,
+                planes=planes,
+                stride=stride,
+                downsample=downsample,
+                groups=self.groups,
+                base_width=self.base_width,
+                use_se=use_se,
+                dilation=first_dilation,
+                norm_layer=norm_layer,
+                norm_act=norm_act,
+                antialias=antialias,
             )
         ]
 
@@ -192,17 +192,15 @@ class ResNet(nn.Module):
         for _ in range(1, blocks):
             layers.append(
                 self.block(
-                    self.inplanes,
-                    planes,
-                    1,
-                    None,
-                    self.groups,
-                    self.base_width,
-                    use_se,
-                    dilation,
-                    norm_layer,
-                    norm_act,
-                    antialias,
+                    inplanes=self.inplanes,
+                    planes=planes,
+                    groups=self.groups,
+                    base_width=self.base_width,
+                    use_se=use_se,
+                    dilation=first_dilation,
+                    norm_layer=norm_layer,
+                    norm_act=norm_act,
+                    antialias=antialias,
                 )
             )
         return nn.Sequential(*layers)
