@@ -32,6 +32,9 @@ MODEL_NAMES = [
     "efficientnet_b2",
     "efficientnet_b3",
     "efficientnet_b4",
+    "tresnetm",
+    "tresnetl",
+    "tresnetxl",
 ]
 
 

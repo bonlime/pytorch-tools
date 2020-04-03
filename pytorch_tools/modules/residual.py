@@ -7,7 +7,7 @@ from .activations import activation_from_name
 # from pytorch_tools.modules import ABN
 # from pytorch_tools.modules import activation_from_name
 from pytorch_tools.modules import BlurPool
-from pytorch_tools.modules import GlobalPool2d
+from pytorch_tools.modules import FastGlobalAvgPool2d
 from pytorch_tools.utils.misc import make_divisible
 
 
@@ -121,7 +121,7 @@ class SEModule(nn.Module):
     def __init__(self, channels, reduction_channels, norm_act="relu"):
         super(SEModule, self).__init__()
 
-        self.pool = GlobalPool2d("avg")
+        self.pool = FastGlobalAvgPool2d()
         # authors of original paper DO use bias
         self.fc1 = nn.Conv2d(channels, reduction_channels, kernel_size=1, stride=1, bias=True)
         self.act1 = activation_from_name(norm_act)
@@ -165,7 +165,7 @@ class BasicBlock(nn.Module):
         self.se_module = SEModule(outplanes, planes // 4) if use_se else None
         self.final_act = activation_from_name(norm_act)
         self.downsample = downsample
-        self.blurpool = BlurPool()
+        self.blurpool = BlurPool(channels=planes) if antialias else nn.Identity()
         self.antialias = antialias
 
     def forward(self, x):
@@ -220,7 +220,7 @@ class Bottleneck(nn.Module):
         self.se_module = SEModule(outplanes, planes // 4) if use_se else None
         self.final_act = activation_from_name(norm_act)
         self.downsample = downsample
-        self.blurpool = BlurPool()
+        self.blurpool = BlurPool(channels=width) if antialias else nn.Identity()
         self.antialias = antialias
 
     def forward(self, x):
@@ -244,4 +244,53 @@ class Bottleneck(nn.Module):
             out = self.se_module(self.bn3(out)) + residual
         else:
             out = self.bn3(out) + residual
+        return self.final_act(out)
+
+# TResnet models use slightly modified versions of BasicBlock and Bottleneck
+# need to adjust for it
+
+class TBasicBlock(BasicBlock):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.final_act = nn.ReLU(inplace=True)
+        self.bn1.activation_param = 1e-3  # needed for loading weights
+        if not kwargs.get("use_se"):
+            return
+        planes = kwargs["planes"]
+        self.se_module = SEModule(planes, max(planes // 4, 64))
+
+class TBottleneck(Bottleneck):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.final_act = nn.ReLU(inplace=True)
+        self.bn1.activation_param = 1e-3 # needed for loading weights
+        self.bn2.activation_param = 1e-3
+        if not kwargs["use_se"]:
+            return
+        planes = kwargs["planes"]
+        reduce_planes = max(planes * self.expansion // 8, 64)
+        self.se_module = SEModule(planes, reduce_planes)
+
+    # use se after 2nd conv instead of 3rd
+    def forward(self, x):
+        residual = x
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+
+        # Conv(s=2)->BN->Relu(s=1) => Conv(s=1)->BN->Relu(s=1)->BlurPool(s=2)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        if self.antialias:
+            out = self.blurpool(out)
+
+        if self.se_module is not None:
+            out = self.se_module(out)
+
+        out = self.conv3(out)
+        # avoid 2 inplace ops by chaining into one long op
+        out = self.bn3(out) + residual
         return self.final_act(out)
