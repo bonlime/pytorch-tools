@@ -76,7 +76,11 @@ def test_dilation(arch, output_stride):
 NUM_PARAMS = {
     "tresnetm": 31389032,
     "tresnetl": 55989256,
-    "tresnetxl": 78436244
+    "tresnetxl": 78436244,
+    "efficientnet_b0": 5288548,
+    "efficientnet_b1": 7794184,
+    "efficientnet_b2": 9109994,
+    "efficientnet_b3": 12233232,
 }
 # @pytest.mark.parametrize('name, num_params', NUM_PARAMS.values(), ids=list(NUM_PARAMS.keys()))
 @pytest.mark.parametrize('name_num_params', zip(NUM_PARAMS.items()))
