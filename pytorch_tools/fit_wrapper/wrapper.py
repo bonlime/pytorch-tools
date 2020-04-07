@@ -22,7 +22,8 @@ class Runner:
         super().__init__()
 
         if not hasattr(amp._amp_state, "opt_properties"):
-            model, optimizer = amp.initialize(model, optimizer, enabled=False)
+            model_optimizer = amp.initialize(model, optimizer, enabled=False)
+            model, optimizer = (model_optimizer, None) if optimizer is None else model_optimizer
 
         self.state = RunnerState(model=model, optimizer=optimizer, criterion=criterion, metrics=metrics,)
         self.callbacks = Callbacks(callbacks)
