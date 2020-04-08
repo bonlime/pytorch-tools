@@ -1,8 +1,9 @@
 ## test that imagenet pretrained weights are valid and able to classify correctly the cat and dog
 
+import torch
+import pytest
 import numpy as np
 from PIL import Image
-import pytest
 
 from pytorch_tools.utils.preprocessing import get_preprocessing_fn
 from pytorch_tools.utils.visualization import tensor_from_rgb_image
@@ -53,3 +54,25 @@ def test_imagenet_pretrain(arch):
         im = im.view(1, *im.shape).float()
         pred_cls = m(im).argmax()
         assert pred_cls == im_cls
+
+# test that output mean for fixed input is the same
+MODEL_NAMES2 = [
+    "resnet34",
+    "se_resnet50",
+    "efficientnet_b0",
+]
+
+MODEL_MEAN = {
+    "resnet34": 7.6799e-06,
+    "se_resnet50": -2.6095e-06,
+    "efficientnet_b0": 0.0070,
+}
+
+@pytest.mark.parametrize("arch", MODEL_NAMES2)
+def test_output_mean(arch):
+    m = models.__dict__[arch](pretrained="imagenet")
+    m.eval()
+    inp = torch.ones(1, 3, 256, 256)
+    with torch.no_grad():
+        out = m(inp).mean().numpy()
+    assert np.allclose(out, MODEL_MEAN[arch], rtol=1e-4, atol=1e-4)

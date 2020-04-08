@@ -70,6 +70,9 @@ class ResNet(nn.Module):
             Flag to overwrite forward pass to return 5 tensors with different resolutions. Defaults to False.
         drop_rate (float):
             Dropout probability before classifier, for training. Defaults to 0.0.
+        drop_connect_rate (float):
+            Drop rate for StochasticDepth. Randomly removes samples each block. Used as regularization during training. 
+            keep prob will be linearly decreased from 1 to 1 - drop_connect_rate each block. Ref: https://arxiv.org/abs/1603.09382
         global_pool (str):
             Global pooling type. One of 'avg', 'max', 'avgmax', 'catavgmax'. Defaults to 'avg'.
         init_bn0 (bool):
@@ -95,6 +98,7 @@ class ResNet(nn.Module):
         antialias=False,
         encoder=False,
         drop_rate=0.0,
+        drop_connect_rate=0.0,
         global_pool="avg",
         init_bn0=True,
     ):
@@ -108,6 +112,9 @@ class ResNet(nn.Module):
         self.block = block
         self.expansion = block.expansion
         self.norm_act = norm_act
+        self.block_idx = 0
+        self.num_blocks = sum(layers)
+        self.drop_connect_rate = drop_connect_rate
         super(ResNet, self).__init__()
 
         if deep_stem:
@@ -185,6 +192,7 @@ class ResNet(nn.Module):
                 norm_layer=norm_layer,
                 norm_act=norm_act,
                 antialias=antialias,
+                keep_prob=self.keep_prob,
             )
         ]
 
@@ -201,6 +209,7 @@ class ResNet(nn.Module):
                     norm_layer=norm_layer,
                     norm_act=norm_act,
                     antialias=antialias,
+                    keep_prob=self.keep_prob,
                 )
             )
         return nn.Sequential(*layers)
@@ -266,6 +275,11 @@ class ResNet(nn.Module):
                 state_dict[k.replace("layer0.", "")] = state_dict.pop(k)
         super().load_state_dict(state_dict, **kwargs)
 
+    @property
+    def keep_prob(self):
+        keep_prob = 1 - self.drop_connect_rate * self.block_idx / self.num_blocks
+        self.block_idx += 1
+        return keep_prob
 
 # fmt: off
 CFGS = {

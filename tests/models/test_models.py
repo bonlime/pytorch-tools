@@ -73,6 +73,11 @@ def test_dilation(arch, output_stride):
     W, H = INP.shape[-2:]
     assert res.shape[-2:] == (W // output_stride, H // output_stride)
 
+@pytest.mark.parametrize("arch", TEST_MODEL_NAMES)
+def test_drop_connect(arch):
+    m = models.__dict__[arch](drop_connect_rate=0.2)
+    _test_forward(m)
+
 NUM_PARAMS = {
     "tresnetm": 31389032,
     "tresnetl": 55989256,

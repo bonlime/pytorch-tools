@@ -51,6 +51,8 @@ class TResNet(ResNet):
             Flag to overwrite forward pass to return 5 tensors with different resolutions. Defaults to False.
         drop_rate (float):
             Dropout probability before classifier, for training. Defaults to 0.0. to 'avg'.
+        drop_connect_rate (float):
+            Drop rate for StochasticDepth. Randomly removes samples each block. Used as regularization during training. Ref: https://arxiv.org/abs/1603.09382
     """
 
     def __init__(
@@ -65,6 +67,7 @@ class TResNet(ResNet):
         norm_act="leaky_relu",
         encoder=False,
         drop_rate=0.0,
+        drop_connect_rate=0.0,
     ):
         nn.Module.__init__(self) 
         stem_width = int(64 * width_factor)
@@ -74,6 +77,9 @@ class TResNet(ResNet):
         self.groups = 1 # not really used but needed inside _make_layer
         self.base_width = 64 # used inside _make_layer
         self.norm_act = norm_act
+        self.block_idx = 0
+        self.num_blocks = sum(layers)
+        self.drop_connect_rate = drop_connect_rate
 
         # in the paper they use conv1x1 but in code conv3x3 (which seems better)
         self.conv1 = nn.Sequential(SpaceToDepth(), conv3x3(in_channels * 16, stem_width))

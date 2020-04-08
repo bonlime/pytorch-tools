@@ -151,6 +151,7 @@ class BasicBlock(nn.Module):
         norm_layer=ABN,
         norm_act="relu",
         antialias=False,
+        keep_prob=1,
     ):
         super(BasicBlock, self).__init__()
         antialias = antialias and stride == 2
@@ -167,6 +168,7 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
         self.blurpool = BlurPool(channels=planes) if antialias else nn.Identity()
         self.antialias = antialias
+        self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
 
     def forward(self, x):
         residual = x
@@ -180,11 +182,11 @@ class BasicBlock(nn.Module):
         if self.antialias:
             out = self.blurpool(out)
         out = self.conv2(out)
-        # avoid 2 inplace ops by chaining into one long op. Neede for inplaceabn
+        # avoid 2 inplace ops by chaining into one long op. Needed for inplaceabn
         if self.se_module is not None:
-            out = self.se_module(self.bn2(out)) + residual
+            out = self.drop_connect(self.se_module(self.bn2(out))) + residual
         else:
-            out = self.bn2(out) + residual
+            out = self.drop_connect(self.bn2(out)) + residual
         return self.final_act(out)
 
 
@@ -204,6 +206,7 @@ class Bottleneck(nn.Module):
         norm_layer=ABN,
         norm_act="relu",
         antialias=False,
+        keep_prob=1,  # for drop connect
     ):
         super(Bottleneck, self).__init__()
         antialias = antialias and stride == 2
@@ -222,6 +225,7 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.blurpool = BlurPool(channels=width) if antialias else nn.Identity()
         self.antialias = antialias
+        self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
 
     def forward(self, x):
         residual = x
@@ -241,9 +245,9 @@ class Bottleneck(nn.Module):
         out = self.conv3(out)
         # avoid 2 inplace ops by chaining into one long op
         if self.se_module is not None:
-            out = self.se_module(self.bn3(out)) + residual
+            out = self.drop_connect(self.se_module(self.bn3(out))) + residual
         else:
-            out = self.bn3(out) + residual
+            out = self.drop_connect(self.bn3(out)) + residual
         return self.final_act(out)
 
 # TResnet models use slightly modified versions of BasicBlock and Bottleneck
@@ -292,5 +296,5 @@ class TBottleneck(Bottleneck):
 
         out = self.conv3(out)
         # avoid 2 inplace ops by chaining into one long op
-        out = self.bn3(out) + residual
+        out = self.drop_connect(self.bn3(out)) + residual
         return self.final_act(out)

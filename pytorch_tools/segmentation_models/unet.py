@@ -38,7 +38,7 @@ class UnetDecoder(nn.Module):
         self.layer3 = UnetDecoderBlock(in_channels[2], out_channels[2], **bn_params)
         self.layer4 = UnetDecoderBlock(in_channels[3], out_channels[3], **bn_params)
         self.layer5 = UnetDecoderBlock(in_channels[4], out_channels[4], **bn_params)
-        self.dropout = nn.Dropout2d(drop_rate, inplace=True)
+        self.dropout = nn.Dropout2d(drop_rate, inplace=False) # inplace=True raises a backprop error
         self.final_conv = conv1x1(out_channels[4], final_channels)
 
         initialize(self)
