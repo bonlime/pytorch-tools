@@ -28,6 +28,7 @@ from pytorch_tools.utils.misc import initialize
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import make_divisible
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
+from pytorch_tools.utils.misc import repeat_channels
 
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=("__module__", "__name__", "__qualname__", "__annotations__"))
@@ -420,6 +421,8 @@ def _efficientnet(arch, pretrained=None, **kwargs):
             )
             state_dict["classifier.weight"] = model.state_dict()["classifier.weight"]
             state_dict["classifier.bias"] = model.state_dict()["classifier.bias"]
+        if kwargs.get("in_channels", 3) != 3: # support pretrained for custom input channels
+            state_dict["conv_stem.weight"] = repeat_channels(state_dict["conv_stem.weight"], kwargs["in_channels"])
         model.load_state_dict(state_dict)
         patch_bn(model) # adjust epsilon
     setattr(model, "pretrained_settings", cfg_settings)

@@ -20,6 +20,7 @@ from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
+from pytorch_tools.utils.misc import repeat_channels
 
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=("__module__", "__name__", "__qualname__", "__annotations__"))
@@ -471,6 +472,12 @@ def _resnet(arch, pretrained=None, **kwargs):
             # if there is last_linear in state_dict, it's going to be overwritten
             state_dict["fc.weight"] = model.state_dict()["last_linear.weight"]
             state_dict["fc.bias"] = model.state_dict()["last_linear.bias"]
+        # support pretrained for custom input channels
+        # layer0. is needed to support se_resne(x)t weights
+        if kwargs.get("in_channels", 3) != 3:
+            old_weights = state_dict.get("conv1.weight")
+            old_weights = state_dict.get("layer0.conv1.weight") if old_weights is None else old_weights
+            state_dict["layer0.conv1.weight"] = repeat_channels(old_weights, kwargs["in_channels"])
         model.load_state_dict(state_dict)
     setattr(model, "pretrained_settings", cfg_settings)
     return model

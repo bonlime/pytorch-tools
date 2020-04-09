@@ -49,6 +49,12 @@ def test_custom_in_channels(arch):
     with torch.no_grad():
         m(torch.ones(2, 5, 128, 128))
 
+@pytest.mark.parametrize("arch", EFFNET_NAMES[:2] + RESNET_NAMES[:2])
+def test_pretrained_custom_in_channels(arch):
+    m = models.__dict__[arch](in_channels=5, pretrained="imagenet")
+    with torch.no_grad():
+        m(torch.ones(2, 5, 128, 128))
+
 
 @pytest.mark.parametrize("arch", TEST_MODEL_NAMES)
 def test_inplace_abn(arch):
@@ -73,7 +79,7 @@ def test_dilation(arch, output_stride):
     W, H = INP.shape[-2:]
     assert res.shape[-2:] == (W // output_stride, H // output_stride)
 
-@pytest.mark.parametrize("arch", TEST_MODEL_NAMES)
+@pytest.mark.parametrize("arch", EFFNET_NAMES[:2] + RESNET_NAMES[:2])
 def test_drop_connect(arch):
     m = models.__dict__[arch](drop_connect_rate=0.2)
     _test_forward(m)
@@ -87,7 +93,6 @@ NUM_PARAMS = {
     "efficientnet_b2": 9109994,
     "efficientnet_b3": 12233232,
 }
-# @pytest.mark.parametrize('name, num_params', NUM_PARAMS.values(), ids=list(NUM_PARAMS.keys()))
 @pytest.mark.parametrize('name_num_params', zip(NUM_PARAMS.items()))
 def test_num_parameters(name_num_params):
     name, num_params = name_num_params[0]

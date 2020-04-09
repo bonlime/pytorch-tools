@@ -15,6 +15,7 @@ from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules import ABN
 from pytorch_tools.utils.misc import add_docs_for
+from pytorch_tools.utils.misc import repeat_channels
 
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=("__module__", "__name__", "__qualname__", "__annotations__"))
@@ -49,6 +50,8 @@ class TResNet(ResNet):
             Activation for normalizion layer. It's reccomended to use `leacky_relu` with `inplaceabn`.
         encoder (bool):
             Flag to overwrite forward pass to return 5 tensors with different resolutions. Defaults to False.
+            NOTE: TResNet first features have resolution 4x times smaller than input, not 2x as all other models. 
+            So it CAN'T be used as encoder in Unet and Linknet models 
         drop_rate (float):
             Dropout probability before classifier, for training. Defaults to 0.0. to 'avg'.
         drop_connect_rate (float):
@@ -119,6 +122,9 @@ class TResNet(ResNet):
         self._initialize_weights(init_bn0=True)
 
     def load_state_dict(self, state_dict, **kwargs):
+        if self.encoder:
+            state_dict.pop("last_linear.weight")
+            state_dict.pop("last_linear.bias")
         nn.Module.load_state_dict(self, state_dict, **kwargs)
 
 # fmt: off
@@ -209,6 +215,8 @@ def _resnet(arch, pretrained=None, **kwargs):
             # if there is last_linear in state_dict, it's going to be overwritten
             state_dict["last_linear.weight"] = model.state_dict()["last_linear.weight"]
             state_dict["last_linear.bias"] = model.state_dict()["last_linear.bias"]
+        if kwargs.get("in_channels", 3) != 3: # support pretrained for custom input channels
+            state_dict["conv1.1.weight"] = repeat_channels(state_dict["conv1.1.weight"], kwargs["in_channels"] * 16, 3 * 16)
         model.load_state_dict(state_dict)
         # need to adjust some parameters to be align with original model
         patch_blur_pool(model)
