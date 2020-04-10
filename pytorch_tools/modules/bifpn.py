@@ -74,7 +74,7 @@ class BiFPNLayer(nn.Module):
         
     
     def forward(self, features):
-        p5_inp, p4_inp, p3_inp, p2_inp, p1_inp = features
+        p5_inp, p4_inp, p3_inp, p2_inp = features
         
         # Top-down pathway
         p4_td = self.p4_td(self.fuse_p4_td(p4_inp, self.first_up(p5_inp)))
@@ -86,7 +86,7 @@ class BiFPNLayer(nn.Module):
         p4_out = self.p4_out(self.fuse_p4_out(p4_inp, p4_td, self.down_p3(p3_out)))
         p5_out = self.p5_out(self.fuse_p5_out(p5_inp, self.down_p4(p4_out)))
 
-        return p5_out, p4_out, p3_out, p2_out, p1_inp
+        return p5_out, p4_out, p3_out, p2_out
 
 # very simplified
 class SimpleBiFPNLayer(nn.Module):
@@ -101,7 +101,7 @@ class SimpleBiFPNLayer(nn.Module):
         self.fuse = sum
 
     def forward(self, features):
-        p5_inp, p4_inp, p3_inp, p2_inp, p1_inp = features
+        p5_inp, p4_inp, p3_inp, p2_inp = features
         
         # Top-down pathway
         p4_td = self.fuse(p4_inp, self.up(p5_inp))
@@ -113,7 +113,7 @@ class SimpleBiFPNLayer(nn.Module):
         p4_out = self.fuse(p4_inp, p4_td, self.down_p3(p3_out))
         p5_out = self.fuse(p5_inp, self.down_p4(p4_out))
 
-        return p5_out, p4_out, p3_out, p2_out, p1_inp
+        return p5_out, p4_out, p3_out, p2_out
 
 
 class BiFPN(nn.Module):
@@ -141,7 +141,7 @@ class BiFPN(nn.Module):
     ):
         super(BiFPN, self).__init__()
 
-        self.input_convs = nn.ModuleList([nn.Conv2d(in_ch, pyramid_channels, 1) for in_ch in encoder_channels[:-1]])
+        self.input_convs = nn.ModuleList([nn.Conv2d(in_ch, pyramid_channels, 1) for in_ch in encoder_channels])
 
         bifpns = []
         for _ in range(num_layers):
@@ -151,9 +151,8 @@ class BiFPN(nn.Module):
     def forward(self, features):
 
         # Preprocces raw encoder features 
-        p1 = features[-1]
-        p5, p4, p3, p2 = [inp_conv(feature) for inp_conv, feature in zip(self.input_convs, features[:-1])]
+        p5, p4, p3, p2 = [inp_conv(feature) for inp_conv, feature in zip(self.input_convs, features)]
 
         # Apply BiFPN block `num_layers` times
-        p5_out, p4_out, p3_out, p2_out, p1_out = self.bifpn([p5, p4, p3, p2, p1])
-        return p5_out, p4_out, p3_out, p2_out, p1_out
+        p5_out, p4_out, p3_out, p2_out = self.bifpn([p5, p4, p3, p2])
+        return p5_out, p4_out, p3_out, p2_out

@@ -215,9 +215,9 @@ class LovaszLoss(Loss):
         self.per_image = per_image
 
     def forward(self, y_pred, y_true):
-        if y_true.dim() == 4:
+        if self.mode == Mode.MULTILABEL and y_true.dim() == 4: # double check
             # select one class for every pixel
-            y_true = y_true.max(dim=1).values
+            y_true = y_true.argmax(dim=1)
 
         if self.mode == Mode.BINARY:
             if y_pred.size(1) != 1:

@@ -9,6 +9,10 @@ INP = torch.ones(2, 3, 64, 64)
 ENCODERS = ["resnet34", "se_resnet50", "efficientnet_b1", "densenet121"]
 SEGM_ARCHS = [pt_sm.Unet, pt_sm.Linknet, pt_sm.DeepLabV3, pt_sm.SegmentationFPN, pt_sm.SegmentationBiFPN]
 
+# this lines are usefull for quick tests
+# ENCODERS = ["se_resnet50"]
+# SEGM_ARCHS = [pt_sm.SegmentationFPN, pt_sm.SegmentationFPN]
+
 def _test_forward(model):
     with torch.no_grad():
         return model(INP)
@@ -53,6 +57,8 @@ def test_drop_rate(encoder_name, model_class):
 @pytest.mark.parametrize("model_class", [pt_sm.DeepLabV3])  # pt_sm.Unet, pt_sm.Linknet
 @pytest.mark.parametrize("output_stride", [32, 16, 8])
 def test_dilation(encoder_name, model_class, output_stride):
+    if output_stride == 8 and model_class != pt_sm.DeepLabV3:
+        return None # OS=8 only supported for Deeplab
     m = model_class(encoder_name=encoder_name, output_stride=output_stride)
     _test_forward(m)
 

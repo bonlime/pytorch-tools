@@ -28,6 +28,9 @@ ENCODER_SHAPES = {
     "efficientnet_b5": (2048, 128, 64, 40, 24),
     "efficientnet_b6": (2304, 144, 72, 40, 32),
     "efficientnet_b7": (2560, 160, 80, 48, 32),
+    "tresnetm": (2048, 1024, 128, 64, 64),
+    "tresnetl": (2432, 1216, 152, 76, 76),
+    "tresnetxl": (2656, 1328, 166, 83, 83),
 }
 
 
@@ -35,8 +38,6 @@ def get_encoder(name, **kwargs):
     if name not in models.__dict__:
         raise ValueError(f"No such encoder: {name}")
     kwargs["encoder"] = True
-    # if 'resne' in name:
-    #    kwargs['dilated'] = True # dilate resnets for better performance
     kwargs["pretrained"] = kwargs.pop("encoder_weights")
     m = models.__dict__[name](**kwargs)
     m.out_shapes = ENCODER_SHAPES[name]

@@ -271,38 +271,49 @@ class CheckpointSaver(Callback):
 
     Args:
         save_dir (str): path to folder where to save the model
-        save_name (str): name of the saved model. can additionally 
+        save_name (str): name of the saved model. can additionally
             add epoch and metric to model save name
+        monitor (str): quantity to monitor. Implicitly prefers validation metrics over train. One of:
+            `loss` or name of any metric passed to the runner.
         mode (str): one of "min" of "max". Whether to decide to save based
             on minimizing or maximizing loss
-        include_optimizer (bool): if True would also save `optimizers` state_dict. 
+        include_optimizer (bool): if True would also save `optimizers` state_dict.
             This increases checkpoint size 2x times.
+        verbose (bool): If `True` reports each time new best is found
     """
 
     def __init__(
-        self, save_dir, save_name="model_{ep}_{metric:.2f}.chpn", mode="min", include_optimizer=False
+        self,
+        save_dir,
+        save_name="model_{ep}_{metric:.2f}.chpn",
+        monitor="loss",
+        mode="min",
+        include_optimizer=False,
+        verbose=True,
     ):
         super().__init__()
         self.save_dir = save_dir
         self.save_name = save_name
-        self.mode = ReduceMode(mode)
-        self.best = float("inf") if self.mode == ReduceMode.MIN else -float("inf")
+        self.monitor = monitor
+        mode = ReduceMode(mode)
+        if mode == ReduceMode.MIN:
+            self.best = np.inf
+            self.monitor_op = np.less
+        elif mode == ReduceMode.MAX:
+            self.best = -np.inf
+            self.monitor_op = np.greater
         self.include_optimizer = include_optimizer
+        self.verbose = verbose
 
     def on_begin(self):
         os.makedirs(self.save_dir, exist_ok=True)
 
     def on_epoch_end(self):
-        # TODO zakirov(1.11.19) Add support for saving based on metric
-        if self.state.val_loss is not None:
-            current = self.state.val_loss.avg
-        else:
-            current = self.state.train_loss.avg
-        if (self.mode == ReduceMode.MIN and current < self.best) or (
-            self.mode == ReduceMode.MAX and current > self.best
-        ):
-            ep = self.state.epoch
-            # print(f"Epoch {ep}: best loss improved from {self.best:.4f} to {current:.4f}")
+        current = self.get_monitor_value()
+        if self.monitor_op(current, self.best):
+            ep = self.state.epoch_log
+            if self.verbose:
+                print(f"Epoch {ep:2d}: best {self.monitor} improved from {self.best:.4f} to {current:.4f}")
             self.best = current
             save_name = os.path.join(self.save_dir, self.save_name.format(ep=ep, metric=current))
             self._save_checkpoint(save_name)
@@ -316,6 +327,18 @@ class CheckpointSaver(Callback):
         if self.include_optimizer:
             save_dict["optimizer"] = self.state.optimizer.state_dict()
         torch.save(save_dict, path)
+
+    def get_monitor_value(self):
+        value = None
+        if self.monitor == "loss":
+            value = self.state.loss_meter.avg
+        else:
+            for metric_meter in self.state.metric_meters:
+                if metric_meter.name == self.monitor:
+                    value = metric_meter.avg
+        if value is None:
+            raise ValueError(f"CheckpointSaver can't find {self.monitor} value to monitor")
+        return value
 
 
 class TensorBoard(Callback):
@@ -407,7 +430,7 @@ class TensorBoardWithCM(TensorBoard):
 
     def on_loader_end(self):
         super().on_loader_end()
-        f = plot_confusion_matrix(self.cmap, self.class_names, show=False)
+        f = plot_confusion_matrix(self.cmap, self.class_names, normalize=True, show=False)
         cm_img = render_figure_to_tensor(f)
         if self.state.is_train:
             self.train_cm_img = cm_img
@@ -527,10 +550,11 @@ class Mixup(Callback):
         if not self.state.is_train or np.random.rand() > self.prob:
             return data, target_one_hot
         prev_data, prev_target = (data, target_one_hot) if self.prev_input is None else self.prev_input
-        self.prev_input = data, target_one_hot
+        self.prev_input = data.clone(), target_one_hot.clone()
+        perm = torch.randperm(data.size(0)).cuda()
         c = self.tb.sample()
-        md = c * data + (1 - c) * prev_data
-        mt = c * target_one_hot + (1 - c) * prev_target
+        md = c * data + (1 - c) * prev_data[perm]
+        mt = c * target_one_hot + (1 - c) * prev_target[perm]
         return md, mt
 
 
@@ -570,16 +594,17 @@ class Cutmix(Callback):
         if not self.state.is_train or np.random.rand() > self.prob:
             return data, target_one_hot
         prev_data, prev_target = (data, target_one_hot) if self.prev_input is None else self.prev_input
-        self.prev_input = data, target_one_hot
+        self.prev_input = data.clone(), target_one_hot.clone()
         # prev_data shape can be different from current. so need to take min
         H, W = min(data.size(2), prev_data.size(2)), min(data.size(3), prev_data.size(3))
+        perm = torch.randperm(data.size(0)).cuda()
         lam = self.tb.sample()
         lam = min([lam, 1 - lam])
         bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
         # real lambda may be diffrent from sampled. adjust for it
         lam = (bbh2 - bbh1) * (bbw2 - bbw1) / (H * W)
-        data[:, :, bbh1:bbh2, bbw1:bbw2] = prev_data[:, :, bbh1:bbh2, bbw1:bbw2]
-        mixed_target = (1 - lam) * target_one_hot + lam * prev_target
+        data[:, :, bbh1:bbh2, bbw1:bbw2] = prev_data[perm, :, bbh1:bbh2, bbw1:bbw2]
+        mixed_target = (1 - lam) * target_one_hot + lam * prev_target[perm]
         return data, mixed_target
 
     @staticmethod
@@ -609,11 +634,32 @@ class SegmCutmix(Cutmix):
         if not self.state.is_train or np.random.rand() > self.prob:
             return data, target
         prev_data, prev_target = (data, target) if self.prev_input is None else self.prev_input
-        self.prev_input = data, target
+        self.prev_input = data.clone(), target.clone()
         H, W = min(data.size(2), prev_data.size(2)), min(data.size(3), prev_data.size(3))
+        perm = torch.randperm(data.size(0)).cuda()
         lam = self.tb.sample()
         lam = min([lam, 1 - lam])
         bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
-        data[:, :, bbh1:bbh2, bbw1:bbw2] = prev_data[:, :, bbh1:bbh2, bbw1:bbw2]
-        target[:, :, bbh1:bbh2, bbw1:bbw2] = prev_target[:, :, bbh1:bbh2, bbw1:bbw2]
+        data[:, :, bbh1:bbh2, bbw1:bbw2] = prev_data[perm, :, bbh1:bbh2, bbw1:bbw2]
+        target[:, :, bbh1:bbh2, bbw1:bbw2] = prev_target[perm, :, bbh1:bbh2, bbw1:bbw2]
         return data, target
+
+
+class ScheduledDropout(Callback):
+    def __init__(self, drop_rate=0.1, epochs=30, attr_name="dropout.p"):
+        """
+        Slowly changes dropout value for `attr_name` each epoch.
+        Ref: https://arxiv.org/abs/1703.06229
+        Args:
+            drop_rate (float): max dropout rate
+            epochs (int): num epochs to max dropout to fully take effect
+            attr_name (str): name of dropout block in model
+        """
+        super().__init__()
+        self.drop_rate = drop_rate
+        self.epochs = epochs
+        self.attr_name = attr_name
+
+    def on_epoch_end(self):
+        current_rate = self.drop_rate * min(1, self.state.epoch / self.epochs)
+        setattr(self.state.model, self.attr_name, current_rate)

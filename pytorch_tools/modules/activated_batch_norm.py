@@ -25,6 +25,7 @@ class ABN(nn.Module):
         Name of the activation functions, one of: `relu`, `leaky_relu`, `elu` or `identity`.
     activation_param : float
         Negative slope for the `leaky_relu` activation.
+    frozen (bool): if True turns `weigth` and `bias` into untrainable buffers.
     """
 
     def __init__(
@@ -35,6 +36,7 @@ class ABN(nn.Module):
         affine=True,
         activation="leaky_relu",
         activation_param=0.01,
+        frozen=False,
     ):
         super(ABN, self).__init__()
         self.num_features = num_features
@@ -43,12 +45,16 @@ class ABN(nn.Module):
         self.momentum = momentum
         self.activation = ACT(activation)
         self.activation_param = activation_param
-        if self.affine:
-            self.weight = nn.Parameter(torch.ones(num_features))
-            self.bias = nn.Parameter(torch.zeros(num_features))
+        if frozen:
+            self.register_buffer("weight", torch.ones(num_features))
+            self.register_buffer("bias", torch.zeros(num_features))
         else:
-            self.register_parameter("weight", None)
-            self.register_parameter("bias", None)
+            if self.affine:
+                self.weight = nn.Parameter(torch.ones(num_features))
+                self.bias = nn.Parameter(torch.zeros(num_features))
+            else:
+                self.register_parameter("weight", None)
+                self.register_parameter("bias", None)
         self.register_buffer("running_mean", torch.zeros(num_features))
         self.register_buffer("running_var", torch.ones(num_features))
         self.reset_parameters()

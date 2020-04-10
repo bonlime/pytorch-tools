@@ -20,6 +20,7 @@ from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
+from pytorch_tools.utils.misc import repeat_channels
 
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=("__module__", "__name__", "__qualname__", "__annotations__"))
@@ -70,6 +71,9 @@ class ResNet(nn.Module):
             Flag to overwrite forward pass to return 5 tensors with different resolutions. Defaults to False.
         drop_rate (float):
             Dropout probability before classifier, for training. Defaults to 0.0.
+        drop_connect_rate (float):
+            Drop rate for StochasticDepth. Randomly removes samples each block. Used as regularization during training. 
+            keep prob will be linearly decreased from 1 to 1 - drop_connect_rate each block. Ref: https://arxiv.org/abs/1603.09382
         global_pool (str):
             Global pooling type. One of 'avg', 'max', 'avgmax', 'catavgmax'. Defaults to 'avg'.
         init_bn0 (bool):
@@ -95,6 +99,7 @@ class ResNet(nn.Module):
         antialias=False,
         encoder=False,
         drop_rate=0.0,
+        drop_connect_rate=0.0,
         global_pool="avg",
         init_bn0=True,
     ):
@@ -108,6 +113,9 @@ class ResNet(nn.Module):
         self.block = block
         self.expansion = block.expansion
         self.norm_act = norm_act
+        self.block_idx = 0
+        self.num_blocks = sum(layers)
+        self.drop_connect_rate = drop_connect_rate
         super(ResNet, self).__init__()
 
         if deep_stem:
@@ -164,7 +172,7 @@ class ResNet(nn.Module):
         if stride != 1 or self.inplanes != planes * self.expansion:
             downsample_layers = []
             if antialias and stride == 2:  # using OrderedDict to preserve ordering and allow loading
-                downsample_layers += [("blur", BlurPool(filt_size=2))]
+                downsample_layers += [("blur", nn.AvgPool2d(2, 2))]
             downsample_layers += [
                 ("0", conv1x1(self.inplanes, planes * self.expansion, stride=1 if antialias else stride)),
                 ("1", norm_layer(planes * self.expansion, activation="identity")),
@@ -174,17 +182,18 @@ class ResNet(nn.Module):
         first_dilation = max(1, dilation // 2)
         layers = [
             self.block(
-                self.inplanes,
-                planes,
-                stride,
-                downsample,
-                self.groups,
-                self.base_width,
-                use_se,
-                first_dilation,
-                norm_layer,
-                norm_act,
-                antialias,
+                inplanes=self.inplanes,
+                planes=planes,
+                stride=stride,
+                downsample=downsample,
+                groups=self.groups,
+                base_width=self.base_width,
+                use_se=use_se,
+                dilation=first_dilation,
+                norm_layer=norm_layer,
+                norm_act=norm_act,
+                antialias=antialias,
+                keep_prob=self.keep_prob,
             )
         ]
 
@@ -192,17 +201,16 @@ class ResNet(nn.Module):
         for _ in range(1, blocks):
             layers.append(
                 self.block(
-                    self.inplanes,
-                    planes,
-                    1,
-                    None,
-                    self.groups,
-                    self.base_width,
-                    use_se,
-                    dilation,
-                    norm_layer,
-                    norm_act,
-                    antialias,
+                    inplanes=self.inplanes,
+                    planes=planes,
+                    groups=self.groups,
+                    base_width=self.base_width,
+                    use_se=use_se,
+                    dilation=first_dilation,
+                    norm_layer=norm_layer,
+                    norm_act=norm_act,
+                    antialias=antialias,
+                    keep_prob=self.keep_prob,
                 )
             )
         return nn.Sequential(*layers)
@@ -268,6 +276,11 @@ class ResNet(nn.Module):
                 state_dict[k.replace("layer0.", "")] = state_dict.pop(k)
         super().load_state_dict(state_dict, **kwargs)
 
+    @property
+    def keep_prob(self):
+        keep_prob = 1 - self.drop_connect_rate * self.block_idx / self.num_blocks
+        self.block_idx += 1
+        return keep_prob
 
 # fmt: off
 CFGS = {
@@ -459,6 +472,12 @@ def _resnet(arch, pretrained=None, **kwargs):
             # if there is last_linear in state_dict, it's going to be overwritten
             state_dict["fc.weight"] = model.state_dict()["last_linear.weight"]
             state_dict["fc.bias"] = model.state_dict()["last_linear.bias"]
+        # support pretrained for custom input channels
+        # layer0. is needed to support se_resne(x)t weights
+        if kwargs.get("in_channels", 3) != 3:
+            old_weights = state_dict.get("conv1.weight")
+            old_weights = state_dict.get("layer0.conv1.weight") if old_weights is None else old_weights
+            state_dict["layer0.conv1.weight"] = repeat_channels(old_weights, kwargs["in_channels"])
         model.load_state_dict(state_dict)
     setattr(model, "pretrained_settings", cfg_settings)
     return model

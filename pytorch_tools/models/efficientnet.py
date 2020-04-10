@@ -20,6 +20,7 @@ import torch
 from torch import nn
 from torchvision.models.utils import load_state_dict_from_url
 
+from pytorch_tools.modules import ABN
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules.residual import InvertedResidual
 from pytorch_tools.modules.residual import conv1x1, conv3x3
@@ -27,6 +28,7 @@ from pytorch_tools.utils.misc import initialize
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import make_divisible
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
+from pytorch_tools.utils.misc import repeat_channels
 
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=("__module__", "__name__", "__qualname__", "__annotations__"))
@@ -254,32 +256,43 @@ def decode_block_args(string_list):
 
 
 # fmt: off
+PRETRAIN_SETTINGS = DEFAULT_IMAGENET_SETTINGS
+PRETRAIN_SETTINGS["interpolation"] = "bicubic"
+PRETRAIN_SETTINGS["crop_pct"] = 0.875
+
 CFGS = {
     # All pretrained models were trained on TF by Google and ported to PyTorch by Ross Wightman @rwightman
     # Due to framework little differences (BN epsilon and different padding in convs) this weights give slightly
     # worse performance when loaded into model above but the drop is only about ~1% on Imagenet and doesn't really 
     # mater for transfer learning 
+    # upd. by default weights from Noisy Student paper are loaded due to a much better predictions
     "efficientnet-b0": {
         "default": {
             "params": {
                 "blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.0, "depth_multiplier": 1.0}, 
-                **DEFAULT_IMAGENET_SETTINGS
-
+                **PRETRAIN_SETTINGS,
+                "input_size": [3, 224, 224],
             },
         "imagenet": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b0_ns-c0e6a31c.pth",
+        },
+        "imagenet2": {
             "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b0_aa-827b6e33.pth",
-            "input_size": [3, 224, 224],
         },
     },
     "efficientnet-b1": {
         "default": {
             "params": {
                 "blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.0, "depth_multiplier": 1.1}, 
-                **DEFAULT_IMAGENET_SETTINGS
+                **PRETRAIN_SETTINGS,
+                "input_size": [3, 240, 240], 
+                "crop_pct": 0.882,
             },
         "imagenet": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b1_ns-99dd0c41.pth",
+        },
+        "imagenet2": {
             "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b1_aa-ea7a6ee0.pth",
-            "input_size": [3, 240, 240],
         },
     },
     "efficientnet-b2": {
@@ -287,8 +300,12 @@ CFGS = {
             "params": {"blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.1, "depth_multiplier": 1.2},
             **DEFAULT_IMAGENET_SETTINGS,
             "input_size": [3, 260, 260],
+            "crop_pct": 0.890,
         },
-        "imagenet": {
+        "imagenet": { # noisy student. original: Acc@1: 81.97. Acc@5: 96.10. My: Acc@1: 81.41. Acc@5: 95.84
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b2_ns-00306e48.pth",
+        },
+        "imagenet2": { # auto augment
             "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b2_aa-60c94f97.pth",
         },
     },
@@ -297,8 +314,12 @@ CFGS = {
             "params": {"blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.2, "depth_multiplier": 1.4},
             **DEFAULT_IMAGENET_SETTINGS,
             "input_size": [3, 300, 300],
+            "crop_pct": 0.904,
         },
-        "imagenet": {
+        "imagenet": { # noisy student. original: Acc@1: 83.61. Acc@5: 96.78. My: gives Acc@1: 82.23. Acc@5: 95
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b3_ns-9d44bf68.pth",
+        },
+        "imagenet2": {
             "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b3_aa-84b4657e.pth",
         },
     },
@@ -306,46 +327,69 @@ CFGS = {
         "default": {
             "params": {"blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.4, "depth_multiplier": 1.8},
             **DEFAULT_IMAGENET_SETTINGS,
+            "input_size": [3, 380, 380],
+            "crop_pct": 0.922,
             },
         "imagenet": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b4_ns-d6313a46.pth",
+        },
+        "imagenet2": {
             "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b4_aa-818f208c.pth",
-            "input_size": [3, 380, 380],
         },
     },
     "efficientnet-b5": {
         "default": {
             "params": {"blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.6, "depth_multiplier": 2.2},
             **DEFAULT_IMAGENET_SETTINGS,
-            },
-        "imagenet": {
-            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b5_ra-9a3e5369.pth",
             "input_size": [3, 456, 456],
+            "crop_pct": 0.934,
+            },
+        "imagenet": { # noisy student. original: Acc@1: 85.79. Acc@5: 97.72. my: Acc@1: 85.89. Acc@5: 97.63
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b5_ns-6f26d0cf.pth",
+        },
+        "imagenet2": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b5_ra-9a3e5369.pth",
         },
     },
     "efficientnet-b6": {
         "default": {
             "params": {"blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.8, "depth_multiplier": 2.6},
             **DEFAULT_IMAGENET_SETTINGS,
+            "input_size": [3, 528, 528],
+            "crop_pct": 0.942,
             },
         "imagenet": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b6_ns-51548356.pth",
+        },
+        "imagenet2": {
             "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b6_aa-80ba17e4.pth",
-            "input_size": [3, 528, 528],
         },
     },
     "efficientnet-b7": {
         "default": {
             "params": {"blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 2.0, "depth_multiplier": 3.1},
             **DEFAULT_IMAGENET_SETTINGS,
+            "input_size": [3, 600, 600],
+            "crop_pct": 0.949,
             },
         "imagenet": {
+            "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b7_ns-1dbc32de.pth",
+        },
+        "imagenet2": {
             "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b7_ra-6c08e654.pth",
-            "input_size": [3, 600, 600],
         },
     },
 }
 
 # fmt: on
 
+
+def patch_bn(module):
+    """TF ported weights use slightly different eps in BN. Need to adjust for better performance"""
+    if isinstance(module, ABN):
+        module.eps = 1e-3
+    for m in module.children():
+        patch_bn(m)
 
 def _efficientnet(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)
@@ -377,7 +421,10 @@ def _efficientnet(arch, pretrained=None, **kwargs):
             )
             state_dict["classifier.weight"] = model.state_dict()["classifier.weight"]
             state_dict["classifier.bias"] = model.state_dict()["classifier.bias"]
+        if kwargs.get("in_channels", 3) != 3: # support pretrained for custom input channels
+            state_dict["conv_stem.weight"] = repeat_channels(state_dict["conv_stem.weight"], kwargs["in_channels"])
         model.load_state_dict(state_dict)
+        patch_bn(model) # adjust epsilon
     setattr(model, "pretrained_settings", cfg_settings)
     return model
 

@@ -11,3 +11,9 @@ def test_activations_init(activation):
     act = modules.activation_from_name(activation)
     res = act(inp)
     assert res.mean()
+
+def test_frozen_abn():
+    l = modules.bn_from_name("frozen_abn")(10)
+    assert list(l.parameters()) == []
+    l = modules.ABN(10, frozen=True)
+    assert list(l.parameters()) == []

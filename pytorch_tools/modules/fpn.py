@@ -2,22 +2,14 @@
 # code kindly borrowed from https://github.com/qubvel/segmentation_models.pytorch
 import torch.nn as nn
 import torch.nn.functional as F
-from .residual import conv1x1
+from .residual import conv1x1, conv3x3
 
-
-class FPNBlock(nn.Module):
-    def __init__(self, pyramid_channels, skip_channels):
-        super().__init__()
-        self.skip_conv = conv1x1(skip_channels, pyramid_channels)
-
+class MergeBlock(nn.Module):
     def forward(self, x):
-        # TODO: (emil) 06.02.20 maybe interpolate to skip.size[-2:] to support dilation?
         x, skip = x
         x = F.interpolate(x, size=skip.shape[-2:], mode="nearest")
-        skip = self.skip_conv(skip)
-        x = x + skip
+        x += skip
         return x
-
 
 class FPN(nn.Module):
     """Feature Pyramid Network for enhancing high-resolution feature maps with semantic
@@ -25,33 +17,39 @@ class FPN(nn.Module):
     Ref: https://arxiv.org/abs/1612.03144
         
     Args:
-        encoder_channels (List[int]): Number of channels for each feature map
+        encoder_channels (List[int]): Number of channels for each input feature map
         pyramid_channels (int): Number of channels in each feature map after FPN. Defaults to 256.
         num_layers (int): Number of FPN layers.
     Input:
-        features (List): this module expects list of 5 feature maps of different resolution
-    """     
-    
+        features (List): this module expects list of feature maps of different resolution
+    """
+
     def __init__(
             self,
             encoder_channels,
             pyramid_channels=256,
             num_layers=1,
             **bn_args, # for compatability only. Not used
-    ):     
+    ):
         super().__init__()
         assert num_layers == 1, "More that 1 layer is not supported in FPN"
 
-        self.p5 = conv1x1(encoder_channels[0], pyramid_channels)
-        self.p4 = FPNBlock(pyramid_channels, encoder_channels[1])
-        self.p3 = FPNBlock(pyramid_channels, encoder_channels[2])
-        self.p2 = FPNBlock(pyramid_channels, encoder_channels[3])
+        # we DO use bias in this convs
+        self.lateral_convs = nn.ModuleList(
+            [conv1x1(in_ch, pyramid_channels, bias=True) for in_ch in encoder_channels]
+        )
+        self.smooth_convs = nn.ModuleList(
+            [conv3x3(pyramid_channels, pyramid_channels, bias=True) for in_ch in encoder_channels]
+        )
+        self.merge_block = MergeBlock()
 
     def forward(self, features):
-        # only use resolutions from 1/32 to 1/4
-        c5, c4, c3, c2, c1 = features
-        p5 = self.p5(c5)
-        p4 = self.p4([p5, c4])
-        p3 = self.p3([p4, c3])
-        p2 = self.p2([p3, c2])
-        return p5, p4, p3, p2, c1
+        """features (List[torch.Tensor]): features from coarsest to finest"""
+        # project features
+        pyramid_features = [l_conv(feature) for l_conv, feature in zip(self.lateral_convs, features)]
+        # merge features inplace
+        for idx in range(1, len(pyramid_features)):
+            pyramid_features[idx] = self.merge_block([pyramid_features[idx - 1], pyramid_features[idx]])
+        # smooth them after merging
+        pyramid_features = [s_conv(feature) for s_conv, feature in zip(self.smooth_convs, pyramid_features)]
+        return pyramid_features

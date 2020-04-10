@@ -1,4 +1,5 @@
 import os
+import math
 import time
 import torch
 import random
@@ -203,3 +204,15 @@ def make_divisible(v, divisor=8):
     if new_v < 0.9 * v:  # ensure round down does not go down by more than 10%.
         new_v += divisor
     return new_v
+
+def repeat_channels(conv_weights, new_channels, old_channels=3):
+    """Repeat channels to match new number of input channels
+    Args:
+        conv_weights (torch.Tensor): shape [*, old_channels, *, *]
+        new_channels (int): desired number of channels
+        old_channels (int): original number of channels
+    """
+    rep_times = math.ceil(new_channels / old_channels)
+    new_weights = conv_weights.repeat(1, rep_times, 1, 1)[:, :new_channels, :, :]
+    new_weights *= old_channels / new_channels # to keep the same output amplitude
+    return new_weights

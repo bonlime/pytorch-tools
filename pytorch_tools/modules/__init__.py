@@ -1,9 +1,15 @@
+from functools import partial
+
+from .pooling import FastGlobalAvgPool2d
+from .pooling import SpaceToDepth
 from .pooling import GlobalPool2d
 from .pooling import BlurPool
 from .pooling import Flatten
 
 from .residual import BasicBlock
 from .residual import Bottleneck
+from .residual import TBasicBlock
+from .residual import TBottleneck
 from .residual import SEModule
 
 # from .residual import Transition, DenseLayer
@@ -20,9 +26,11 @@ def bn_from_name(norm_name):
     norm_name = norm_name.lower()
     if norm_name == "abn":
         return ABN
-    elif norm_name == "inplaceabn" or "inplace_abn":
+    elif norm_name in ("inplaceabn", "inplace_abn"):
         return InPlaceABN
     elif norm_name == "inplaceabnsync":
         return InPlaceABNSync
+    elif norm_name in ("frozen_abn", "frozenabn"):
+        return partial(ABN, frozen=True)
     else:
         raise ValueError(f"Normalization {norm_name} not supported")
