@@ -4,6 +4,7 @@ import logging
 from tqdm import tqdm
 from enum import Enum
 from collections import OrderedDict
+from collections import defaultdict
 import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -551,7 +552,7 @@ class Mixup(Callback):
             return data, target_one_hot
         prev_data, prev_target = (data, target_one_hot) if self.prev_input is None else self.prev_input
         self.prev_input = data.clone(), target_one_hot.clone()
-        perm = torch.randperm(data.size(0)).cuda()
+        perm = torch.randperm(data.size(0), device=data.device)
         c = self.tb.sample()
         md = c * data + (1 - c) * prev_data[perm]
         mt = c * target_one_hot + (1 - c) * prev_target[perm]
@@ -597,7 +598,7 @@ class Cutmix(Callback):
         self.prev_input = data.clone(), target_one_hot.clone()
         # prev_data shape can be different from current. so need to take min
         H, W = min(data.size(2), prev_data.size(2)), min(data.size(3), prev_data.size(3))
-        perm = torch.randperm(data.size(0)).cuda()
+        perm = torch.randperm(data.size(0), device=data.device)
         lam = self.tb.sample()
         lam = min([lam, 1 - lam])
         bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
@@ -636,7 +637,7 @@ class SegmCutmix(Cutmix):
         prev_data, prev_target = (data, target) if self.prev_input is None else self.prev_input
         self.prev_input = data.clone(), target.clone()
         H, W = min(data.size(2), prev_data.size(2)), min(data.size(3), prev_data.size(3))
-        perm = torch.randperm(data.size(0)).cuda()
+        perm = torch.randperm(data.size(0), device=data.device)
         lam = self.tb.sample()
         lam = min([lam, 1 - lam])
         bbh1, bbw1, bbh2, bbw2 = self.rand_bbox(H, W, lam)
@@ -663,3 +664,24 @@ class ScheduledDropout(Callback):
     def on_epoch_end(self):
         current_rate = self.drop_rate * min(1, self.state.epoch / self.epochs)
         setattr(self.state.model, self.attr_name, current_rate)
+
+class ResetOptimizer(Callback):
+    """Set's Optimizers state to empty for epoch in `reset_epoch`. Could be used for restarts. 
+        Args:
+            reset_epoch (List[int]): after which epochs to reset optimizer
+            verbose (bool): Flag to print that optimizer was reset."""
+    def __init__(self, reset_epochs=[], verbose=True):
+        super().__init__()
+        self.reset_epochs = set(reset_epochs)
+        self.verbose = verbose
+
+    def on_epoch_end(self):
+        if self.state.epoch_log in self.reset_epochs:
+            # any optimizer inherited from torch.Optimizer has state which can be reset
+            if hasattr(self.state.optimizer, "optimizer"): # for lookahead
+                self.state.optimizer.optimizer.state = defaultdict(dict)
+            else:
+                self.state.optimizer.state = defaultdict(dict)
+                
+            if self.verbose:
+                print("Reseting optimizer")
