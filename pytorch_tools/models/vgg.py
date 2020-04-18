@@ -173,7 +173,7 @@ def _vgg(arch, pretrained=None, **kwargs):
     assert (
         common_args == set()
     ), "Args {} are going to be overwritten by default params for {} weights".format(
-        common_args.keys(), pretrained or "default"
+        common_args, pretrained or "default"
     )
     kwargs.update(cfg_params)
     model = VGG(**kwargs)

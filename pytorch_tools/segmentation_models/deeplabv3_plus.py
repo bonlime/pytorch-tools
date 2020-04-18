@@ -24,9 +24,10 @@ class DeepLabV3(EncoderDecoder):
             footprint. But increases backward time. Defaults to 'abn'.
         norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
     Returns:
-        ``torch.nn.Module``: **Linknet**
-    .. _Linknet:
-        https://arxiv.org/pdf/1707.03718.pdf
+        ``torch.nn.Module``: **Deeplab**
+
+    Ref:
+        Deeplab 3+: https://arxiv.org/abs/1706.05587
     """
 
     def __init__(
