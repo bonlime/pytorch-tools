@@ -5,6 +5,7 @@ ENCODER_SHAPES = {
     "vgg13_bn": (512, 512, 512, 256, 128),
     "vgg16_bn": (512, 512, 512, 256, 128),
     "vgg19_bn": (512, 512, 512, 256, 128),
+    
     "resnet18": (512, 256, 128, 64, 64),
     "resnet34": (512, 256, 128, 64, 64),
     "resnet50": (2048, 1024, 512, 256, 64),
@@ -16,10 +17,12 @@ ENCODER_SHAPES = {
     "se_resnet152": (2048, 1024, 512, 256, 64),
     "se_resnext50_32x4d": (2048, 1024, 512, 256, 64),
     "se_resnext101_32x4d": (2048, 1024, 512, 256, 64),
+    
     "densenet121": (1024, 1024, 512, 256, 64),
     "densenet169": (1664, 1280, 512, 256, 64),
     "densenet201": (1920, 1792, 512, 256, 64),
     #'densenet161': (2208, 2112, 768, 384, 96),
+    
     "efficientnet_b0": (1280, 80, 40, 24, 16),
     "efficientnet_b1": (1280, 80, 40, 24, 16),
     "efficientnet_b2": (1408, 88, 48, 24, 16),
@@ -28,9 +31,23 @@ ENCODER_SHAPES = {
     "efficientnet_b5": (2048, 128, 64, 40, 24),
     "efficientnet_b6": (2304, 144, 72, 40, 32),
     "efficientnet_b7": (2560, 160, 80, 48, 32),
+
+    # this models return feature maps at OS= 32, 16, 8, 4, 4
+    # they CAN'T be used as encoders in Unet and Linknet
     "tresnetm": (2048, 1024, 128, 64, 64),
     "tresnetl": (2432, 1216, 152, 76, 76),
     "tresnetxl": (2656, 1328, 166, 83, 83),
+    
+    # this models return feature maps at OS= 32, 16, 8, 4, 4
+    # they CAN'T be used as encoders in Unet and Linknet
+    "hrnet_w18_small": (144, 72, 36, 18, 18),
+    "hrnet_w18": (144, 72, 36, 18, 18),
+    "hrnet_w30": (240, 120, 60, 30, 30),
+    "hrnet_w32": (256, 128, 64, 32, 32),
+    "hrnet_w40": (320, 160, 80, 40, 40),
+    "hrnet_w44": (352, 176, 88, 44, 44),
+    "hrnet_w48": (384, 192, 96, 48, 48),
+    "hrnet_w64": (512, 256, 128, 64, 64),
 }
 
 

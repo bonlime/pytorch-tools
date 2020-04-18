@@ -36,3 +36,12 @@ from .efficientnet import efficientnet_b7
 from .tresnet import tresnetm
 from .tresnet import tresnetl
 from .tresnet import tresnetxl
+
+from .hrnet import hrnet_w18_small
+from .hrnet import hrnet_w18
+from .hrnet import hrnet_w30
+from .hrnet import hrnet_w32
+from .hrnet import hrnet_w40
+from .hrnet import hrnet_w44
+from .hrnet import hrnet_w48
+from .hrnet import hrnet_w64
