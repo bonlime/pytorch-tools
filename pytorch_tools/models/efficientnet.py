@@ -406,7 +406,7 @@ def _efficientnet(arch, pretrained=None, **kwargs):
     assert (
         common_args == set()
     ), "Args {} are going to be overwritten by default params for {} weights".format(
-        common_args.keys(), pretrained
+        common_args, pretrained
     )
     kwargs.update(cfg_params)
     model = EfficientNet(**kwargs)
