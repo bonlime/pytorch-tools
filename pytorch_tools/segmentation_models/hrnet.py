@@ -1,6 +1,6 @@
 import logging
 from copy import deepcopy
-from functools import wraps, partial
+from functools import wraps
 
 import torch
 import torch.nn as nn
@@ -35,22 +35,26 @@ def patch_inplace_abn(module):
 
 class HRNet(nn.Module):
     """HRNet model for image segmentation
-    NOTE: for this model input size should be divisable by 32!
+    NOTE: for this model input size should be divisible by 32!
 
     Args:
         encoder_name (str): name of classification model used as feature extractor to build segmentation model.
             Models expects encoder to have output stride 16 or 8. Only Resnet and Effnet family models are supported for now
         encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
         num_classes (int): a number of classes for output (output shape - ``(batch, classes, h, w)``).
+        pretrained (Union[str, None]): hrnet_w48 and hrnet_w48+OCR have pretrained weights. init models using functions rather than
+            from class to load them. Available options are: None, `cityscape` 
         last_upsample (bool): Flag to enable upsampling predictions to the original image size. If set to `False` prediction
             would be 4x times smaller than input image. Default True.
         drop_rate (float): Probability of spatial dropout on last feature map
+        OCR (bool): Flag to add object context block to the model. See `Ref` section for paper. 
         norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory
             footprint. But increases backward time. Defaults to 'abn'.
         norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
     
-    Ref: 
-
+    Ref:
+        Deep High-Resolution Representation Learning for Visual Recognition: https://arxiv.org/abs/1908.07919
+        Object-Contextual Representations for Semantic Segmentation: https://arxiv.org/abs/1909.11065
     """
 
     def __init__(
@@ -62,8 +66,8 @@ class HRNet(nn.Module):
         last_upsample=True,
         OCR=False,
         drop_rate=0,
-        norm_layer="abn",
-        norm_act="relu",
+        norm_layer="inplace_abn", # use memory efficient by default
+        norm_act="leaky_relu",
         **encoder_params,
     ):
 
@@ -122,41 +126,46 @@ class HRNet(nn.Module):
             x = self.conv3x3(x)
             context = self.ocr_gather_head(x, out_aux)
             x = self.ocr_distri_head(x, context)
-            # x = self.dropout(x)
+            x = self.dropout(x)
             x = self.head(x)
             x = self.last_upsample(x)
             out_aux = self.last_upsample(out_aux)
             return out_aux, x
         else:
-            # x = self.dropout(x)
+            x = self.dropout(x)
             x = self.head(x)
             x = self.last_upsample(x)
             return x
     
-    def load_state_dict(self, state_dict, **kwargs):
-        state_dict.pop("loss.criterion.weight", None) # remove extra parameters
-        # remap names in state dict
-        self_keys = list(self.state_dict().keys())
-        sd_keys = list(state_dict.keys())
-        new_state_dict = {}
-        for new_key, old_key in zip(self_keys, sd_keys):
-            new_state_dict[new_key] = state_dict[old_key]
-        super().load_state_dict(new_state_dict, **kwargs)
-
 # fmt: off
-SETTINGS = {}
+SETTINGS = {
+    "input_size": [3, 512, 1024],
+    "input_range": [0, 1],
+    "mean": [0.485, 0.456, 0.406],
+    "std": [0.229, 0.224, 0.225],
+    "num_classes": 19,
+}
 CFGS = {
     "hrnet_w48": {
         "default": {
-            "params": {"encoder_name": "hrnet_w48", }, # "norm_layer": "inplaceabn", "norm_act": "leaky_relu"
-            "num_classes": 19,
-            "norm_layer": "inplace_abn"
+            "params": {"encoder_name": "hrnet_w48", },
+            "input_space": "RGB",
+            "norm_layer": "inplace_abn",
+            **SETTINGS,
         },
-        "cityscape": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.3/hrnet_w48_cityscapes_cls19_1024x2048_ohem_trainvalset.pth"},
+        "cityscape": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.3/hrnet_w48_cityscapes_cls19_1024x2048_ohem_trainvalset_remapped.pth"},
+    },
+    "hrnet_w48_ocr": {
+        "default": {
+            "params": {"encoder_name": "hrnet_w48", "OCR": True},
+            "input_space": "BGR", # this weights were trained using cv2.imread 
+            "norm_layer": "inplace_abn",
+            **SETTINGS,
+        },
+        "cityscape": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.3/hrnet_w48_ocr_1_latest_remapped.pth"},
     },
 }
 # fmt: on
-
 def _hrnet(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)
     cfg_settings = cfgs[arch]["default"]
@@ -166,7 +175,6 @@ def _hrnet(arch, pretrained=None, **kwargs):
         pretrained_params = pretrained_settings.pop("params", {})
         cfg_settings.update(pretrained_settings)
         cfg_params.update(pretrained_params)
-    
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
     assert (
         common_args == set()
@@ -178,9 +186,6 @@ def _hrnet(arch, pretrained=None, **kwargs):
     if pretrained:
         state_dict = load_state_dict_from_url(cfgs[arch][pretrained]["url"])
         kwargs_cls = kwargs.get("num_classes", None)
-        OCR = cfg_params.get("OCR", False)
-        if OCR:
-            state_dict = state_dict["state_dict"]
         if kwargs_cls and kwargs_cls != cfg_settings["num_classes"]:
             logging.warning(
                 "Using model pretrained for {} classes with {} classes. Last layer is initialized randomly".format(
@@ -188,18 +193,16 @@ def _hrnet(arch, pretrained=None, **kwargs):
                 )
             )
             # if there is last_linear in state_dict, it's going to be overwritten
-            # TODO: remap upload already remapped weights 
-            if OCR:
-                state_dict["module.cls_head.weight"] = model.state_dict()["head.weight"]
-                state_dict["module.cls_head.bias"] = model.state_dict()["head.bias"]
+            if cfg_params.get("OCR", False):
+                state_dict["head.weight"] = model.state_dict()["head.weight"]
+                state_dict["head.bias"] = model.state_dict()["head.bias"]
             else:
-                state_dict["model.last_layer.3.weight"] = model.state_dict()["head.2.weight"]
-                state_dict["model.last_layer.3.bias"] = model.state_dict()["head.2.bias"]
+                state_dict["head.2.weight"] = model.state_dict()["head.2.weight"]
+                state_dict["head.2.bias"] = model.state_dict()["head.2.bias"]
         # support custom number of input channels
         if kwargs.get("in_channels", 3) != 3:
-            if not OCR:
-                old_weights = state_dict.get("model.conv1.weight")
-                state_dict["model.conv1.weight"] = repeat_channels(old_weights, kwargs["in_channels"])
+            old_weights = state_dict.get("encoder.conv1.weight")
+            state_dict["encoder.conv1.weight"] = repeat_channels(old_weights, kwargs["in_channels"])
         model.load_state_dict(state_dict)
         # models were trained using inplaceabn. need to adjust for it. it works without 
         # this patch but results are slightly worse
@@ -207,5 +210,13 @@ def _hrnet(arch, pretrained=None, **kwargs):
     setattr(model, "pretrained_settings", cfg_settings)
     return model
 
-def hrnet_w48(pretrained="cityscape", num_classes=19, **kwargs):
+@wraps(HRNet)
+def hrnet_w48(pretrained="cityscape", **kwargs):
+    # set number of classes to 19 if not stated explicitly
+    kwargs["num_classes"] = kwargs.get("num_classes", 19)
     return _hrnet("hrnet_w48", pretrained=pretrained, **kwargs)
+
+@wraps(HRNet)
+def hrnet_w48_ocr(pretrained="cityscape", **kwargs):
+    kwargs["num_classes"] = kwargs.get("num_classes", 19)
+    return _hrnet("hrnet_w48_ocr", pretrained=pretrained, **kwargs)
