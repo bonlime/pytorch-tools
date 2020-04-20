@@ -113,6 +113,7 @@ class HRNet(nn.Module):
         self.name = f"segm-{encoder_name}"
         # use lower momemntum 
         patch_bn_mom(self)
+        self._init_weights()
 
     def forward(self, x):
         """Sequentially pass `x` trough model`s `encoder` and `head` (return logits!)"""
@@ -136,7 +137,15 @@ class HRNet(nn.Module):
             x = self.head(x)
             x = self.last_upsample(x)
             return x
-    
+
+    def _init_weights(self):
+        # init all weights except encoder (to allow pretrain)
+        initialize(self.head)
+        if self.OCR:
+            initialize(self.aux_head)
+            initialize(self.ocr_distri_head)
+            initialize(self.conv3x3)
+
 # fmt: off
 SETTINGS = {
     "input_size": [3, 512, 1024],

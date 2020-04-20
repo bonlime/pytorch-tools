@@ -8,17 +8,21 @@ from ..utils.misc import to_numpy
 
 
 class Runner:
-    def __init__(self, model, optimizer, criterion, metrics=None, callbacks=ConsoleLogger()):
-        """
-        
-        Args:
-            model: model
-            optimizer: optimizer
-            criterion: Loss used for training
-            metrics (List): Optional metrics to measure during training. All metrics
-                must have `name` attribute. Defaults to None.
-            callbacks (List): List of Callbacks to use. Defaults to ConsoleLogger().
-        """
+    """
+    
+    Args:
+        model: model
+        optimizer: optimizer
+        criterion: Loss used for training
+        metrics (List): Optional metrics to measure during training. All metrics
+            must have `name` attribute. Defaults to None.
+        callbacks (List): List of Callbacks to use. Defaults to ConsoleLogger().
+        gradient_clip_val (float): Gradient clipping value. 0 means no clip. Causes ~5% training slowdown
+
+    """
+    def __init__(
+        self, model, optimizer, criterion, metrics=None, callbacks=ConsoleLogger(), gradient_clip_val=0
+    ):
         super().__init__()
 
         if not hasattr(amp._amp_state, "opt_properties"):
@@ -28,6 +32,7 @@ class Runner:
         self.state = RunnerState(model=model, optimizer=optimizer, criterion=criterion, metrics=metrics,)
         self.callbacks = Callbacks(callbacks)
         self.callbacks.set_state(self.state)
+        self.gradient_clip_val = gradient_clip_val
 
     def fit(
         self, train_loader, steps_per_epoch=None, val_loader=None, val_steps=None, epochs=1, start_epoch=0,
@@ -76,7 +81,8 @@ class Runner:
             self.state.optimizer.zero_grad()
             with amp.scale_loss(loss, self.state.optimizer) as scaled_loss:
                 scaled_loss.backward()
-            # grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 5.0)
+            if self.gradient_clip_val > 0:
+                torch.nn.utils.clip_grad_norm_(self.state.model.parameters(), self.gradient_clip_val)
             self.state.optimizer.step()
             torch.cuda.synchronize()
 
