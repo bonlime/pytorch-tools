@@ -1,6 +1,5 @@
 import logging
 from copy import deepcopy
-from collections import OrderedDict
 from functools import wraps, partial
 
 import torch
@@ -53,7 +52,7 @@ class TResNet(ResNet):
             NOTE: TResNet first features have resolution 4x times smaller than input, not 2x as all other models. 
             So it CAN'T be used as encoder in Unet and Linknet models 
         drop_rate (float):
-            Dropout probability before classifier, for training. Defaults to 0.0. to 'avg'.
+            Dropout probability before classifier, for training. Defaults to 0.
         drop_connect_rate (float):
             Drop rate for StochasticDepth. Randomly removes samples each block. Used as regularization during training. Ref: https://arxiv.org/abs/1603.09382
     """
@@ -144,29 +143,29 @@ CFGS = {
     "tresnetm": {
         "default": {"params": {"layers": [3, 4, 11, 3]}, **PRETRAIN_SETTINGS,},
         # Acc@1 81.712 Acc@5 95.502 on 448 crops and proper normalization
-        "imagenet": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/0.1.2/patched_tresnet_m_448-a236aa30.pth"},
+        "imagenet": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/patched_tresnet_m_448-a236aa30.pth"},
         # Acc@1 80.644 Acc@5 94.762 on 224 crops
         "imagenet2": {
-            "url": "https://github.com/bonlime/pytorch-tools/releases/download/0.1.2/patched_tresnet_m-80fe4f81.pth",
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/patched_tresnet_m-80fe4f81.pth",
             "input_size": [3, 224, 224],
         },
     },
     "tresnetl": {
         "default": {"params": {"layers": [4, 5, 18, 3], "width_factor": 1.2}, **PRETRAIN_SETTINGS,},
         # Acc@1 82.266 Acc@5 95.938
-        "imagenet": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/0.1.2/patched_tresnet_l_448-9401272c.pth"},
+        "imagenet": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/patched_tresnet_l_448-9401272c.pth"},
         "imagenet2": {
-            "url": "https://github.com/bonlime/pytorch-tools/releases/download/0.1.2/patched_tresnet_l-f37fa24a.pth",
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/patched_tresnet_l-f37fa24a.pth",
             "input_size": [3, 224, 224],
         },
     },
     "tresnetxl": {
         "default": {"params": {"layers": [4, 5, 24, 3], "width_factor": 1.3}, **PRETRAIN_SETTINGS,},
         # Acc@1 83.046 Acc@5 96.172
-        "imagenet": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/0.1.2/patched_tresnet_xl_448-11841266.pth"},
+        "imagenet": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/patched_tresnet_xl_448-11841266.pth"},
         # Acc@1 81.988 Acc@5 95.896
         "imagenet2": {
-            "url": "https://github.com/bonlime/pytorch-tools/releases/download/0.1.2/patched_tresnet_xl-493cb618.pth",
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/patched_tresnet_xl-493cb618.pth",
             "input_size": [3, 224, 224],
         },
     },
@@ -199,7 +198,7 @@ def _resnet(arch, pretrained=None, **kwargs):
     assert (
         common_args == set()
     ), "Args {} are going to be overwritten by default params for {} weights".format(
-        common_args.keys(), pretrained
+        common_args, pretrained
     )
     kwargs.update(cfg_params)
     model = TResNet(**kwargs)

@@ -17,7 +17,7 @@ class FocalLoss(Loss):
                 with values in {[0 - num_classes], `ignore_label`}
                 NOTE: in current implementation it would one-hot target but then use SIGMOID. be aware
             'binary' - expects y_true of shape [N, 1, *] or [N, *]
-        gamma (float): Power factor for dampening weight (focal strenght).
+        gamma (float): Power factor for dampening weight (focal strength).
         alpha (float): Prior probability of having positive value in target
         reduction (str): The reduction type to apply to the output. {'none', 'mean', 'sum'}.
             'none' - no reduction will be applied

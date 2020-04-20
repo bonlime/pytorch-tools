@@ -1,6 +1,8 @@
 from __future__ import absolute_import
+from functools import partial
 from apex.optimizers import FusedNovoGrad, FusedAdam, FusedSGD
 from .lr_finder import LRFinder
+from .adamw import AdamW as AdamW_my
 from .radam import RAdam, PlainRAdam
 from .sgdw import SGDW
 from .schedulers import LinearLR, ExponentialLR
@@ -19,6 +21,8 @@ def optimizer_from_name(optim_name):
         return optim.Adam
     elif optim_name == "adamw":
         return optim.AdamW
+    elif optim_name == "adamw_gc":
+        return partial(AdamW_my, center=True)
     elif optim_name == "rmsprop":
         return optim.RMSprop
     elif optim_name == "radam":

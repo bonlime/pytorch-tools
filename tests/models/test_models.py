@@ -20,8 +20,11 @@ RESNET_NAMES = [name for name in ALL_MODEL_NAMES if ("resne" in name) and not ("
 
 TRESNET_NAMES = [name for name in ALL_MODEL_NAMES if "tresne" in name]
 
+HRNET_NAMES = [name for name in ALL_MODEL_NAMES if "hrnet" in name]
+
 # test only part of the models
-TEST_MODEL_NAMES = DENSENET_NAMES[:2] + EFFNET_NAMES[:2] + VGG_NAMES[:2] + RESNET_NAMES[:2] + TRESNET_NAMES[:1]
+TEST_MODEL_NAMES = DENSENET_NAMES[:1] + EFFNET_NAMES[:1] + VGG_NAMES[:1] + RESNET_NAMES[:1] + TRESNET_NAMES[:1] + HRNET_NAMES[:1]
+# TEST_MODEL_NAMES = HRNET_NAMES[:1]
 INP = torch.ones(2, 3, 128, 128)
 
 

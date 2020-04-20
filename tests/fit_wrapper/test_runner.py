@@ -100,6 +100,18 @@ def test_val_loader():
     runner.fit(TEST_LOADER, epochs=2, steps_per_epoch=100, val_loader=TEST_LOADER, val_steps=200)
 
 
+
+def test_grad_clip_loader():
+    runner = Runner(
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        metrics=TEST_METRIC,
+        gradient_clip_val=1.0
+    )
+    runner.fit(TEST_LOADER, epochs=2)
+
+
 # We only test that callbacks don't crash NOT that they do what they should do
 TMP_PATH = "/tmp/pt_tools2/"
 os.makedirs(TMP_PATH, exist_ok=True)
