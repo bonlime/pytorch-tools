@@ -5,6 +5,7 @@ from torch.optim import Optimizer
 # it's a copy from torch.optim with additional `center` param
 # AdamW is only differs from Adam in one line (where weight decay happens)
 # upd. flag `center` comes from `Gradient Centralization` paper. 
+# upd. moved `eps` inside sqrt to avoid nan in gradients
 class AdamW(Optimizer):
     r"""Implements AdamW algorithm.
 
@@ -79,7 +80,7 @@ class AdamW(Optimizer):
 
                 #Gradient Centralization operation for Conv layers
                 if group['center'] and len(list(grad.size()))>3:                    
-                   grad.add_(-grad.mean(dim = tuple(range(1,len(list(grad.size())))), keepdim = True))
+                   grad.add_(-grad.mean(dim = tuple(range(1,grad.dim())), keepdim = True))
                    
                 state = self.state[p]
 
@@ -110,9 +111,9 @@ class AdamW(Optimizer):
                     # Maintains the maximum of all 2nd moment running avg. till now
                     torch.max(max_exp_avg_sq, exp_avg_sq, out=max_exp_avg_sq)
                     # Use the max. for normalizing running avg. of gradient
-                    denom = (max_exp_avg_sq.sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
+                    denom = (max_exp_avg_sq.add_(group['eps']).sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
                 else:
-                    denom = (exp_avg_sq.sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
+                    denom = (exp_avg_sq.add_(group['eps']).sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
 
                 step_size = group['lr'] / bias_correction1
 

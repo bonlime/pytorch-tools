@@ -10,7 +10,7 @@ from .lookahead import Lookahead
 
 from torch import optim
 
-
+# 2e-5 is the lowest epsilon than saves from overflow in fp16
 def optimizer_from_name(optim_name):
     optim_name = optim_name.lower()
     if optim_name == "sgd":
@@ -18,20 +18,21 @@ def optimizer_from_name(optim_name):
     elif optim_name == "sgdw":
         return SGDW
     elif optim_name == "adam":
-        return optim.Adam
+        return partial(optim.Adam, eps=2e-5)
     elif optim_name == "adamw":
-        return optim.AdamW
+        return partial(AdamW_my, eps=2e-5)
     elif optim_name == "adamw_gc":
-        return partial(AdamW_my, center=True)
+        # in this implementation eps in inside sqrt so it can be smaller
+        return partial(AdamW_my, center=True, eps=1e-7)
     elif optim_name == "rmsprop":
-        return optim.RMSprop
+        return partial(optim.RMSprop, 2e-5)
     elif optim_name == "radam":
-        return RAdam
+        return partial(RAdam, eps=2e-5)
     elif optim_name in ["fused_sgd", "fusedsgd"]:
         return FusedSGD
     elif optim_name in ["fused_adam", "fusedadam"]:
-        return FusedAdam
+        return partial(FusedAdam, eps=2e-5)
     elif optim_name in ["fused_novograd", "fusednovograd", "novograd"]:
-        return FusedNovoGrad
+        return partial(FusedNovoGrad, eps=2e-5)
     else:
         raise ValueError(f"Optimizer {optim_name} not found")
