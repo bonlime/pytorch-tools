@@ -39,7 +39,6 @@ class HRNet(nn.Module):
 
     Args:
         encoder_name (str): name of classification model used as feature extractor to build segmentation model.
-            Models expects encoder to have output stride 16 or 8. Only Resnet and Effnet family models are supported for now
         encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
         num_classes (int): a number of classes for output (output shape - ``(batch, classes, h, w)``).
         pretrained (Union[str, None]): hrnet_w48 and hrnet_w48+OCR have pretrained weights. init models using functions rather than
@@ -203,6 +202,8 @@ def _hrnet(arch, pretrained=None, **kwargs):
             )
             # if there is last_linear in state_dict, it's going to be overwritten
             if cfg_params.get("OCR", False):
+                state_dict["aux_head.2.weight"] = model.state_dict()["aux_head.2.weight"]
+                state_dict["aux_head.2.bias"] = model.state_dict()["aux_head.2.bias"]
                 state_dict["head.weight"] = model.state_dict()["head.weight"]
                 state_dict["head.bias"] = model.state_dict()["head.bias"]
             else:

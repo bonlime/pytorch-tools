@@ -359,7 +359,7 @@ CFGS = {
     },
     "hrnet_w44": {
         "default": {"params": {"width": 44}, **DEFAULT_IMAGENET_SETTINGS,},
-        "imagenet": {"url": None},
+        "imagenet": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/hrnetv2_w44_imagenet_pretrained-8c55086c.pth"},
     },
     "hrnet_w48": {
         "default": {"params": {"width": 48}, **DEFAULT_IMAGENET_SETTINGS,},
