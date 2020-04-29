@@ -185,11 +185,9 @@ class HRClassificationHead(nn.Module):
         
     def forward(self, x):
         x = [self.incre_modules[i](x[i]) for i in range(4)]        
-        y = x[0]
         for i in range(1, 4):
-            y = x[i] + self.downsamp_modules[i-1](y)
-        y = self.final_layer(y)
-        return y
+            x[i] = x[i] + self.downsamp_modules[i-1](x[i-1])
+        return self.final_layer(x[3])
     
 
 class HighResolutionNet(nn.Module):
