@@ -9,3 +9,4 @@ from . import optim
 from . import segmentation_models
 from . import tta_wrapper
 from . import utils
+from . import detection_models

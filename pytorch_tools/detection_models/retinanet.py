@@ -1,6 +1,6 @@
-# import torch
+import torch
 import torch.nn as nn
-import torch.nn.functional as F
+# import torch.nn.functional as F
 from pytorch_tools.modules.fpn import FPN
 # from pytorch_tools.modules.bifpn import BiFPN
 from pytorch_tools.modules import bn_from_name
@@ -43,7 +43,8 @@ class RetinaNet(nn.Module):
             for _ in range(4):
                 # some implementations don't use BN here but I think it's needed
                 # TODO: test how it affects results
-                layers += [nn.Conv2d(256, 256, 3, padding=1), norm_layer(256, activation=norm_act)]
+                # upd. removed norm_layer. maybe change to group_norm later
+                layers += [nn.Conv2d(256, 256, 3, padding=1)] # norm_layer(256, activation=norm_act)
                 # layers += [nn.Conv2d(256, 256, 3, padding=1), nn.ReLU()]
 
             layers += [nn.Conv2d(256, out_size, 3, padding=1)]
@@ -55,19 +56,28 @@ class RetinaNet(nn.Module):
 
         self.cls_head = make_head(num_classes * anchors)
         self.box_head = make_head(4 * anchors)
+        self.num_classes = num_classes
 
     def forward(self, x):
         # don't use p2 and p1
         p5, p4, p3, _, _ = self.encoder(x)
         # enhance features
         p5, p4, p3 = self.fpn([p5, p4, p3])
-        # coarsers FPN levels
+        # coarser FPN levels
         p6 = self.pyramid6(p5)
-        p7 = self.pyramid7(F.relu(p6))
-        features = [p7, p6, p5, p4, p3]
+        p7 = self.pyramid7(p6.relu())
+        # want features from lowest OS to highest to align with `generate_anchors_boxes` function 
+        features = [p3, p4, p5, p6, p7]
         # TODO: (18.03.20) TF implementation has additional BN here before class/box outputs
-        class_outputs = [self.cls_head(f) for f in features]
-        box_outputs = [self.box_head(f) for f in features]
+        class_outputs = []
+        box_outputs = []
+        for f in features:
+            cls_anchor = self.cls_head(f).transpose(1, 3).contiguous().view(x.shape[0], -1, self.num_classes)
+            box_anchor = self.box_head(f).transpose(1, 3).contiguous().view(x.shape[0], -1, 4)
+            class_outputs.append(cls_anchor)
+            box_outputs.append(box_anchor)
+        class_outputs = torch.cat(class_outputs, 1)
+        box_outputs = torch.cat(box_outputs, 1)
         return class_outputs, box_outputs
         
 
