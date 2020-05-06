@@ -118,8 +118,8 @@ def generate_anchors_boxes(
     # all_anchors[:, 1::2] = all_anchors[:, 1::2].clamp(0, image_size[1])
     return all_anchors
 
-def generate_targets(anchors, gt_boxes, num_classes, matched_iou=0.5, unmatched_iou=0.4):
-    """Generate targets for regression and classification for SINGLE image
+def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unmatched_iou=0.4):
+    """Generate targets for regression and classification
     
     Based on IoU between anchor and true bounding box there are three types of anchor boxes
     1) IoU >= matched_iou: Highest similarity. Matched/Positive. Mask value is 1
@@ -128,7 +128,7 @@ def generate_targets(anchors, gt_boxes, num_classes, matched_iou=0.5, unmatched_
     
     Args:
         anchors (torch.Tensor): all anchors on a single image. shape [N, 4]
-        gt_boxes (torch.Tesor): all groud truth bounding boxes and classes on the image. shape [N, 5]
+        batch_gt_boxes (torch.Tesor): all groud truth bounding boxes and classes for the batch. shape [BS, N, 5]
             classes are expected to be in the last column. 
             bboxes are in `ltrb` format!
         num_classes (int): number of classes. needed for one-hot encoding labels
@@ -139,30 +139,77 @@ def generate_targets(anchors, gt_boxes, num_classes, matched_iou=0.5, unmatched_
         box_target, cls_target, matches_mask
     
     """
+    def _generate_single_targets(gt_boxes):
+        gt_boxes, gt_classes = gt_boxes.split(4, dim=1)
+        overlap = box_iou(anchors, gt_boxes)
+        
+        # Keep best box per anchor
+        overlap, indices = overlap.max(1)
+        box_target = box2delta(gt_boxes[indices], anchors) # I've double checked that it's corrects
+        # TODO: add test that anchor + box target gives gt_bbox
+        
+        # There are three types of anchors. 
+        # matched (with objects), unmatched (with background), and in between (which should be ignored)
+        IGNORED_VALUE = -1
+        UNMATCHED_VALUE = 0
+        matches_mask = torch.ones_like(overlap) * IGNORED_VALUE
+        matches_mask[overlap < unmatched_iou] = UNMATCHED_VALUE # background
+        matches_mask[overlap >= matched_iou] = 1
 
-    gt_boxes, gt_classes = gt_boxes.split(4, dim=1)
-    overlap = box_iou(anchors, gt_boxes)
+        # Generate one-hot-encoded target classes
+        cls_target = torch.zeros(
+            (anchors.size(0), num_classes + 1), device=gt_classes.device, dtype=gt_classes.dtype
+        )
+        gt_classes = gt_classes[indices].long()
+        gt_classes[overlap < unmatched_iou] = num_classes  # background has no class
+        cls_target.scatter_(1, gt_classes, 1)
+        cls_target = cls_target[:, :num_classes] # remove background class from one-hot
+
+        return cls_target, box_target, matches_mask
     
-    # Keep best box per anchor
-    overlap, indices = overlap.max(1)
-    box_target = box2delta(gt_boxes[indices], anchors) # I've double checked that it's corrects
-    # TODO: add test that anchor + box target gives gt_bbox
+    anchors = anchors.to(batch_gt_boxes) # change device & type if needed
+    batch_results = ([], [], [])
+    for single_gt_boxes in batch_gt_boxes:
+        single_target_results = _generate_single_targets(single_gt_boxes)
+        for batch_res, single_res in zip(batch_results, single_target_results):
+            batch_res.append(single_res)
+    b_cls_target, b_box_target, b_matches_mask = [torch.stack(targets) for targets in batch_results]
+    return b_cls_target, b_box_target, b_matches_mask
     
-    # There are three types of anchors. 
-    # matched (with objects), unmatched (with background), and in between (which should be ignored)
-    IGNORED_VALUE = -1
-    UNMATCHED_VALUE = 0
-    matches_mask = torch.ones_like(overlap) * IGNORED_VALUE
-    matches_mask[overlap < unmatched_iou] = UNMATCHED_VALUE # background
-    matches_mask[overlap >= matched_iou] = 1
-
-    # Generate one-hot-encoded target classes
-    cls_target = torch.zeros(
-        (anchors.size(0), num_classes + 1), device=gt_classes.device, dtype=gt_classes.dtype
-    )
-    gt_classes = gt_classes[indices].long()
-    gt_classes[overlap < unmatched_iou] = num_classes  # background has no class
-    cls_target.scatter_(1, gt_classes, 1)
-    cls_target = cls_target[:, :num_classes] # remove background class from one-hot
-
-    return cls_target, box_target, matches_mask
+# copied from torchvision
+def batched_nms(boxes, scores, idxs, iou_threshold):
+    # type: (Tensor, Tensor, Tensor, float)
+    """
+    Performs non-maximum suppression in a batched fashion.
+    Each index value correspond to a category, and NMS
+    will not be applied between elements of different categories.
+    Parameters
+    ----------
+    boxes : Tensor[N, 4]
+        boxes where NMS will be performed. They
+        are expected to be in (x1, y1, x2, y2) format
+    scores : Tensor[N]
+        scores for each one of the boxes
+    idxs : Tensor[N]
+        indices of the categories for each one of the boxes.
+    iou_threshold : float
+        discards all overlapping boxes
+        with IoU > iou_threshold
+    Returns
+    -------
+    keep : Tensor
+        int64 tensor with the indices of
+        the elements that have been kept by NMS, sorted
+        in decreasing order of scores
+    """
+    if boxes.numel() == 0:
+        return torch.empty((0,), dtype=torch.int64, device=boxes.device)
+    # strategy: in order to perform NMS independently per class.
+    # we add an offset to all the boxes. The offset is dependent
+    # only on the class idx, and is large enough so that boxes
+    # from different classes do not overlap
+    max_coordinate = boxes.max()
+    offsets = idxs.to(boxes) * (max_coordinate + 1)
+    boxes_for_nms = boxes + offsets[:, None]
+    keep = torch.ops.torchvision.nms(boxes_for_nms, scores, iou_threshold)
+    return keep
