@@ -386,3 +386,9 @@ def test_multiclass_multilabel_lovasz():
 
 def test_binary_hinge():
     assert losses.BinaryHinge()(INP_IMG_BINARY, TARGET_IMG_BINARY)
+
+
+@pytest.mark.parametrize("reduction", ["sum", "mean", "none"])
+def test_smoothl1(reduction):
+    loss_my = losses.SmoothL1Loss(delta=1, reduction=reduction)(INP, TARGET_MULTILABEL)
+    loss_torch = F.smooth_l1_loss(INP, TARGET_MULTILABEL, reduction=reduction)
