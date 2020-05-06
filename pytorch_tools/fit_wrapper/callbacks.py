@@ -10,6 +10,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from .state import RunnerState
 from pytorch_tools.utils.misc import listify
+from pytorch_tools.utils.misc import TimeMeter
 from pytorch_tools.utils.visualization import plot_confusion_matrix
 from pytorch_tools.utils.visualization import render_figure_to_tensor
 
@@ -113,18 +114,22 @@ class Timer(Callback):
     def __init__(self):
         super().__init__()
         self.has_printed = False
+        self.timer = TimeMeter()
 
     def on_batch_begin(self):
-        self.state.timer.batch_start()
+        self.timer.batch_start()
 
     def on_batch_end(self):
-        self.state.timer.batch_end()
+        self.timer.batch_end()
+
+    def on_loader_begin(self):
+        self.timer.reset()
 
     def on_loader_end(self):
         if not self.has_printed:
             self.has_printed = True
-            d_time = self.state.timer.data_time.avg_smooth
-            b_time = self.state.timer.batch_time.avg_smooth
+            d_time = self.timer.data_time.avg_smooth
+            b_time = self.timer.batch_time.avg_smooth
             print(f"\nTimeMeter profiling. Data time: {d_time:.2E}s. Model time: {b_time:.2E}s \n")
 
 

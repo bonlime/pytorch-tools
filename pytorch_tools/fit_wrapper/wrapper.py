@@ -88,12 +88,12 @@ class Runner:
 
         # update metrics
         self.state.loss_meter.update(to_numpy(loss))
-        for metric, meter in zip(self.state.metrics, self.state.metric_meters):
-            meter.update(to_numpy(metric(output, target).squeeze()))
+        with torch.no_grad():
+            for metric, meter in zip(self.state.metrics, self.state.metric_meters):
+                meter.update(to_numpy(metric(output, target).squeeze()))
 
     def _run_loader(self, loader, steps=None):
         self.state.loss_meter.reset()
-        self.state.timer.reset()
         for metric in self.state.metric_meters:
             metric.reset()
         self.state.epoch_size = steps or len(loader)  # steps overwrites len
