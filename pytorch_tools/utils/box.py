@@ -36,6 +36,12 @@ def delta2box(deltas, anchors):
 
     return torch.cat([pred_ctr - 0.5 * pred_wh, pred_ctr + 0.5 * pred_wh - 1], 1)
 
+def box_area(box):
+    """Args:
+    box (torch.Tensor): shape [N, 4] in 'ltrb' format
+    """
+    return (box[:, 2] - box[:, 0]) * (box[:, 3] - box[:, 1])
+
 # implementation from https://github.com/kuangliu/torchcv/blob/master/torchcv/utils/box.py
 # with slight modifications
 def box_iou(boxes1, boxes2):
@@ -49,8 +55,8 @@ def box_iou(boxes1, boxes2):
         iou (Tensor[N, M]): the NxM matrix containing the pairwise
             IoU values for every element in boxes1 and boxes2
     """
-    area1 = (boxes1[:, 2] - boxes1[:, 0]) * (boxes1[:, 3] - boxes1[:, 1])
-    area2 = (boxes2[:, 2] - boxes2[:, 0]) * (boxes2[:, 3] - boxes2[:, 1])
+    area1 = box_area(boxes1)
+    area2 = box_area(boxes2)
 
     lt = torch.max(boxes1[:, None, :2], boxes2[:, :2])  # [N,M,2]
     rb = torch.min(boxes1[:, None, 2:], boxes2[:, 2:])  # [N,M,2]
@@ -86,6 +92,7 @@ def generate_anchors_boxes(
     Returns:
         anchor_boxes (torch.Tensor): stacked anchor boxes on all feature levels. shape [N, 4]. 
             boxes are in 'ltrb' format
+        num_anchors (int): number of anchors per location
     """
     
     if isinstance(image_size, int):
@@ -116,7 +123,7 @@ def generate_anchors_boxes(
     # clip boxes to image. Not sure if we really need to clip them
     # all_anchors[:, 0::2] = all_anchors[:, 0::2].clamp(0, image_size[0])
     # all_anchors[:, 1::2] = all_anchors[:, 1::2].clamp(0, image_size[1])
-    return all_anchors
+    return all_anchors, num_anchors
 
 def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unmatched_iou=0.4):
     """Generate targets for regression and classification
