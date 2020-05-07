@@ -13,6 +13,7 @@ from .residual import TBottleneck
 from .residual import SEModule
 
 # from .residual import Transition, DenseLayer
+from .weight_standartization import conv_to_ws_conv
 
 from .activations import ACT_DICT
 from .activations import ACT_FUNC_DICT

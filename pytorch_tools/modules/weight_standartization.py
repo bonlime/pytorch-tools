@@ -17,7 +17,6 @@ class WS_Conv2d(nn.Conv2d):
         return F.conv2d(x, weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
 
 # code from SyncBatchNorm in pytorch
-@torch.no_grad() # not sure if torch.no_grad is needed. but just in case
 def conv_to_ws_conv(module):
         module_output = module
         if isinstance(module, torch.nn.Conv2d):
@@ -33,11 +32,12 @@ def conv_to_ws_conv(module):
                 groups=module.groups, 
                 bias=module.bias,
             )
-            module_output.weight.copy_(module.weight)
-            module_output.weight.requires_grad = module.weight.requires_grad
-            if module.bias:
-                module_output.bias.copy_(module.bias)
-                module_output.bias.requires_grad = module.bias.requires_grad
+            with torch.no_grad(): # not sure if torch.no_grad is needed. but just in case
+                module_output.weight.copy_(module.weight)
+                module_output.weight.requires_grad = module.weight.requires_grad
+                if module.bias:
+                    module_output.bias.copy_(module.bias)
+                    module_output.bias.requires_grad = module.bias.requires_grad
 
         for name, child in module.named_children():
             module_output.add_module(name, conv_to_ws_conv(child))
