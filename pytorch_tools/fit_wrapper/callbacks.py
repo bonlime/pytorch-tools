@@ -9,8 +9,7 @@ import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from .state import RunnerState
-from pytorch_tools.utils.misc import listify
-from pytorch_tools.utils.misc import TimeMeter
+import pytorch_tools.utils.misc as utils
 from pytorch_tools.utils.visualization import plot_confusion_matrix
 from pytorch_tools.utils.visualization import render_figure_to_tensor
 
@@ -66,7 +65,7 @@ class Callbacks(Callback):
 
     def __init__(self, callbacks):
         super().__init__()
-        self.callbacks = listify(callbacks)
+        self.callbacks = utils.listify(callbacks)
 
     def set_state(self, state):
         for callback in self.callbacks:
@@ -114,7 +113,7 @@ class Timer(Callback):
     def __init__(self):
         super().__init__()
         self.has_printed = False
-        self.timer = TimeMeter()
+        self.timer = utils.TimeMeter()
 
     def on_batch_begin(self):
         self.timer.batch_start()
@@ -136,6 +135,7 @@ class Timer(Callback):
 class PhasesScheduler(Callback):
     """
     Scheduler that uses `phases` to process updates.
+    Supported `mode`'s are {`linear`, `cos`}
 
     Args:
         phases (List[Dict]): phases
@@ -160,9 +160,9 @@ class PhasesScheduler(Callback):
         super(PhasesScheduler, self).__init__()
 
     def _format_phase(self, phase):
-        phase["ep"] = listify(phase["ep"])
-        phase["lr"] = listify(phase["lr"])
-        phase["mom"] = listify(phase.get("mom", None))  # optional
+        phase["ep"] = utils.listify(phase["ep"])
+        phase["lr"] = utils.listify(phase["lr"])
+        phase["mom"] = utils.listify(phase.get("mom", None))  # optional
         if len(phase["lr"]) == 2 or len(phase["mom"]) == 2:
             phase["mode"] = phase.get("mode", "linear")
             assert len(phase["ep"]) == 2, "Linear learning rates must contain end epoch"
@@ -175,6 +175,8 @@ class PhasesScheduler(Callback):
             return start + (end - start) * pct
         elif mode == "cos":
             return end + (start - end) / 2 * (math.cos(math.pi * pct) + 1)
+        else:
+            raise ValueError(f"Mode: `{mode}` is not supported in PhasesScheduler")
 
     def _get_lr_mom(self, batch_curr):
         phase = self.phase
@@ -478,7 +480,8 @@ class ConsoleLogger(Callback):
 
 
 class FileLogger(Callback):
-    """Logs loss and metrics every epoch into file
+    """Logs loss and metrics every epoch into file.
+    If launched in distributed mode - reduces metrics before logging
     Args:
         log_dir (str): path where to store the logs
         logger (logging.Logger): external logger. Default None
@@ -493,6 +496,8 @@ class FileLogger(Callback):
         self.logger.info(f"Epoch {self.state.epoch_log} | lr {self.current_lr:.3f}")
 
     def on_epoch_end(self):
+        if utils.env_world_size() > 1:
+            self.reduce_metrics()
         loss, metrics = self.state.train_loss, self.state.train_metrics
         self.logger.info("Train " + self._format_meters(loss, metrics))
         if self.state.val_loss is not None:
@@ -518,6 +523,16 @@ class FileLogger(Callback):
     def _format_meters(loss, metrics):
         return f"loss: {loss.avg:.4f} | " + " | ".join(f"{m.name}: {m.avg:.4f}" for m in metrics)
 
+    def reduce_metrics(self):
+        # can't reduce AverageMeter so need to reduce every attribute separately
+        meters = self.state.train_metrics + [self.state.train_loss,]
+        if self.state.val_loss is not None:
+            meters = meters + self.state.val_metrics + [self.state.val_loss,]
+        reduce_attributes = ["val", "avg", "avg_smooth", "sum", "count"]
+        for meter in meters:
+            for attr in reduce_attributes:
+                old_value = utils.to_tensor([getattr(meter, attr)]).float().cuda()
+                setattr(meter, attr, utils.reduce_tensor(old_value).cpu().numpy()[0])
 
 class Mixup(Callback):
     """Performs mixup on input. Only for classification.

@@ -157,3 +157,13 @@ def test_segm_callback(callback):
         callbacks=callback,
     )
     runner.fit(TEST_SEGM_LOADER, epochs=2)
+
+def test_invalid_phases_scheduler_mode():
+    runner = Runner(
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        callbacks=pt_clb.PhasesScheduler([{"ep":[0,1], "lr":[0,1], "mode":"new_mode" },])
+    )
+    with pytest.raises(ValueError):
+        runner.fit(TEST_LOADER, epochs=2)
