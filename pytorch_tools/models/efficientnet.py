@@ -47,12 +47,12 @@ class EfficientNet(nn.Module):
         width_multiplier (float): 
             Multiplyer for number of channels in each block. Don't need to be passed manually
         depth_multiplier (float):
-            Multiplyer for number of InvertedResiduals in each block
+            Multiplyer for number of InvertedResiduals in each block. Don't need to be passed manually
         pretrained (str, optional):
-            If not, returns a model pre-trained on 'str' dataset. `imagenet` is available for every model.
+            If not None, returns a model pre-trained on 'str' dataset. `imagenet` is available for every model.
             NOTE: weights which are loaded into this model were ported from TF. There is a drop in
             accuracy for Imagenet (~1-2% top1) but they work well for finetuning.
-            NOTE 2: models were pretrained on very different resolution. take it into account during finetuning
+            NOTE 2: models were pretrained on very different resolutions. take it into account during finetuning
         num_classes (int):
             Number of classification classes. Defaults to 1000.
         in_channels (int):
