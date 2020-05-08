@@ -307,10 +307,32 @@ CFGS = {
     "resnet50": {
         "default": {"params": {"block": Bottleneck, "layers": [3, 4, 6, 3]}, **DEFAULT_IMAGENET_SETTINGS,},
         "imagenet": {"url": "https://download.pytorch.org/models/resnet50-19c8e357.pth"},
+        # I couldn't validate this weights because they give Acc@1 0.1 maybe a bug somewhere. Still leaving them just in case 
+        # it works better that starting from scratch
+        "imagenet_gn": {
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-101-GN-abf6008e.pth", 
+            "params": {"norm_layer": "agn"}
+        },
+        # Acc@1: 76.33. Acc@5: 93.34. This weights only work with weight standardization!
+        "imagenet_gn_ws": {
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-50-GN-WS-fd84efb6.pth", 
+            "params": {"norm_layer": "agn"}
+        },
     },
     "resnet101": {
         "default": {"params": {"block": Bottleneck, "layers": [3, 4, 23, 3]}, **DEFAULT_IMAGENET_SETTINGS,},
         "imagenet": {"url": "https://download.pytorch.org/models/resnet101-5d3b4d8f.pth"},
+        # I couldn't validate this weights because they give Acc@1 0.1 maybe a bug somewhere. Still leaving them just in case 
+        # it works better that starting from scratch
+        "imagenet_gn": {
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-101-GN-abf6008e.pth", 
+            "params": {"norm_layer": "agn"}
+        },
+        # Acc@1: 77.85. Acc@5: 93.90. This weights only work with weight standardization!
+        "imagenet_gn_ws": {
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-101-GN-WS-c067a7de.pth",
+            "params": {"norm_layer": "agn"}
+        },
     },
     "resnet152": {
         "default": {"params": {"block": Bottleneck, "layers": [3, 8, 36, 3]}, **DEFAULT_IMAGENET_SETTINGS,},
@@ -337,25 +359,36 @@ CFGS = {
             "params": {"block": Bottleneck, "layers": [3, 4, 6, 3], "base_width": 4, "groups": 32,},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        "imagenet": {  # Acc@1: 75.80. Acc@5: 92.71.
-            "url": "https://download.pytorch.org/models/resnext50_32x4d-7cdf4587.pth"
-        },
+        # Acc@1: 75.80. Acc@5: 92.71.
+        "imagenet": {"url": "https://download.pytorch.org/models/resnext50_32x4d-7cdf4587.pth"},
         # weights from rwightman
         "imagenet2": {
             "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/resnext50d_32x4d-103e99f8.pth"
+        },
+        # Acc@1: 77.28. Acc@5: 93.61. This weights only work with weight standardization!
+        "imagenet_gn_ws": {
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/X-50-GN-WS-2dea43a8.pth", 
+            "params": {"norm_layer": "agn"}
         },
     },
     "resnext101_32x4d": {
         "default": {
             "params": {"block": Bottleneck, "layers": [3, 4, 23, 3], "base_width": 4, "groups": 32,},
             **DEFAULT_IMAGENET_SETTINGS,
-        },  # No pretrained
+        },  # No imagenet pretrained
+        # 78.19. Acc@5: 93.98 This weights only work with weight standardization!
+        "imagenet_gn_ws": {
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/X-101-GN-WS-eb1224cd.pth",
+            "params": {"norm_layer": "agn"},
+        }
+
     },
     "resnext101_32x8d": {
         "default": {
             "params": {"block": Bottleneck, "layers": [3, 4, 23, 3], "base_width": 8, "groups": 32,},
             **DEFAULT_IMAGENET_SETTINGS,
         },
+        # on 8.05.20 this link was broken. maybe need to fix in the future
         "imagenet": {"url": "https://download.pytorch.org/models/resnext101_32x8d-8ba56ff5.pth"},
         # pretrained on weakly labeled instagram and then tuned on Imagenet
         "imagenet_ig": {"url": "https://download.pytorch.org/models/ig_resnext101_32x8-c38310e5.pth"},
