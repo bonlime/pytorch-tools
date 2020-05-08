@@ -25,7 +25,7 @@ def optimizer_from_name(optim_name):
         # in this implementation eps in inside sqrt so it can be smaller
         return partial(AdamW_my, center=True, eps=1e-7)
     elif optim_name == "rmsprop":
-        return partial(optim.RMSprop, 2e-5)
+        return partial(optim.RMSprop, eps=2e-5)
     elif optim_name == "radam":
         return partial(RAdam, eps=2e-5)
     elif optim_name in ["fused_sgd", "fusedsgd"]:
