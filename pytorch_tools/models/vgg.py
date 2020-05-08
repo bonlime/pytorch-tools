@@ -170,11 +170,10 @@ def _vgg(arch, pretrained=None, **kwargs):
         cfg_settings.update(pretrained_settings)
         cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
-    assert (
-        common_args == set()
-    ), "Args {} are going to be overwritten by default params for {} weights".format(
-        common_args, pretrained or "default"
-    )
+    if common_args:
+        logging.warning(
+            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
+        )
     kwargs.update(cfg_params)
     model = VGG(**kwargs)
     if pretrained:
