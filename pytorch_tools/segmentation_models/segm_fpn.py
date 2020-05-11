@@ -6,7 +6,6 @@ from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules.residual import conv1x1
 from pytorch_tools.modules.residual import conv3x3
 from pytorch_tools.modules.decoder import SegmentationUpsample
-from pytorch_tools.utils.misc import initialize
 from .encoders import get_encoder
 
 
@@ -114,9 +113,6 @@ class SegmentationFPN(nn.Module):
         self.segm_head = conv1x1(segmentation_channels, num_classes)
         self.upsample = nn.Upsample(scale_factor=4, mode="bilinear") if last_upsample else nn.Identity()
         self.name = f"segm-fpn-{encoder_name}"
-        initialize(self.fpn)
-        initialize(self.decoder)
-        initialize(self.segm_head)
 
     def forward(self, x):
         x = self.encoder(x) # returns 5 features maps

@@ -7,7 +7,7 @@ from .residual import conv3x3, conv1x1, DepthwiseSeparableConv
 
 
 class UnetDecoderBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, norm_layer=ABN, norm_act="relu"):
+    def __init__(self, in_channels, out_channels, norm_layer=ABN, norm_act="relu", upsample=True):
         super(UnetDecoderBlock, self).__init__()
 
         conv1 = conv3x3(in_channels, out_channels)
@@ -15,10 +15,11 @@ class UnetDecoderBlock(nn.Module):
         abn1 = norm_layer(out_channels, activation=norm_act)
         abn2 = norm_layer(out_channels, activation=norm_act)
         self.block = nn.Sequential(conv1, abn1, conv2, abn2)
+        self.upsample = nn.Upsample(scale_factor=2, mode="bilinear") if upsample else nn.Identity()
 
     def forward(self, x):
         x, skip = x
-        x = F.interpolate(x, scale_factor=2, mode="nearest")
+        x = self.upsample(x)
         if skip is not None:
             x = torch.cat([x, skip], dim=1)
         x = self.block(x)

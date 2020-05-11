@@ -112,7 +112,8 @@ class HRNet(nn.Module):
         self.name = f"segm-{encoder_name}"
         # use lower momemntum 
         patch_bn_mom(self)
-        self._init_weights()
+        # works better without init (for some reason)
+        # self._init_weights()
 
     def forward(self, x):
         """Sequentially pass `x` trough model`s `encoder` and `head` (return logits!)"""

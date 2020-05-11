@@ -22,7 +22,8 @@ class LinknetDecoder(nn.Module):
         self.dropout = nn.Dropout2d(drop_rate, inplace=True)
         self.final_conv = conv1x1(prefinal_channels, final_channels)
 
-        initialize(self)
+        # it works much better without initializing decoder. maybe need to investigate into this issue
+        # initialize(self)
 
     def forward(self, x):
         encoder_head = x[0]
