@@ -35,7 +35,7 @@ def conv_to_ws_conv(module):
             with torch.no_grad(): # not sure if torch.no_grad is needed. but just in case
                 module_output.weight.copy_(module.weight)
                 module_output.weight.requires_grad = module.weight.requires_grad
-                if module.bias:
+                if module.bias is not None:
                     module_output.bias.copy_(module.bias)
                     module_output.bias.requires_grad = module.bias.requires_grad
 
