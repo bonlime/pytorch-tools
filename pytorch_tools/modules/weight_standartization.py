@@ -30,7 +30,7 @@ def conv_to_ws_conv(module):
                 # groups are also present in DepthWiseConvs which we don't want to patch
                 # TODO: fix this
                 groups=module.groups, 
-                bias=module.bias,
+                bias=module.bias is not None,
             )
             with torch.no_grad(): # not sure if torch.no_grad is needed. but just in case
                 module_output.weight.copy_(module.weight)
