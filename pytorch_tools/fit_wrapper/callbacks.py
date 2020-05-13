@@ -135,7 +135,7 @@ class Timer(Callback):
 class PhasesScheduler(Callback):
     """
     Scheduler that uses `phases` to process updates.
-    Supported `mode`'s are {`linear`, `cos`}
+    Supported `mode`'s are {`linear`, `cos`, `poly`}
 
     Args:
         phases (List[Dict]): phases
@@ -175,6 +175,9 @@ class PhasesScheduler(Callback):
             return start + (end - start) * pct
         elif mode == "cos":
             return end + (start - end) / 2 * (math.cos(math.pi * pct) + 1)
+        elif mode == "poly":
+            gamma = (end / start) ** (1 / 100)
+            return start * gamma ** (pct * 100)
         else:
             raise ValueError(f"Mode: `{mode}` is not supported in PhasesScheduler")
 
