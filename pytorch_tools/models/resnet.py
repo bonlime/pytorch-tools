@@ -17,6 +17,7 @@ from torchvision.models.utils import load_state_dict_from_url
 from pytorch_tools.modules import BasicBlock, Bottleneck
 from pytorch_tools.modules import GlobalPool2d, BlurPool
 from pytorch_tools.modules.residual import conv1x1, conv3x3
+from pytorch_tools.modules.pooling import FastGlobalAvgPool2d
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
@@ -74,8 +75,6 @@ class ResNet(nn.Module):
         drop_connect_rate (float):
             Drop rate for StochasticDepth. Randomly removes samples each block. Used as regularization during training. 
             keep prob will be linearly decreased from 1 to 1 - drop_connect_rate each block. Ref: https://arxiv.org/abs/1603.09382
-        global_pool (str):
-            Global pooling type. One of 'avg', 'max', 'avgmax', 'catavgmax'. Defaults to 'avg'.
         init_bn0 (bool):
             Zero-initialize the last BN in each residual branch, so that the residual
             branch starts with zeros, and each residual block behaves like an identity.
@@ -100,7 +99,6 @@ class ResNet(nn.Module):
         encoder=False,
         drop_rate=0.0,
         drop_connect_rate=0.0,
-        global_pool="avg",
         init_bn0=True,
     ):
 
@@ -145,12 +143,12 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(128, layers[1], stride=2, **largs)
         self.layer3 = self._make_layer(256, layers[2], stride=stride_3, dilation=dilation_3, **largs)
         self.layer4 = self._make_layer(512, layers[3], stride=stride_4, dilation=dilation_4, **largs)
-        self.global_pool = GlobalPool2d(global_pool)
+        self.global_pool = FastGlobalAvgPool2d()
         self.num_features = 512 * self.expansion
         self.encoder = encoder
         if not encoder:
             self.dropout = nn.Dropout(p=drop_rate, inplace=True)
-            self.last_linear = nn.Linear(self.num_features * self.global_pool.feat_mult(), num_classes)
+            self.last_linear = nn.Linear(self.num_features, num_classes)
         else:
             self.forward = self.encoder_features
 
