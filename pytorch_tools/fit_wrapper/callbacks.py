@@ -3,6 +3,7 @@ import math
 import logging
 from tqdm import tqdm
 from enum import Enum
+from copy import deepcopy
 from collections import OrderedDict
 from collections import defaultdict
 import numpy as np
@@ -708,3 +709,67 @@ class ResetOptimizer(Callback):
                 
             if self.verbose:
                 print("Reseting optimizer")
+
+# docstring from https://github.com/rwightman/pytorch-image-models
+class ModelEma(Callback):
+    """ Model Exponential Moving Average
+    Keeps a moving average of everything in the model state_dict (parameters and buffers).
+    This is intended to allow functionality like
+    https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage
+
+    A smoothed version of the weights is necessary for some training schemes to perform well.
+    E.g. Google's hyper-params for training MNASNet, MobileNet-V3, EfficientNet, etc that use
+    RMSprop with a short 2.4-3 epoch decay period and slow LR decay rate of .96-.99 requires EMA
+    smoothing of weights to match results. 
+    
+    Current implementation follows TensorFlow and uses the following formula:
+    ema -= (1 - decay) * (ema - model)
+    This is mathematically equivalent to the classic formula below but inplace is faster
+    ema = decay * ema + (1 - decay) * model
+
+    NOTE: Pay attention to the decay constant you are using relative to your update count per epoch.
+    
+    NOTE: put this Callback AFTER Checkpoint saver! Otherwise you would validate EMA weights but save
+    model weights
+
+    NOTE: Only need to be used in master process! otherwise it would take extra memory on all GPUs
+
+    NOTE: Pass model to ModelEma after cuda() and AMP but before SyncBN and DDP wrapper
+
+    Args:
+        model (nn.Module): model after cuda and AMP
+        decay (float): decay for EMA for every step
+        decay_every (int): how oftern to really decay weights. Decaying every step produced a 
+            visible training slowdown. Real decay factor is adjusted to match every step update.
+    """
+    def __init__(self, model, decay=0.9999, decay_every=10):
+        super().__init__()
+        self.ema = deepcopy(model).eval()    
+        for p in self.ema.parameters():
+            p.requires_grad_(False)
+        self.model_copy = None
+        self.decay_factor = 1 - decay ** decay_every # simulate every step decay
+        self.decay_every = decay_every
+
+    def on_batch_end(self):
+        if not self.state.is_train or (self.state.step % self.decay_every != 0):
+            return
+
+        with torch.no_grad():
+            for (ema_v, m_v) in zip(self.ema.state_dict().values(), self.state.model.state_dict().values()):
+                if m_v.numel() == 1: # to prevent errors on `num_batches_tracked` in BN
+                    continue 
+                ema_v.sub_(ema_v.sub(m_v), alpha=self.decay_factor)
+
+    def on_loader_begin(self):
+        if self.state.is_train:
+           return
+        # validate on ema model
+        self.model_copy = self.state.model
+        self.state.model = self.ema
+        
+    def on_epoch_end(self):
+        if self.state.is_train:
+           return
+        # return model back
+        self.state.model = self.model_copy

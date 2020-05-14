@@ -133,6 +133,7 @@ os.makedirs(TMP_PATH, exist_ok=True)
         pt_clb.Mixup(0.2, NUM_CLASSES),
         pt_clb.Cutmix(1.0, NUM_CLASSES),
         pt_clb.ScheduledDropout(),
+        pt_clb.ModelEma(decay=0.9999)
     ],
 )
 def test_callback(callback):
