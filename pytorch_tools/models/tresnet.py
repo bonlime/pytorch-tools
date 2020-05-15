@@ -171,12 +171,6 @@ CFGS = {
     },
 }
 # fmt: on
-def patch_blur_pool(module):
-    """changes `gauss` attribute in blur pool to True"""
-    if isinstance(module, BlurPool):
-        module.gauss = True    
-    for m in module.children():
-        patch_blur_pool(m)
 
 def patch_bn(module):
     """changes weight from InplaceABN to be compatible with usual ABN"""
@@ -216,8 +210,6 @@ def _resnet(arch, pretrained=None, **kwargs):
         if kwargs.get("in_channels", 3) != 3: # support pretrained for custom input channels
             state_dict["conv1.1.weight"] = repeat_channels(state_dict["conv1.1.weight"], kwargs["in_channels"] * 16, 3 * 16)
         model.load_state_dict(state_dict)
-        # need to adjust some parameters to be align with original model
-        patch_blur_pool(model)
         patch_bn(model)
     setattr(model, "pretrained_settings", cfg_settings)
     return model
