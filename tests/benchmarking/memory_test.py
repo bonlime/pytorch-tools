@@ -44,7 +44,7 @@ def test_model(model, forward_only=False):
             if forward_only:
                 torch.cuda.synchronize()
                 return start.elapsed_time(f_end), start.elapsed_time(f_end)
-            loss = criterion(output, TARGET)
+            loss = output.mean()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -137,8 +137,6 @@ if __name__ == "__main__":
     N_RUNS = 10
     RUN_ITERS = 10
     INP = torch.ones((BS, 3, 224, 224), requires_grad=not args.forward).cuda(0)
-    TARGET = torch.ones(BS).long().cuda(0)
-    criterion = torch.nn.CrossEntropyLoss().cuda(0)
     for name, model in models_dict.items():
         print(f"{name} {count_parameters(model) / 1e6:.2f}M params")
         model = model.cuda(0)
@@ -152,11 +150,15 @@ if __name__ == "__main__":
     # now test segmentation models
     BS = 16
     INP = torch.ones((BS, 3, 224, 224), requires_grad=True).cuda(0)
-    TARGET = torch.ones((BS, 1, 224, 224)).cuda(0)
-    criterion = pt.losses.JaccardLoss().cuda(0)
 
     for name, model in segm_models_dict.items():
         enc_params = count_parameters(model.encoder) / 1e6
         total_params = count_parameters(model) / 1e6
         print(f"{name}. Encoder {enc_params:.2f}M. Decoder {total_params - enc_params:.2f}M. Total {total_params:.2f}M params")
+        model = model.cuda(0)
+        if args.amp:
+            model = amp.initialize(model, verbosity=0, opt_level="O1")
+            INP = INP.half()
+        if args.forward:
+            model.eval()
         test_model(model, forward_only=args.forward)

@@ -54,6 +54,8 @@ Mean of 10 runs 10 iters each BS=64: 54.97+-0.01 msecs Forward. 185.83+-5.13 mse
 **Resnet50 Baseline: 25.56M params**  
 Mean of 10 runs 10 iters each BS=64: 59.65+-0.07 msecs Forward. 164.39+-2.58 msecs Backward. Max memory: 5935.15Mb  
 
+**Resnet50 AMP** 25.56M params
+Mean of 10 runs 10 iters each BS=256: 111.44+-0.03 msecs Forward. 357.80+-1.61 msecs Backward. Max memory: 11226.14Mb. 545.56 imgs/sec
 
 **Resnet34 Leaky ReLU 21.82M params**  
 Mean of 10 runs 10 iters each BS=64: 30.81+-0.18 msecs Forward. 103.95+-1.05 msecs Backward. Max memory: 2766.59Mb  
