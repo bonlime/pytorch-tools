@@ -83,10 +83,7 @@ class TResNet(ResNet):
         self.num_blocks = sum(layers)
         self.drop_connect_rate = drop_connect_rate
 
-        # in the paper they use conv1x1 but in code conv3x3 (which seems better)
-        self.conv1 = nn.Sequential(SpaceToDepth(), conv3x3(in_channels * 16, stem_width))
-        self.bn1 = norm_layer(stem_width, activation=norm_act)
-        self.maxpool = nn.Identity() # not used but needed for code compatability
+        self._make_stem("space2depth", stem_width, in_channels, norm_layer, norm_act)
 
         if output_stride not in [8, 16, 32]:
             raise ValueError("Output stride should be in [8, 16, 32]")
