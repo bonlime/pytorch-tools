@@ -83,10 +83,7 @@ class TResNet(ResNet):
         self.num_blocks = sum(layers)
         self.drop_connect_rate = drop_connect_rate
 
-        # in the paper they use conv1x1 but in code conv3x3 (which seems better)
-        self.conv1 = nn.Sequential(SpaceToDepth(), conv3x3(in_channels * 16, stem_width))
-        self.bn1 = norm_layer(stem_width, activation=norm_act)
-        self.maxpool = nn.Identity() # not used but needed for code compatability
+        self._make_stem("space2depth", stem_width, in_channels, norm_layer, norm_act)
 
         if output_stride not in [8, 16, 32]:
             raise ValueError("Output stride should be in [8, 16, 32]")
@@ -98,7 +95,7 @@ class TResNet(ResNet):
         # elif output_stride == 32:
         stride_3, stride_4, dilation_3, dilation_4 = 2, 2, 1, 1
 
-        largs = dict(use_se=True, norm_layer=norm_layer, norm_act=norm_act, antialias=True)
+        largs = dict(attn_type="se", norm_layer=norm_layer, norm_act=norm_act, antialias=True)
         self.block = TBasicBlock
         self.expansion = TBasicBlock.expansion
         self.layer1 = self._make_layer(stem_width, layers[0], stride=1, **largs)
@@ -107,7 +104,7 @@ class TResNet(ResNet):
         self.block = TBottleneck # first 2 - Basic, last 2 - Bottleneck
         self.expansion = TBottleneck.expansion
         self.layer3 = self._make_layer(stem_width * 4, layers[2], stride=stride_3, dilation=dilation_3, **largs)
-        largs.update(use_se=False) # no se in last layer
+        largs.update(attn_type=None) # no se in last layer
         self.layer4 = self._make_layer(stem_width * 8, layers[3], stride=stride_4, dilation=dilation_4, **largs)
         self.global_pool = FastGlobalAvgPool2d(flatten=True)
         self.num_features = stem_width * 8 * self.expansion

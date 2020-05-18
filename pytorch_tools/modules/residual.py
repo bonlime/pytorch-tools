@@ -30,6 +30,55 @@ def conv1x1(in_planes, out_planes, stride=1, bias=False):
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=bias)
 
 
+class SEModule(nn.Module):
+    def __init__(self, channels, reduction_channels, norm_act="relu"):
+        super(SEModule, self).__init__()
+
+        self.pool = FastGlobalAvgPool2d()
+        # authors of original paper DO use bias
+        self.fc1 = nn.Conv2d(channels, reduction_channels, kernel_size=1, stride=1, bias=True)
+        self.act1 = activation_from_name(norm_act)
+        self.fc2 = nn.Conv2d(reduction_channels, channels, kernel_size=1, stride=1, bias=True)
+
+    def forward(self, x):
+        x_se = self.pool(x)
+        x_se = self.fc1(x_se)
+        x_se = self.act1(x_se)
+        x_se = self.fc2(x_se)
+        return x * x_se.sigmoid()
+
+class ECAModule(nn.Module):
+    """Efficient Channel Attention
+    This implementation is different from the paper. I've removed all hyperparameters and 
+    use fixed kernel size of 3. If you think it may be better to use different k_size - feel free to open an issue. 
+
+    Ref: ECA-Net: Efficient Channel Attention for Deep Convolutional Neural Networks
+    https://arxiv.org/abs/1910.03151
+
+    """
+    def __init__(self, *args, **kwargs): 
+        super().__init__()
+        self.pool = FastGlobalAvgPool2d()
+        self.conv = nn.Conv1d(1, 1, kernel_size=3, padding=1, bias=False)
+
+    def forward(self, x):
+        x_s = self.pool(x)
+        x_s = self.conv(x_s.view(x.size(0), 1, -1))
+        x_s = x_s.view(x.size(0), -1, 1, 1).sigmoid()
+        return x * x_s.expand_as(x)
+
+def get_attn(attn_type):
+    """Args: attn_type (Uniont[str, None]): Attention type. Supported:
+        `se` - Squeeze and Excitation
+        `eca` - Efficient Channel Attention
+        None - not attention
+    """
+    ATT_TO_MODULE = {"se": SEModule, "eca": ECAModule}
+    if attn_type is None:
+        return nn.Identity
+    else:
+        return ATT_TO_MODULE[attn_type.lower()]
+
 class DepthwiseSeparableConv(nn.Sequential):
     """Depthwise separable conv with BN after depthwise & pointwise."""
 
@@ -50,7 +99,7 @@ class InvertedResidual(nn.Module):
         dw_kernel_size=3,
         stride=1,
         dilation=1,
-        use_se=False,
+        attn_type=None,
         expand_ratio=1.0,  # expansion
         keep_prob=1,  # drop connect param
         noskip=False,
@@ -77,7 +126,7 @@ class InvertedResidual(nn.Module):
         )
         self.bn2 = norm_layer(mid_chs, activation=norm_act)
         # some models like MobileNet use mid_chs here instead of in_channels. But I don't care for now
-        self.se = SEModule(mid_chs, in_channels // 4, norm_act) if use_se else nn.Identity()
+        self.se = get_attn(attn_type)(mid_chs, in_channels // 4, norm_act)
         self.conv_pw1 = conv1x1(mid_chs, out_channels)
         self.bn3 = norm_layer(out_channels, activation="identity")
         self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
@@ -116,25 +165,6 @@ class DropConnect(nn.Module):
         output = x / self.keep_prob * binary_tensor
         return output
 
-
-class SEModule(nn.Module):
-    def __init__(self, channels, reduction_channels, norm_act="relu"):
-        super(SEModule, self).__init__()
-
-        self.pool = FastGlobalAvgPool2d()
-        # authors of original paper DO use bias
-        self.fc1 = nn.Conv2d(channels, reduction_channels, kernel_size=1, stride=1, bias=True)
-        self.act1 = activation_from_name(norm_act)
-        self.fc2 = nn.Conv2d(reduction_channels, channels, kernel_size=1, stride=1, bias=True)
-
-    def forward(self, x):
-        x_se = self.pool(x)
-        x_se = self.fc1(x_se)
-        x_se = self.act1(x_se)
-        x_se = self.fc2(x_se)
-        return x * x_se.sigmoid()
-
-
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -146,7 +176,7 @@ class BasicBlock(nn.Module):
         downsample=None,
         groups=1,
         base_width=64,
-        use_se=False,
+        attn_type=None,
         dilation=1,
         norm_layer=ABN,
         norm_act="relu",
@@ -163,7 +193,7 @@ class BasicBlock(nn.Module):
         self.bn1 = norm_layer(planes, activation=norm_act)
         self.conv2 = conv3x3(planes, outplanes)
         self.bn2 = norm_layer(outplanes, activation="identity")
-        self.se_module = SEModule(outplanes, planes // 4) if use_se else None
+        self.se_module = get_attn(attn_type)(outplanes, planes // 4)
         self.final_act = activation_from_name(norm_act)
         self.downsample = downsample
         self.blurpool = BlurPool(channels=planes) if antialias else nn.Identity()
@@ -183,10 +213,7 @@ class BasicBlock(nn.Module):
             out = self.blurpool(out)
         out = self.conv2(out)
         # avoid 2 inplace ops by chaining into one long op. Needed for inplaceabn
-        if self.se_module is not None:
-            out = self.drop_connect(self.se_module(self.bn2(out))) + residual
-        else:
-            out = self.drop_connect(self.bn2(out)) + residual
+        out = self.drop_connect(self.se_module(self.bn2(out))) + residual
         return self.final_act(out)
 
 
@@ -201,7 +228,7 @@ class Bottleneck(nn.Module):
         downsample=None,
         groups=1,
         base_width=64,
-        use_se=False,
+        attn_type=None,
         dilation=1,
         norm_layer=ABN,
         norm_act="relu",
@@ -220,7 +247,7 @@ class Bottleneck(nn.Module):
         self.bn2 = norm_layer(width, activation=norm_act)
         self.conv3 = conv1x1(width, outplanes)
         self.bn3 = norm_layer(outplanes, activation="identity")
-        self.se_module = SEModule(outplanes, planes // 4) if use_se else None
+        self.se_module = get_attn(attn_type)(outplanes, planes // 4)
         self.final_act = activation_from_name(norm_act)
         self.downsample = downsample
         self.blurpool = BlurPool(channels=width) if antialias else nn.Identity()
@@ -244,10 +271,7 @@ class Bottleneck(nn.Module):
 
         out = self.conv3(out)
         # avoid 2 inplace ops by chaining into one long op
-        if self.se_module is not None:
-            out = self.drop_connect(self.se_module(self.bn3(out))) + residual
-        else:
-            out = self.drop_connect(self.bn3(out)) + residual
+        out = self.drop_connect(self.se_module(self.bn3(out))) + residual
         return self.final_act(out)
 
 # TResnet models use slightly modified versions of BasicBlock and Bottleneck
@@ -258,7 +282,7 @@ class TBasicBlock(BasicBlock):
         super().__init__(**kwargs)
         self.final_act = nn.ReLU(inplace=True)
         self.bn1.activation_param = 1e-3  # needed for loading weights
-        if not kwargs.get("use_se"):
+        if not kwargs.get("attn_type") == "se":
             return
         planes = kwargs["planes"]
         self.se_module = SEModule(planes, max(planes // 4, 64))
@@ -269,7 +293,7 @@ class TBottleneck(Bottleneck):
         self.final_act = nn.ReLU(inplace=True)
         self.bn1.activation_param = 1e-3 # needed for loading weights
         self.bn2.activation_param = 1e-3
-        if not kwargs["use_se"]:
+        if not kwargs.get("attn_type") == "se":
             return
         planes = kwargs["planes"]
         reduce_planes = max(planes * self.expansion // 8, 64)
@@ -291,8 +315,7 @@ class TBottleneck(Bottleneck):
         if self.antialias:
             out = self.blurpool(out)
 
-        if self.se_module is not None:
-            out = self.se_module(out)
+        out = self.se_module(out)
 
         out = self.conv3(out)
         # avoid 2 inplace ops by chaining into one long op

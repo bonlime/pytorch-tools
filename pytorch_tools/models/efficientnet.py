@@ -234,7 +234,7 @@ def _decode_block_string(block_string):
         out_channels=int(options["o"]),
         dw_kernel_size=int(options["k"]),
         stride=tuple([options["s"], options["s"]]),
-        use_se=float(options["se"]) > 0 if "se" in options else False,
+        attn_type="se" if "se" in options else None,
         expand_ratio=int(options["e"]),
         noskip="noskip" in block_string,
         num_repeat=int(options["r"]),
