@@ -101,3 +101,8 @@ def test_num_parameters(name_num_params):
     name, num_params = name_num_params[0]
     m = models.__dict__[name]()
     assert pt.utils.misc.count_parameters(m)[0] == num_params
+
+@pytest.mark.parametrize('stem_type', ["", "deep", "space2depth"])
+def test_resnet_stem_type(stem_type):
+    m = models.resnet50(stem_type=stem_type)
+    _test_forward(m)

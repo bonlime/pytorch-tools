@@ -19,6 +19,7 @@ from pytorch_tools.modules import GlobalPool2d, BlurPool
 from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.modules.pooling import FastGlobalAvgPool2d
 from pytorch_tools.modules import bn_from_name
+from pytorch_tools.modules import SpaceToDepth
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from pytorch_tools.utils.misc import repeat_channels
@@ -50,14 +51,19 @@ class ResNet(nn.Module):
             Number of classification classes. Defaults to 1000.
         in_channels (int):
             Number of input (color) channels. Defaults to 3.
-        use_se (bool):
-            Enable Squeeze-Excitation module in blocks.
+        attn_type (Union[str, None]):
+            If given, selects attention type to use in blocks. One of 
+            `se` - Squeeze-Excitation
+            `eca` - Efficient Channel Attention
         groups (int):
             Number of convolution groups for 3x3 conv in Bottleneck. Defaults to 1.
         base_width (int):
             Factor determining bottleneck channels. `planes * base_width / 64 * groups`. Defaults to 64.
-        deep_stem (bool):
-            Whether to replace the 7x7 conv1 with 3 3x3 convolution layers. Defaults to False.
+        stem_type (str):
+            Type on input stem. Supported options are: 
+            '' - default. One 7x7 conv with 64 channels
+            'deep' - three 3x3 conv with 32, 32, 64, channels
+            'space2depth' - Reshape followed by one convolution. Idea from TResNet paper 
         output_stride (List[8, 16, 32]): Applying dilation strategy to pretrained ResNet. Typically used in
             Semantic Segmentation. Defaults to 32.
             NOTE: Don't use this arg with `antialias` and `pretrained` together. it may produce weird results
@@ -88,10 +94,10 @@ class ResNet(nn.Module):
         pretrained=None,  # not used. here for proper signature
         num_classes=1000,
         in_channels=3,
-        use_se=False,
+        attn_type=None,
         groups=1,
         base_width=64,
-        deep_stem=False,
+        stem_type="",
         output_stride=32,
         norm_layer="abn",
         norm_act="relu",
@@ -116,20 +122,9 @@ class ResNet(nn.Module):
         self.drop_connect_rate = drop_connect_rate
         super(ResNet, self).__init__()
 
-        if deep_stem:
-            self.conv1 = nn.Sequential(
-                conv3x3(in_channels, stem_width // 2, 2),
-                norm_layer(stem_width // 2, activation=norm_act),
-                conv3x3(stem_width // 2, stem_width // 2),
-                norm_layer(stem_width // 2, activation=norm_act),
-                conv3x3(stem_width // 2, stem_width),
-            )
-        else:
-            self.conv1 = nn.Conv2d(in_channels, stem_width, kernel_size=7, stride=2, padding=3, bias=False)
-        self.bn1 = norm_layer(stem_width, activation=norm_act)
-        self.maxpool = nn.MaxPool2d(
-            kernel_size=3, stride=2, padding=0 if use_se else 1, ceil_mode=True if use_se else False,
-        )
+        # move stem creation in separate function for simplicity
+        self._make_stem(stem_type, stem_width, in_channels, norm_layer, norm_act)
+
         if output_stride not in [8, 16, 32]:
             raise ValueError("Output stride should be in [8, 16, 32]")
         if output_stride == 8:
@@ -138,7 +133,7 @@ class ResNet(nn.Module):
             stride_3, stride_4, dilation_3, dilation_4 = 2, 1, 1, 2
         elif output_stride == 32:
             stride_3, stride_4, dilation_3, dilation_4 = 2, 2, 1, 1
-        largs = dict(use_se=use_se, norm_layer=norm_layer, norm_act=norm_act, antialias=antialias)
+        largs = dict(attn_type=attn_type, norm_layer=norm_layer, norm_act=norm_act, antialias=antialias)
         self.layer1 = self._make_layer(64, layers[0], stride=1, **largs)
         self.layer2 = self._make_layer(128, layers[1], stride=2, **largs)
         self.layer3 = self._make_layer(256, layers[2], stride=stride_3, dilation=dilation_3, **largs)
@@ -160,7 +155,7 @@ class ResNet(nn.Module):
         blocks,
         stride=1,
         dilation=1,
-        use_se=None,
+        attn_type=None,
         norm_layer=None,
         norm_act=None,
         antialias=None,
@@ -186,7 +181,7 @@ class ResNet(nn.Module):
                 downsample=downsample,
                 groups=self.groups,
                 base_width=self.base_width,
-                use_se=use_se,
+                attn_type=attn_type,
                 dilation=first_dilation,
                 norm_layer=norm_layer,
                 norm_act=norm_act,
@@ -203,7 +198,7 @@ class ResNet(nn.Module):
                     planes=planes,
                     groups=self.groups,
                     base_width=self.base_width,
-                    use_se=use_se,
+                    attn_type=attn_type,
                     dilation=first_dilation,
                     norm_layer=norm_layer,
                     norm_act=norm_act,
@@ -212,6 +207,27 @@ class ResNet(nn.Module):
                 )
             )
         return nn.Sequential(*layers)
+
+    def _make_stem(self, stem_type, stem_width, in_channels, norm_layer, norm_act):
+        assert stem_type in {"", "deep", "space2depth"}, f"Stem type {stem_type} is not supported"
+        if stem_type == "space2depth":
+            # in the paper they use conv1x1 but in code conv3x3 (which seems better)
+            self.conv1 = nn.Sequential(SpaceToDepth(), conv3x3(in_channels * 16, stem_width))
+            self.bn1 = norm_layer(stem_width, activation=norm_act)
+            self.maxpool = nn.Identity() # not used but needed for code compatability
+        else:
+            if stem_type == "deep":
+                self.conv1 = nn.Sequential(
+                    conv3x3(in_channels, stem_width // 2, 2),
+                    norm_layer(stem_width // 2, activation=norm_act),
+                    conv3x3(stem_width // 2, stem_width // 2),
+                    norm_layer(stem_width // 2, activation=norm_act),
+                    conv3x3(stem_width // 2, stem_width),
+                )
+            else:
+                self.conv1 = nn.Conv2d(in_channels, stem_width, kernel_size=7, stride=2, padding=3, bias=False)
+            self.bn1 = norm_layer(stem_width, activation=norm_act)
+            self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
     def _initialize_weights(self, init_bn0=False):
         for m in self.modules():
@@ -417,28 +433,28 @@ CFGS = {
     # SE RESNET MODELS
     "se_resnet34": {
         "default": {
-            "params": {"block": BasicBlock, "layers": [3, 4, 6, 3], "use_se": True},
+            "params": {"block": BasicBlock, "layers": [3, 4, 6, 3], "attn_type": "se"},
             **DEFAULT_IMAGENET_SETTINGS,
         },
         # NO WEIGHTS
     },
     "se_resnet50": {
         "default": {
-            "params": {"block": Bottleneck, "layers": [3, 4, 6, 3], "use_se": True},
+            "params": {"block": Bottleneck, "layers": [3, 4, 6, 3], "attn_type": "se"},
             **DEFAULT_IMAGENET_SETTINGS,
         },
         "imagenet": {"url": "http://data.lip6.fr/cadene/pretrainedmodels/se_resnet50-ce0d4300.pth"},
     },
     "se_resnet101": {
         "default": {
-            "params": {"block": Bottleneck, "layers": [3, 4, 23, 3], "use_se": True},
+            "params": {"block": Bottleneck, "layers": [3, 4, 23, 3], "attn_type": "se"},
             **DEFAULT_IMAGENET_SETTINGS,
         },
         "imagenet": {"url": "http://data.lip6.fr/cadene/pretrainedmodels/se_resnet101-7e38fcc6.pth"},
     },
     "se_resnet152": {
         "default": {
-            "params": {"block": Bottleneck, "layers": [3, 4, 36, 3], "use_se": True},
+            "params": {"block": Bottleneck, "layers": [3, 4, 36, 3], "attn_type": "se"},
             **DEFAULT_IMAGENET_SETTINGS,
         },
         "imagenet": {"url": "http://data.lip6.fr/cadene/pretrainedmodels/se_resnet152-d17c99b7.pth"},
@@ -451,7 +467,7 @@ CFGS = {
                 "layers": [3, 4, 6, 3],
                 "base_width": 4,
                 "groups": 32,
-                "use_se": True,
+                "attn_type": "se",
             },
             **DEFAULT_IMAGENET_SETTINGS,
         },
@@ -464,7 +480,7 @@ CFGS = {
                 "layers": [3, 4, 23, 3],
                 "base_width": 4,
                 "groups": 32,
-                "use_se": True,
+                "attn_type": "se",
             },
             **DEFAULT_IMAGENET_SETTINGS,
         },
