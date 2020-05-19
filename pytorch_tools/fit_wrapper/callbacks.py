@@ -732,7 +732,7 @@ class ModelEma(Callback):
     NOTE: put this Callback AFTER Checkpoint saver! Otherwise you would validate EMA weights but save
     model weights
 
-    NOTE: Only need to be used in master process! otherwise it would take extra memory on all GPUs
+    NOTE: Need to be used in all process (not only master)! otherwise you would save not the best model bur some random
 
     NOTE: Pass model to ModelEma after cuda() and AMP but before SyncBN and DDP wrapper
 
