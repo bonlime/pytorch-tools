@@ -5,10 +5,6 @@ import torch.nn.functional as F
 # implements idea from `Weight Standardization` paper https://arxiv.org/abs/1903.10520
 # eps is inside sqrt to avoid overflow Idea from https://arxiv.org/abs/1911.05920    
 class WS_Conv2d(nn.Conv2d):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
-                 padding=0, dilation=1, groups=1, bias=True):
-        super().__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
-        
     def forward(self, x):
         weight = self.weight
         weight = weight.sub(weight.mean(dim=(1, 2, 3), keepdim=True))
