@@ -40,6 +40,8 @@ def test_model(model, forward_only=False):
         def run_once():
             start.record()
             output = model(INP)
+            if isinstance(output, tuple) and len(output) > 1:
+                output = output[0]
             f_end.record()
             if forward_only:
                 torch.cuda.synchronize()
@@ -70,10 +72,11 @@ def test_model(model, forward_only=False):
         f_times = np.array(f_times)
         fb_times = np.array(fb_times)
     print(
-        "Mean of {} runs {} iters each BS={}:\n\t {:.2f}+-{:.2f} msecs Forward. {:.2f}+-{:.2f} msecs Backward. Max memory: {:.2f}Mb. {:.2f} imgs/sec".format(
+        "Mean of {} runs {} iters each BS={}, SZ={}:\n\t {:.2f}+-{:.2f} msecs Forward. {:.2f}+-{:.2f} msecs Backward. Max memory: {:.2f}Mb. {:.2f} imgs/sec".format(
             N_RUNS,
             RUN_ITERS,
             BS,
+            SZ,
             f_times.mean(),
             f_times.std(),
             (fb_times - f_times).mean(),
@@ -95,7 +98,10 @@ if __name__ == "__main__":
         "--amp", action="store_true", help="Measure speed using apex mixed precision"
     )
     parser.add_argument(
-        "--bs", default=64, type=int, help="BS for classification",
+        "--bs", default=64, type=int, help="BS for benchmarking",
+    )
+    parser.add_argument(
+        "--sz", default=224, type=int, help="Size of images for benchmarking",
     )
     args = parser.parse_args()
     # all models are first init to cpu memory to find errors earlier
@@ -134,9 +140,10 @@ if __name__ == "__main__":
 
     print("Initialized models")
     BS = args.bs
+    SZ = args.sz
     N_RUNS = 10
     RUN_ITERS = 10
-    INP = torch.ones((BS, 3, 224, 224), requires_grad=not args.forward).cuda(0)
+    INP = torch.ones((BS, 3, SZ, SZ), requires_grad=not args.forward).cuda(0)
     for name, model in models_dict.items():
         print(f"{name} {count_parameters(model) / 1e6:.2f}M params")
         model = model.cuda(0)
@@ -148,8 +155,7 @@ if __name__ == "__main__":
         test_model(model, forward_only=args.forward)
 
     # now test segmentation models
-    BS = 16
-    INP = torch.ones((BS, 3, 224, 224), requires_grad=True).cuda(0)
+    INP = torch.ones((BS, 3, SZ, SZ), requires_grad=True).cuda(0)
 
     for name, model in segm_models_dict.items():
         enc_params = count_parameters(model.encoder) / 1e6
