@@ -115,6 +115,7 @@ class EfficientDet(nn.Module):
             class_outputs.append(cls_feat.contiguous().view(cls_feat.shape[0], -1, self.num_classes))
 
             # TODO: return back to simplier transpose operations
+            # This transpose + view aligns with `generate_anchor_boxes` function
             # class_outputs.append(cls_feat.transpose(1, 3).contiguous().view(x.shape[0], -1, self.num_classes))
             # box_outputs.append(box_feat.transpose(1, 3).contiguous().view(x.shape[0], -1, 4))
 
