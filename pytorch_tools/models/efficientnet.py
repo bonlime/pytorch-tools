@@ -127,18 +127,19 @@ class EfficientNet(nn.Module):
             self.blocks.append(nn.Sequential(*block))
 
         # Head
-        out_channels = block_arg["out_channels"]
-        num_features = make_divisible(1280 * width_multiplier)
-        self.conv_head = conv1x1(out_channels, num_features)
-        self.bn2 = norm_layer(num_features, activation=norm_act)
 
         if encoder:
             self.forward = self.encoder_features
         else:
+            out_channels = block_arg["out_channels"]
+            num_features = make_divisible(1280 * width_multiplier)
+            self.conv_head = conv1x1(out_channels, num_features)
+            self.bn2 = norm_layer(num_features, activation=norm_act)
             self.global_pool = nn.AdaptiveAvgPool2d(1)
             self.dropout = nn.Dropout(drop_rate, inplace=True)
             self.classifier = nn.Linear(num_features, num_classes)
 
+        # TODO: change to init from official repo. It may be the source of problem for training from scratch
         initialize(self)
 
     def encoder_features(self, x):
@@ -148,11 +149,9 @@ class EfficientNet(nn.Module):
         x1 = self.blocks[1](x0)
         x2 = self.blocks[2](x1)
         x3 = self.blocks[3](x2)
-        x4 = self.blocks[4](x3)
-        x4 = self.blocks[5](x4)
+        x3 = self.blocks[4](x3)
+        x4 = self.blocks[5](x3)
         x4 = self.blocks[6](x4)
-        x4 = self.conv_head(x4)
-        x4 = self.bn2(x4)
         return [x4, x3, x2, x1, x0]
 
     def features(self, x):

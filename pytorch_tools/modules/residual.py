@@ -82,11 +82,11 @@ def get_attn(attn_type):
 class DepthwiseSeparableConv(nn.Sequential):
     """Depthwise separable conv with BN after depthwise & pointwise."""
 
-    def __init__(self, in_channels, out_channels, stride=1, dilation=1, norm_layer=ABN, norm_act="relu"):
+    def __init__(self, in_channels, out_channels, stride=1, dilation=1, norm_layer=ABN, norm_act="relu", use_norm=True):
         modules = [
             conv3x3(in_channels, in_channels, stride=stride, groups=in_channels, dilation=dilation),
-            conv1x1(in_channels, out_channels),
-            norm_layer(out_channels, activation=norm_act),
+            conv1x1(in_channels, out_channels, bias=True), # in efficient det they for some reason add bias
+            norm_layer(out_channels, activation=norm_act) if use_norm else nn.Identity(),
         ]
         super().__init__(*modules)
 

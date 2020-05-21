@@ -42,6 +42,14 @@ def box_area(box):
     """
     return (box[:, 2] - box[:, 0]) * (box[:, 3] - box[:, 1])
 
+def clip_bboxes(bboxes, size):
+    """Args:
+        bboxes (torch.Tensor): in `ltrb` format. Shape [N, 4]
+        size (Union[torch.Size, tuple]): (H, W)"""
+    bboxes[:, 0::2] = bboxes[:, 0::2].clamp(0, size[1])
+    bboxes[:, 1::2] = bboxes[:, 1::2].clamp(0, size[0])
+    return bboxes
+
 # implementation from https://github.com/kuangliu/torchcv/blob/master/torchcv/utils/box.py
 # with slight modifications
 def box_iou(boxes1, boxes2):

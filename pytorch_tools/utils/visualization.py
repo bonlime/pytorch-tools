@@ -4,7 +4,8 @@ import itertools
 import numpy as np
 
 
-def tensor_from_rgb_image(image: np.ndarray) -> torch.Tensor:
+def tensor_from_rgb_image(image):
+    """Args: image (np.array): Input image in HxWxC format"""
     image = np.moveaxis(image, -1, 0)
     image = np.ascontiguousarray(image)
     image = torch.from_numpy(image)
