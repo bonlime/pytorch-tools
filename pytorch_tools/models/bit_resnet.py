@@ -234,28 +234,28 @@ CFGS = {
     "default": {
       "params": {"block_units": [3, 4, 23, 3], "width_factor": 1},
       "url": "https://storage.googleapis.com/bit_models/BiT-M-R101x1.npz",
-      **PPRETRAIN_SETTINGS,
+      **PRETRAIN_SETTINGS,
     },
   },
   "bit_m_101x3": {
     "default": {
       "params": {"block_units": [3, 4, 23, 3], "width_factor": 3},
       "url": "https://storage.googleapis.com/bit_models/BiT-M-R101x3.npz",
-      **PPRETRAIN_SETTINGS,
+      **PRETRAIN_SETTINGS,
     },
   },
   "bit_m_152x2": {
     "default": {
       "params": {"block_units": [3, 8, 36, 3], "width_factor": 2},
       "url": "https://storage.googleapis.com/bit_models/BiT-M-R152x2.npz",
-      **PPRETRAIN_SETTINGS,
+      **PRETRAIN_SETTINGS,
     },
   },
   "bit_m_152x4": {
     "default": {
       "params": {"block_units": [3, 8, 36, 3], "width_factor": 4},
       "url": "https://storage.googleapis.com/bit_models/BiT-M-R152x4.npz",
-      **PPRETRAIN_SETTINGS
+      **PRETRAIN_SETTINGS
     },
   },
 }
