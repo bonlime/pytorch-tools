@@ -100,14 +100,35 @@ def test_val_loader():
     runner.fit(TEST_LOADER, epochs=2, steps_per_epoch=100, val_loader=TEST_LOADER, val_steps=200)
 
 
-
 def test_grad_clip_loader():
     runner = Runner(
         model=TEST_MODEL,
         optimizer=TEST_OPTIMIZER,
         criterion=TEST_CRITERION,
         metrics=TEST_METRIC,
-        gradient_clip_val=1.0
+        gradient_clip_val=1.0,
+    )
+    runner.fit(TEST_LOADER, epochs=2)
+
+
+def test_accumulate_steps():
+    runner = Runner(
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        metrics=TEST_METRIC,
+        accumulate_steps=10,
+    )
+    runner.fit(TEST_LOADER, epochs=2)
+
+
+def test_ModelEma_callback():
+    runner = Runner(
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        metrics=TEST_METRIC,
+        callbacks=pt_clb.ModelEma(TEST_MODEL),
     )
     runner.fit(TEST_LOADER, epochs=2)
 
@@ -123,9 +144,7 @@ os.makedirs(TMP_PATH, exist_ok=True)
         pt_clb.Timer(),
         pt_clb.ReduceLROnPlateau(),
         pt_clb.CheckpointSaver(TMP_PATH, save_name="model.chpn"),
-        pt_clb.CheckpointSaver(
-            TMP_PATH, save_name="model.chpn", monitor=TEST_METRIC.name, mode="max"
-        ),
+        pt_clb.CheckpointSaver(TMP_PATH, save_name="model.chpn", monitor=TEST_METRIC.name, mode="max"),
         pt_clb.TensorBoard(log_dir=TMP_PATH),
         pt_clb.TensorBoardWithCM(log_dir=TMP_PATH),
         pt_clb.ConsoleLogger(),
@@ -133,7 +152,6 @@ os.makedirs(TMP_PATH, exist_ok=True)
         pt_clb.Mixup(0.2, NUM_CLASSES),
         pt_clb.Cutmix(1.0, NUM_CLASSES),
         pt_clb.ScheduledDropout(),
-        pt_clb.ModelEma(decay=0.9999)
     ],
 )
 def test_callback(callback):
@@ -152,19 +170,17 @@ def test_callback(callback):
 )
 def test_segm_callback(callback):
     runner = Runner(
-        model=TEST_SEGM_MODEL,
-        optimizer=TEST_SEGM_OPTIMZER,
-        criterion=TEST_CRITERION,
-        callbacks=callback,
+        model=TEST_SEGM_MODEL, optimizer=TEST_SEGM_OPTIMZER, criterion=TEST_CRITERION, callbacks=callback,
     )
     runner.fit(TEST_SEGM_LOADER, epochs=2)
+
 
 def test_invalid_phases_scheduler_mode():
     runner = Runner(
         model=TEST_MODEL,
         optimizer=TEST_OPTIMIZER,
         criterion=TEST_CRITERION,
-        callbacks=pt_clb.PhasesScheduler([{"ep":[0,1], "lr":[0,1], "mode":"new_mode" },])
+        callbacks=pt_clb.PhasesScheduler([{"ep": [0, 1], "lr": [0, 1], "mode": "new_mode"},]),
     )
     with pytest.raises(ValueError):
         runner.fit(TEST_LOADER, epochs=2)
