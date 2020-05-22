@@ -79,9 +79,8 @@ class Runner:
         output = self.state.model(data)
         self.state.output = output
         loss = self.state.criterion(output, target)
-        loss = loss / self.accumulate_steps
         if self.state.is_train:
-            with amp.scale_loss(loss, self.state.optimizer) as scaled_loss:
+            with amp.scale_loss(loss / self.accumulate_steps, self.state.optimizer) as scaled_loss:
                 scaled_loss.backward()
             if self.gradient_clip_val > 0:
                 torch.nn.utils.clip_grad_norm_(amp.master_params(self.state.optimizer), self.gradient_clip_val)
