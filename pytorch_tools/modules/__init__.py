@@ -24,6 +24,7 @@ from .activated_batch_norm import ABN
 from .activated_group_norm import AGN
 from inplace_abn import InPlaceABN, InPlaceABNSync
 
+
 def bn_from_name(norm_name):
     norm_name = norm_name.lower()
     if norm_name == "abn":

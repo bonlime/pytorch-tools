@@ -4,12 +4,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .residual import conv1x1, conv3x3
 
+
 class MergeBlock(nn.Module):
     def forward(self, x):
         x, skip = x
         x = F.interpolate(x, size=skip.shape[-2:], mode="nearest")
         x += skip
         return x
+
 
 class FPN(nn.Module):
     """Feature Pyramid Network for enhancing high-resolution feature maps with semantic
@@ -25,11 +27,11 @@ class FPN(nn.Module):
     """
 
     def __init__(
-            self,
-            encoder_channels,
-            pyramid_channels=256,
-            num_layers=1,
-            **bn_args, # for compatability only. Not used
+        self,
+        encoder_channels,
+        pyramid_channels=256,
+        num_layers=1,
+        **bn_args,  # for compatability only. Not used
     ):
         super().__init__()
         assert num_layers == 1, "More that 1 layer is not supported in FPN"

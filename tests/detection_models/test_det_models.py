@@ -8,7 +8,7 @@ from pytorch_tools.utils.visualization import tensor_from_rgb_image
 import pytorch_tools as pt
 import pytorch_tools.detection_models as pt_det
 
-# all weights were tested on 05.2020. for now only leave one model for faster tests 
+# all weights were tested on 05.2020. for now only leave one model for faster tests
 MODEL_NAMES = [
     "efficientdet_b0",
     # "efficientdet_b1",
@@ -25,9 +25,12 @@ IMGS = {
 }
 
 INP = torch.ones(1, 3, 512, 512)
+
+
 @torch.no_grad()
 def _test_forward(model):
     return model(INP)
+
 
 @pytest.mark.parametrize("arch", MODEL_NAMES)
 def test_coco_pretrain(arch):
@@ -41,7 +44,8 @@ def test_coco_pretrain(arch):
         im = np.array(im.resize((inp_size, inp_size)))
         im_t = tensor_from_rgb_image(preprocess_fn(im)).unsqueeze(0).float().cuda()
         boxes, scores, classes = m.predict(im_t)
-        assert classes[0, 0] == im_cls # check that most confident bbox is correct
+        assert classes[0, 0] == im_cls  # check that most confident bbox is correct
+
 
 @pytest.mark.parametrize("arch", MODEL_NAMES[:1])
 def test_pretrain_custom_num_classes(arch):

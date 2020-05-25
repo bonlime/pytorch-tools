@@ -64,6 +64,7 @@ class GlobalPool2d(nn.Module):
     def __repr__(self):
         return self.__class__.__name__ + " (" + ", pool_type=" + self.pool_type + ")"
 
+
 # https://github.com/mrT23/TResNet/
 class FastGlobalAvgPool2d(nn.Module):
     def __init__(self, flatten=False):
@@ -89,15 +90,16 @@ class BlurPool(nn.Module):
     def __init__(self, channels=0):
         super(BlurPool, self).__init__()
         self.channels = channels
-        filt = torch.tensor([1., 2., 1.])
+        filt = torch.tensor([1.0, 2.0, 1.0])
         filt = filt[:, None] * filt[None, :]
         filt = filt / torch.sum(filt)
         filt = filt[None, None, :, :].repeat((self.channels, 1, 1, 1))
         self.register_buffer("filt", filt)
 
     def forward(self, inp):
-        inp_pad = F.pad(inp, (1, 1, 1, 1), 'reflect')
+        inp_pad = F.pad(inp, (1, 1, 1, 1), "reflect")
         return F.conv2d(inp_pad, self.filt, stride=2, padding=0, groups=inp.shape[1])
+
 
 # from https://github.com/mrT23/TResNet/
 class SpaceToDepth(nn.Module):

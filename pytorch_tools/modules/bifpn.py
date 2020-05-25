@@ -7,11 +7,13 @@ from .residual import DepthwiseSeparableConv
 from .residual import conv1x1
 from . import ABN
 
+
 class FastNormalizedFusion(nn.Module):
     """Combines 2 or 3 feature maps into one with weights.
     Args:
         input_num (int): 2 for intermediate features, 3 for output features
     """
+
     def __init__(self, in_nodes, activation="relu"):
         super().__init__()
         self.weights = nn.Parameter(torch.ones(in_nodes, dtype=torch.float32))
@@ -25,6 +27,7 @@ class FastNormalizedFusion(nn.Module):
         weights /= weights.sum() + self.eps
         fused_features = sum([p * w for p, w in zip(features, weights)])
         return self.act(fused_features)
+
 
 # need to create weights to allow loading anyway. So inherit from FastNormalizedFusion for simplicity
 class SumFusion(FastNormalizedFusion):
@@ -48,8 +51,8 @@ class BiFPNLayer(nn.Module):
         super().__init__()
 
         self.up = nn.Upsample(scale_factor=2, mode="nearest")
-        self.down = nn.MaxPool2d(3, stride=2, padding=1) #  padding=1 TODO: change back
-        
+        self.down = nn.MaxPool2d(3, stride=2, padding=1)  #  padding=1 TODO: change back
+
         # disable attention for large models. This is very dirty way to check that it's B6 & B7. But i don't care
         Fusion = SumFusion if channels > 288 else FastNormalizedFusion
 
@@ -75,13 +78,13 @@ class BiFPNLayer(nn.Module):
         self.p4_out = DepthwiseSeparableConv(channels, channels, **bn_args)
         self.p5_out = DepthwiseSeparableConv(channels, channels, **bn_args)
         self.p6_out = DepthwiseSeparableConv(channels, channels, **bn_args)
-        self.p7_out = DepthwiseSeparableConv(channels, channels, **bn_args)    
-    
+        self.p7_out = DepthwiseSeparableConv(channels, channels, **bn_args)
+
     def forward(self, features):
 
         # p7, p6, p5, p4, p3
         p7_in, p6_in, p5_in, p4_in, p3_in = features
-        
+
         # Top-down pathway (from low res to high res)
         p6_up = self.p6_up(self.fuse_p6_up(p6_in, self.up(p7_in)))
         p5_up = self.p5_up(self.fuse_p5_up(p5_in, self.up(p6_up)))
@@ -96,38 +99,33 @@ class BiFPNLayer(nn.Module):
 
         return p7_out, p6_out, p5_out, p4_out, p3_out
 
+
 # additionally downsamples the input
 class FirstBiFPNLayer(BiFPNLayer):
     def __init__(self, encoder_channels, channels=64, norm_layer=ABN, norm_act="relu"):
         super().__init__(channels=channels, norm_layer=norm_layer, norm_act=norm_act)
 
-        # TODO: later remove bias from downsample 
+        # TODO: later remove bias from downsample
         self.p5_downsample_1 = nn.Sequential(
-            conv1x1(encoder_channels[0], channels, bias=True), 
-            norm_layer(channels, activation="identity")
+            conv1x1(encoder_channels[0], channels, bias=True), norm_layer(channels, activation="identity")
         )
         self.p4_downsample_1 = nn.Sequential(
-            conv1x1(encoder_channels[1], channels, bias=True),
-            norm_layer(channels, activation="identity")
+            conv1x1(encoder_channels[1], channels, bias=True), norm_layer(channels, activation="identity")
         )
         self.p3_downsample_1 = nn.Sequential(
-            conv1x1(encoder_channels[2], channels, bias=True),
-            norm_layer(channels, activation="identity")
+            conv1x1(encoder_channels[2], channels, bias=True), norm_layer(channels, activation="identity")
         )
 
         # Devil is in the details. In original repo they use 2 different downsamples from encoder channels
-        # it makes sense to preseve more information, but most of implementations in the internet 
+        # it makes sense to preseve more information, but most of implementations in the internet
         # use output of the first downsample
         self.p4_downsample_2 = nn.Sequential(
-            conv1x1(encoder_channels[1], channels, bias=True),
-            norm_layer(channels, activation="identity")
+            conv1x1(encoder_channels[1], channels, bias=True), norm_layer(channels, activation="identity")
         )
         self.p5_downsample_2 = nn.Sequential(
-            conv1x1(encoder_channels[0], channels, bias=True), 
-            norm_layer(channels, activation="identity")
+            conv1x1(encoder_channels[0], channels, bias=True), norm_layer(channels, activation="identity")
         )
-        # only one downsample for p3 
-
+        # only one downsample for p3
 
     def forward(self, features):
 
@@ -155,6 +153,7 @@ class FirstBiFPNLayer(BiFPNLayer):
 
         return p7_out, p6_out, p5_out, p4_out, p3_out
 
+
 class BiFPN(nn.Sequential):
     """
     Implementation of Bi-directional Feature Pyramid Network
@@ -170,8 +169,8 @@ class BiFPN(nn.Sequential):
     https://arxiv.org/pdf/1911.09070.pdf
     """
 
-    def __init__(self, encoder_channels, pyramid_channels=64, num_layers=1, **bn_args):  
-        # First layer preprocesses raw encoder features 
+    def __init__(self, encoder_channels, pyramid_channels=64, num_layers=1, **bn_args):
+        # First layer preprocesses raw encoder features
         bifpns = [FirstBiFPNLayer(encoder_channels, pyramid_channels, **bn_args)]
         # Apply BiFPN block `num_layers` times
         for _ in range(num_layers - 1):

@@ -47,6 +47,7 @@ class SEModule(nn.Module):
         x_se = self.fc2(x_se)
         return x * x_se.sigmoid()
 
+
 class ECAModule(nn.Module):
     """Efficient Channel Attention
     This implementation is different from the paper. I've removed all hyperparameters and 
@@ -56,7 +57,8 @@ class ECAModule(nn.Module):
     https://arxiv.org/abs/1910.03151
 
     """
-    def __init__(self, *args, **kwargs): 
+
+    def __init__(self, *args, **kwargs):
         super().__init__()
         self.pool = FastGlobalAvgPool2d()
         self.conv = nn.Conv1d(1, 1, kernel_size=3, padding=1, bias=False)
@@ -66,6 +68,7 @@ class ECAModule(nn.Module):
         x_s = self.conv(x_s.view(x.size(0), 1, -1))
         x_s = x_s.view(x.size(0), -1, 1, 1).sigmoid()
         return x * x_s.expand_as(x)
+
 
 def get_attn(attn_type):
     """Args: attn_type (Uniont[str, None]): Attention type. Supported:
@@ -79,13 +82,16 @@ def get_attn(attn_type):
     else:
         return ATT_TO_MODULE[attn_type.lower()]
 
+
 class DepthwiseSeparableConv(nn.Sequential):
     """Depthwise separable conv with BN after depthwise & pointwise."""
 
-    def __init__(self, in_channels, out_channels, stride=1, dilation=1, norm_layer=ABN, norm_act="relu", use_norm=True):
+    def __init__(
+        self, in_channels, out_channels, stride=1, dilation=1, norm_layer=ABN, norm_act="relu", use_norm=True
+    ):
         modules = [
             conv3x3(in_channels, in_channels, stride=stride, groups=in_channels, dilation=dilation),
-            conv1x1(in_channels, out_channels, bias=True), # in efficient det they for some reason add bias
+            conv1x1(in_channels, out_channels, bias=True),  # in efficient det they for some reason add bias
             norm_layer(out_channels, activation=norm_act) if use_norm else nn.Identity(),
         ]
         super().__init__(*modules)
@@ -164,6 +170,7 @@ class DropConnect(nn.Module):
         binary_tensor = torch.floor(random_tensor)
         output = x / self.keep_prob * binary_tensor
         return output
+
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -274,8 +281,10 @@ class Bottleneck(nn.Module):
         out = self.drop_connect(self.se_module(self.bn3(out))) + residual
         return self.final_act(out)
 
+
 # TResnet models use slightly modified versions of BasicBlock and Bottleneck
 # need to adjust for it
+
 
 class TBasicBlock(BasicBlock):
     def __init__(self, **kwargs):
@@ -287,11 +296,12 @@ class TBasicBlock(BasicBlock):
         planes = kwargs["planes"]
         self.se_module = SEModule(planes, max(planes // 4, 64))
 
+
 class TBottleneck(Bottleneck):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.final_act = nn.ReLU(inplace=True)
-        self.bn1.activation_param = 1e-3 # needed for loading weights
+        self.bn1.activation_param = 1e-3  # needed for loading weights
         self.bn2.activation_param = 1e-3
         if not kwargs.get("attn_type") == "se":
             return

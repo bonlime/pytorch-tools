@@ -7,6 +7,7 @@ from torch.nn.parameter import Parameter
 from .activations import ACT
 from .activations import ACT_FUNC_DICT
 
+
 class AGN(nn.Module):
     """Activated Group Normalization
     This gathers a GroupNorm and an activation function in a single module
@@ -27,13 +28,7 @@ class AGN(nn.Module):
     """
 
     def __init__(
-        self,
-        num_features,
-        num_groups=32,
-        eps=1e-5, 
-        affine=True,
-        activation="relu",
-        activation_param=0.01,
+        self, num_features, num_groups=32, eps=1e-5, affine=True, activation="relu", activation_param=0.01,
     ):
         super(AGN, self).__init__()
         self.num_features = num_features
