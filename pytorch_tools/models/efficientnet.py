@@ -389,7 +389,7 @@ def patch_bn(module):
         module.eps = 1e-3
     for m in module.children():
         patch_bn(m)
-
+  
 def _efficientnet(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)
     cfg_settings = cfgs[arch]["default"]

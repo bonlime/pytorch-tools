@@ -1,5 +1,11 @@
+import logging
+from copy import deepcopy
+from functools import wraps
+
 import torch
 import torch.nn as nn
+from torch.hub import load_state_dict_from_url
+
 from pytorch_tools.modules import ABN
 from pytorch_tools.modules.bifpn import BiFPN
 from pytorch_tools.modules import bn_from_name
@@ -8,7 +14,11 @@ from pytorch_tools.modules.residual import conv3x3
 from pytorch_tools.modules.residual import DepthwiseSeparableConv
 from pytorch_tools.modules.tf_same_ops import conv_to_same_conv
 from pytorch_tools.modules.tf_same_ops import maxpool_to_same_maxpool
+
 from pytorch_tools.segmentation_models.encoders import get_encoder
+
+import pytorch_tools.utils.box as box_utils
+from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 
 def patch_bn(module):
     """TF ported weights use slightly different eps in BN. Need to adjust for better performance"""
@@ -19,6 +29,7 @@ def patch_bn(module):
         patch_bn(m)
 
 class EfficientDet(nn.Module):
+    """TODO: add docstring"""
     def __init__(
         self, 
         encoder_name="efficientnet_b0",
@@ -114,37 +125,165 @@ class EfficientDet(nn.Module):
             cls_feat = cls_feat.permute(0, 2, 3, 1)
             class_outputs.append(cls_feat.contiguous().view(cls_feat.shape[0], -1, self.num_classes))
 
-            # TODO: return back to simplier transpose operations
-            # This transpose + view aligns with `generate_anchor_boxes` function
-            # class_outputs.append(cls_feat.transpose(1, 3).contiguous().view(x.shape[0], -1, self.num_classes))
-            # box_outputs.append(box_feat.transpose(1, 3).contiguous().view(x.shape[0], -1, 4))
-
         class_outputs = torch.cat(class_outputs , 1)
         box_outputs = torch.cat(box_outputs, 1)
+        # my anchors are in [x1, y1, x2,y2] format while pretrained weights are in [y1, x1, y2, x2] format
+        # it may be confusing to reorder x and y every time later so I do it once here. it gives 
+        # compatability with pretrained weigths from Google and doesn't affect training from scratch 
+        box_outputs = box_outputs[..., [1, 0, 3, 2]]
         return class_outputs, box_outputs
 
+    @torch.no_grad()
+    def predict(self, x):
+        """Run forward on given images and decode raw prediction into bboxes"""
+        class_outputs, box_outputs = self.forward(x)
+        anchors = box_utils.generate_anchors_boxes(x.shape[-2:])[0]
+        out_bboxes, out_scores, out_classes = box_utils.decode(
+            class_outputs, box_outputs, anchors, img_shape=x.shape[-2:]
+        )
+        return out_bboxes, out_scores, out_classes
 
+PRETRAIN_SETTINGS = {**DEFAULT_IMAGENET_SETTINGS, "input_size": (512, 512), "crop_pct":1, "num_classes":90}
 
-def efficientdet_b0(**kwargs):
-    return EfficientDet(**kwargs)
+# fmt: off
+CFGS = {
+  "efficientdet_b0": {
+    "default": {
+      "params": {
+        "encoder_name":"efficientnet_b0",
+        "pyramid_channels":64,
+        "num_fpn_layers":3,
+        "num_head_repeats":3,
+      },
+      **PRETRAIN_SETTINGS,
+    },
+    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d0.pth",},
+  },
+  "efficientdet_b1": {
+    "default": {
+      "params": {
+        "encoder_name":"efficientnet_b1",
+        "pyramid_channels":88,
+        "num_fpn_layers":4,
+        "num_head_repeats":3,
+      },
+      **PRETRAIN_SETTINGS,
+      "input_size": (640, 640),
+    },
+    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d1.pth",},
+  },
+  "efficientdet_b2": {
+    "default": {
+      "params": {
+        "encoder_name":"efficientnet_b2",
+        "pyramid_channels":112,
+        "num_fpn_layers":5,
+        "num_head_repeats":3,
+      },
+      **PRETRAIN_SETTINGS,
+      "input_size": (768, 768),
+    },
+    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d2.pth",},
+  },
+  "efficientdet_b3": {
+    "default": {
+      "params": {
+        "encoder_name":"efficientnet_b3",
+        "pyramid_channels":160,
+        "num_fpn_layers":6,
+        "num_head_repeats":4,
+      },
+      **PRETRAIN_SETTINGS,
+      "input_size": (896, 896),
+    },
+    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d3.pth",},
+  },
+  "efficientdet_b4": {
+    "default": {
+      "params": {
+        "encoder_name":"efficientnet_b4",
+        "pyramid_channels":224,
+        "num_fpn_layers":7,
+        "num_head_repeats":4,
+      },
+      **PRETRAIN_SETTINGS,
+      "input_size": (1024, 1024),
+    },
+    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d4.pth",},
+  },
+  "efficientdet_b5": {
+    "default": {
+      "params": {
+        "encoder_name":"efficientnet_b5",
+        "pyramid_channels":288,
+        "num_fpn_layers":7,
+        "num_head_repeats":4,
+      },
+      **PRETRAIN_SETTINGS,
+      "input_size": (1280, 1280),
+    },
+    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d5.pth",},
+  },
+  "efficientdet_b6": {
+    "default": {
+      "params": {
+        "encoder_name":"efficientnet_b6",
+        "pyramid_channels":384,
+        "num_fpn_layers":8,
+        "num_head_repeats":5,
+      },
+      **PRETRAIN_SETTINGS,
+      "input_size": (1280, 1280),
+    },
+    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d6.pth",},
+  },
+}
+# fmt: on
 
-def efficientdet_b1(**kwargs):
-    return EfficientDet(
-        encoder_name="efficientnet_b1", pyramid_channels=88, num_fpn_layers=4, num_head_repeats=3, **kwargs)
+def _efficientdet(arch, pretrained=None, **kwargs):
+  cfgs = deepcopy(CFGS)
+  cfg_settings = cfgs[arch]["default"]
+  cfg_params = cfg_settings.pop("params")
+  kwargs.update(cfg_params)
+  model = EfficientDet(**kwargs)
+  if pretrained:
+    state_dict = load_state_dict_from_url(cfgs[arch][pretrained]["url"])
+    kwargs_cls = kwargs.get("num_classes", None)
+    if kwargs_cls and kwargs_cls != cfg_settings["num_classes"]:
+      logging.warning(f"Using model pretrained for {cfg_settings['num_classes']} classes with {kwargs_cls} classes. Last layer is initialized randomly")
+      last_conv_name = f"cls_head_convs.{kwargs['num_head_repeats']}.1"
+      state_dict[f"{last_conv_name}.weight"] = model.state_dict()[f"{last_conv_name}.weight"]
+      state_dict[f"{last_conv_name}.bias"] = model.state_dict()[f"{last_conv_name}.bias"]
+    model.load_state_dict(state_dict)
+  setattr(model, "pretrained_settings", cfg_settings)
+  return model
 
-def efficientdet_b2(**kwargs):
-    return EfficientDet(encoder_name="efficientnet_b2", pyramid_channels=112, num_fpn_layers=5, num_head_repeats=3, **kwargs)
+@wraps(EfficientDet)
+def efficientdet_b0(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_b0", pretrained, **kwargs)
 
-def efficientdet_b3(**kwargs):
-    return EfficientDet(encoder_name="efficientnet_b3", pyramid_channels=160, num_fpn_layers=6, num_head_repeats=4, **kwargs)
+@wraps(EfficientDet)
+def efficientdet_b1(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_b1", pretrained, **kwargs)
 
-def efficientdet_b4(**kwargs):
-    return EfficientDet(encoder_name="efficientnet_b4", pyramid_channels=224, num_fpn_layers=7, num_head_repeats=4, **kwargs)
-    
-def efficientdet_b5(**kwargs):
-    return EfficientDet(encoder_name="efficientnet_b5", pyramid_channels=288, num_fpn_layers=7, num_head_repeats=4, **kwargs)
+@wraps(EfficientDet)
+def efficientdet_b2(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_b2", pretrained, **kwargs)
 
-def efficientdet_b6(*args, **kwargs):
-    return EfficientDet(encoder_name="efficientnet_b6", pyramid_channels=384, num_fpn_layers=8, num_head_repeats=5, **kwargs)
+@wraps(EfficientDet)
+def efficientdet_b3(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_b3", pretrained, **kwargs)
+
+@wraps(EfficientDet)
+def efficientdet_b4(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_b4", pretrained, **kwargs)
+
+@wraps(EfficientDet)
+def efficientdet_b5(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_b5", pretrained, **kwargs)
+
+@wraps(EfficientDet)
+def efficientdet_b6(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_b6", pretrained, **kwargs)
 
 # No B7 because it's the same model as B6 but with larger input

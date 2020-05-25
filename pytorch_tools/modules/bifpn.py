@@ -51,7 +51,7 @@ class BiFPNLayer(nn.Module):
         self.down = nn.MaxPool2d(3, stride=2, padding=1) #  padding=1 TODO: change back
         
         # disable attention for large models. This is very dirty way to check that it's B6 & B7. But i don't care
-        Fusion = FastNormalizedFusion if channels < 288 else SumFusion
+        Fusion = SumFusion if channels > 288 else FastNormalizedFusion
 
         # There is no activation in SeparableConvs, instead activation is in fusion layer
         self.fuse_p6_up = Fusion(in_nodes=2, activation=norm_act)

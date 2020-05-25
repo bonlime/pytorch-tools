@@ -5,9 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Conv2dSamePadding(nn.Conv2d):
-    """
-    Assymetric padding matching TensorFlow `same`
-    """ 
+    """Assymetric padding matching TensorFlow `same`""" 
     def forward(self, x):
         h, w = x.shape[-2:]
         pad_w = (math.ceil(w / self.stride[1]) - 1) * self.stride[1] - w + self.kernel_size[1]
@@ -17,9 +15,7 @@ class Conv2dSamePadding(nn.Conv2d):
 
     
 class MaxPool2dSamePadding(nn.MaxPool2d):
-    """
-    Assymetric padding matching TensorFlow `same`
-    """ 
+    """Assymetric padding matching TensorFlow `same`""" 
     def forward(self, x):
         h, w = x.shape[-2:]
         pad_w = (math.ceil(w / self.stride) - 1) * self.stride - w + self.kernel_size
@@ -29,6 +25,7 @@ class MaxPool2dSamePadding(nn.MaxPool2d):
 
     
 def conv_to_same_conv(module):
+    """Turn All Conv2d into SameConv2d to match TF padding"""
     module_output = module
     # skip 1x1 convs 
     if isinstance(module, nn.Conv2d) and module.kernel_size[0] != 1:
@@ -55,6 +52,7 @@ def conv_to_same_conv(module):
     return module_output
 
 def maxpool_to_same_maxpool(module):
+    """Turn All MaxPool2d into SameMaxPool2d to match TF padding"""
     module_output = module
     if isinstance(module, nn.MaxPool2d):
         module_output = MaxPool2dSamePadding(
