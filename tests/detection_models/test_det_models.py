@@ -34,7 +34,8 @@ def _test_forward(model):
 
 @pytest.mark.parametrize("arch", MODEL_NAMES)
 def test_coco_pretrain(arch):
-    m = pt_det.__dict__[arch](pretrained="coco").cuda()
+    # want TF same padding for better results
+    m = pt_det.__dict__[arch](pretrained="coco", match_tf_same_padding=True).cuda()
     m.eval()
     # get size of the images used for pretraining
     inp_size = m.pretrained_settings["input_size"][-1]
