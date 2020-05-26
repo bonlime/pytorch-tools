@@ -27,7 +27,7 @@ class ACT(Enum):
 
 @torch.jit.script
 def swish_jit_fwd(x):
-    return x.mul_(torch.sigmoid(x))
+    return x.mul(torch.sigmoid(x))
 
 
 @torch.jit.script
@@ -87,7 +87,7 @@ class SwishNaive(nn.Module):
 
 @torch.jit.script
 def mish_jit_fwd(x):
-    return x.mul_(torch.tanh(F.softplus(x)))
+    return x.mul(torch.tanh(F.softplus(x)))
 
 
 @torch.jit.script
