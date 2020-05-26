@@ -22,41 +22,62 @@ class RetinaNet(nn.Module):
         encoder_weights="imagenet",
         pyramid_channels=256,
         num_classes=80,
-        norm_layer="abn",
-        norm_act="relu",
+        num_head_repeats=4,
+        drop_connect_rate=0,
+        encoder_norm_layer="abn", # maybe change default to `frozenabn`
+        encoder_norm_act="relu",
+        decoder_norm_layer="abn",
+        decoder_norm_act="relu",
         **encoder_params,
     ):
         super().__init__()
         self.encoder = get_encoder(
             encoder_name,
-            norm_layer=norm_layer,
-            norm_act=norm_act,
+            norm_layer=encoder_norm_layer,
+            norm_act=encoder_norm_act,
             encoder_weights=encoder_weights,
             **encoder_params,
         )
-        norm_layer = bn_from_name(norm_layer)
-        self.pyramid6 = conv3x3(256, 256, 2, bias=True)
-        self.pyramid7 = conv3x3(256, 256, 2, bias=True)
-        self.fpn = FPN(self.encoder.out_shapes[:-2], pyramid_channels=pyramid_channels,)
+        norm_layer = bn_from_name(decoder_norm_layer)
+        self.pyramid6 = nn.Sequential(
+            conv3x3(pyramid_channels, pyramid_channels, 2, bias=True),
+            norm_layer(256, activation="identity"),
+        )
+        self.pyramid7 = nn.Sequential(
+            conv3x3(pyramid_channels, pyramid_channels, 2, bias=True),
+            norm_layer(256, activation="identity"),
+        )
+        self.fpn = FPN(self.encoder.out_shapes[:-2], pyramid_channels=pyramid_channels)
 
         def make_head(out_size):
             layers = []
-            for _ in range(4):
-                # some implementations don't use BN here but I think it's needed
-                # TODO: test how it affects results
-                # upd. removed norm_layer. maybe change to group_norm later
-                layers += [nn.Conv2d(256, 256, 3, padding=1)]  # norm_layer(256, activation=norm_act)
-                # layers += [nn.Conv2d(256, 256, 3, padding=1), nn.ReLU()]
+            for _ in range(num_head_repeats):
+                # The convolution layers in the class net are shared among all levels, but
+                # each level has its batch normlization to capture the statistical
+                # difference among different levels
+                layers += [conv3x3(pyramid_channels, pyramid_channels, bias=True)]
+            layers += [nn.Conv2d(pyramid_channels, out_size, 3, padding=1)]
+            return nn.ModuleList(layers)
+        
+        def make_head_norm():
+            return nn.ModuleList(
+                [
+                    nn.ModuleList(
+                        [
+                            norm_layer(pyramid_channels, activation=decoder_norm_act)
+                            for _ in range(num_head_repeats)
+                        ]
+                        + [nn.Identity()]  # no bn after last depthwise conv
+                    )
+                    for _ in range(5)
+                ]
+            )
 
-            layers += [nn.Conv2d(256, out_size, 3, padding=1)]
-            return nn.Sequential(*layers)
-
-        self.ratios = [1.0, 2.0, 0.5]
-        self.scales = [4 * 2 ** (i / 3) for i in range(3)]
-        anchors = len(self.ratios) * len(self.scales)  # 9
-
-        self.cls_head = make_head(num_classes * anchors)
-        self.box_head = make_head(4 * anchors)
+        anchors_per_location = 9
+        self.cls_head_convs = make_head(num_classes * anchors_per_location)
+        self.cls_head_norms = make_head_norm()
+        self.box_head_convs = make_head(4 * anchors_per_location)
+        self.box_head_norms = make_head_norm()
         self.num_classes = num_classes
 
     def forward(self, x):
@@ -66,7 +87,7 @@ class RetinaNet(nn.Module):
         p5, p4, p3 = self.fpn([p5, p4, p3])
         # coarser FPN levels
         p6 = self.pyramid6(p5)
-        p7 = self.pyramid7(p6.relu())
+        p7 = self.pyramid7(p6) # in TPU repo there is no relu for some reason
         # want features from lowest OS to highest to align with `generate_anchors_boxes` function
         features = [p3, p4, p5, p6, p7]
         # TODO: (18.03.20) TF implementation has additional BN here before class/box outputs
