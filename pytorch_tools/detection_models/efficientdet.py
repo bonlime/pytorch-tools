@@ -35,7 +35,7 @@ class EfficientDet(nn.Module):
 
     def __init__(
         self,
-        pretrained="coco", # Not used. here for proper signature
+        pretrained="coco",  # Not used. here for proper signature
         encoder_name="efficientnet_b0",
         encoder_weights="imagenet",
         pyramid_channels=64,

@@ -1,3 +1,7 @@
+import logging
+from copy import deepcopy
+from functools import wraps
+
 import torch
 import torch.nn as nn
 
@@ -5,6 +9,7 @@ from pytorch_tools.modules.fpn import FPN
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules.residual import conv3x3
 from pytorch_tools.segmentation_models.encoders import get_encoder
+from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 
 
 class RetinaNet(nn.Module):
@@ -33,16 +38,17 @@ class RetinaNet(nn.Module):
         Mmdetection - https://github.com/open-mmlab/mmdetection/ (at commit b9daf23)
         TF TPU version - https://github.com/tensorflow/tpu/tree/master/models/official/retinanet
     """
+
     def __init__(
         self,
         encoder_name="resnet50",
         encoder_weights="imagenet",
         pyramid_channels=256,
         num_classes=80,
-        # drop_connect_rate=0, # TODO: add 
+        # drop_connect_rate=0, # TODO: add
         encoder_norm_layer="abn",
         encoder_norm_act="relu",
-        decoder_norm_layer="none", # None by default to match detectron & mmdet versions
+        decoder_norm_layer="none",  # None by default to match detectron & mmdet versions
         decoder_norm_act="relu",
         **encoder_params,
     ):
@@ -88,7 +94,7 @@ class RetinaNet(nn.Module):
         p5, p4, p3, _, _ = self.encoder(x)
         # coarser FPN levels
         p6 = self.pyramid6(p5)
-        p7 = self.pyramid7(p6.relu()) # in mmdet there is no relu here. but i think it's needed
+        p7 = self.pyramid7(p6.relu())  # in mmdet there is no relu here. but i think it's needed
         # enhance features
         p5, p4, p3 = self.fpn([p5, p4, p3])
         # want features from lowest OS to highest to align with `generate_anchors_boxes` function
@@ -109,3 +115,54 @@ class RetinaNet(nn.Module):
         class_outputs = torch.cat(class_outputs, 1)
         box_outputs = torch.cat(box_outputs, 1)
         return class_outputs, box_outputs
+
+
+# Don't really now input size for the models. 512 is just a guess
+PRETRAIN_SETTINGS = {**DEFAULT_IMAGENET_SETTINGS, "input_size": (512, 512), "crop_pct": 1, "num_classes": 80}
+
+# weights below were ported from caffe to mmdetection and them ported again by @bonlime
+# mmdetection resnet is slightly different (stride 2 in conv1x1 instead of conv3x3)
+# and order of anchors is also different so it's impossible to do inference using this weights but they work
+# much better for transfer learning than starting from imagenet pretrain
+# fmt: off
+CFGS = {
+  "retinanet_r50_fpn": {
+    "default": {"params": {"encoder_name":"resnet50"}, **PRETRAIN_SETTINGS},
+    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/retinanet_r50_fpn_3x_coco.pth",},
+  },
+  "retinanet_r101_fpn": {
+    "default": {"params": {"encoder_name":"resnet101"}, **PRETRAIN_SETTINGS},
+    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/retinanet_r101_fpn_2x_coco.pth",},
+  },
+}
+# fmt: on
+
+
+def _retinanet(arch, pretrained=None, **kwargs):
+    cfgs = deepcopy(CFGS)
+    cfg_settings = cfgs[arch]["default"]
+    cfg_params = cfg_settings.pop("params")
+    kwargs.update(cfg_params)
+    model = RetinaNet(**kwargs)
+    if pretrained:
+        state_dict = torch.hub.load_state_dict_from_url(cfgs[arch][pretrained]["url"])
+        kwargs_cls = kwargs.get("num_classes", None)
+        if kwargs_cls and kwargs_cls != cfg_settings["num_classes"]:
+            logging.warning(
+                f"Using model pretrained for {cfg_settings['num_classes']} classes with {kwargs_cls} classes. Last layer is initialized randomly"
+            )
+            state_dict["cls_head_conv.weight"] = model.state_dict()["cls_head_conv.weight"]
+            state_dict["cls_head_conv.bias"] = model.state_dict()["cls_head_conv.bias"]
+        model.load_state_dict(state_dict)
+    setattr(model, "pretrained_settings", cfg_settings)
+    return model
+
+
+@wraps(RetinaNet)
+def retinanet_r50_fpn(pretrained="coco", **kwargs):
+    return _retinanet("retinanet_r50_fpn", pretrained, **kwargs)
+
+
+@wraps(RetinaNet)
+def retinanet_r101_fpn(pretrained="coco", **kwargs):
+    return _retinanet("retinanet_r101_fpn", pretrained, **kwargs)
