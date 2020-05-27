@@ -21,6 +21,7 @@ class RetinaNet(nn.Module):
     * ability to freeze batch norm in encoder with one line
     
     Args:
+        pretrained (str): one of `coco` or None. if `coco` - load pretrained weights 
         encoder_name (str): name of classification model (without last dense layers) used as feature
             extractor to build detection model
         encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-trained on ImageNet)
@@ -42,6 +43,7 @@ class RetinaNet(nn.Module):
 
     def __init__(
         self,
+        pretrained="coco", # not used here for proper signature
         encoder_name="resnet50",
         encoder_weights="imagenet",
         pyramid_channels=256,
@@ -128,7 +130,7 @@ class RetinaNet(nn.Module):
         return out_bboxes, out_scores, out_classes
 
 
-# Don't really now input size for the models. 512 is just a guess
+# Don't really know input size for the models. 512 is just a guess
 PRETRAIN_SETTINGS = {**DEFAULT_IMAGENET_SETTINGS, "input_size": (512, 512), "crop_pct": 1, "num_classes": 80}
 
 # weights below were ported from caffe to mmdetection and them ported again by @bonlime
