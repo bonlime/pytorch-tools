@@ -22,6 +22,7 @@ from .activations import Mish, MishNaive, Swish, SwishNaive
 
 from .activated_batch_norm import ABN
 from .activated_group_norm import AGN
+from .activated_no_norm import NoNormAct
 from inplace_abn import InPlaceABN, InPlaceABNSync
 
 
@@ -37,5 +38,7 @@ def bn_from_name(norm_name):
         return partial(ABN, frozen=True)
     elif norm_name in ("agn", "groupnorm", "group_norm"):
         return AGN
+    elif norm_name in ("none",):
+        return NoNormAct
     else:
         raise ValueError(f"Normalization {norm_name} not supported")

@@ -45,6 +45,8 @@ class ABN(nn.Module):
         self.momentum = momentum
         self.activation = ACT(activation)
         self.activation_param = activation_param
+        self.frozen = frozen
+        
         if frozen:
             self.register_buffer("weight", torch.ones(num_features))
             self.register_buffer("bias", torch.zeros(num_features))
@@ -101,4 +103,6 @@ class ABN(nn.Module):
         rep = "{num_features}, eps={eps}, momentum={momentum}, affine={affine}, activation={activation}"
         if self.activation in ["leaky_relu", "elu"]:
             rep += "[{activation_param}]"
+        if self.frozen:
+            rep += ", frozen=True"
         return rep.format(**self.__dict__)
