@@ -35,6 +35,7 @@ class EfficientDet(nn.Module):
 
     def __init__(
         self,
+        pretrained="coco", # Not used. here for proper signature
         encoder_name="efficientnet_b0",
         encoder_weights="imagenet",
         pyramid_channels=64,
@@ -79,6 +80,9 @@ class EfficientDet(nn.Module):
             layers += [DepthwiseSeparableConv(pyramid_channels, out_size, use_norm=False)]
             return nn.ModuleList(layers)
 
+        # The convolution layers in the head are shared among all levels, but
+        # each level has its batch normalization to capture the statistical
+        # difference among different levels.
         def make_head_norm():
             return nn.ModuleList(
                 [

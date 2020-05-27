@@ -8,13 +8,38 @@ from pytorch_tools.segmentation_models.encoders import get_encoder
 
 
 class RetinaNet(nn.Module):
+    """RetinaNet 
+    Main difference from other implementations are:
+    * support of any custom encoder from this repo
+    * optional normalization layer in box classification head
+    * ability to freeze batch norm in encoder with one line
+    
+    Args:
+        encoder_name (str): name of classification model (without last dense layers) used as feature
+            extractor to build detection model
+        encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-trained on ImageNet)
+        pyramid_channels (int): size of features after FPN. Default 256
+        num_classes (int): a number of classes to predict 
+            class_outputs shape is (BS, *, NUM_CLASSES) where each row in * corresponds to one bbox
+        encoder_norm_layer (str): Normalization layer to use in encoder. If using pretrained
+            it should be the same as in pretrained weights
+        encoder_norm_act (str): Activation for normalization layer in encoder
+        decoder_norm_layer (str): Normalization to use in head convolutions. Default (none) is not to use normalization. 
+            Current implementation is optimized for `GroupNorm`, not `BatchNorm` check code for details
+        decoder_norm_act (str): Activation for normalization layer in head convolutions
+    
+    Ref:
+        Focal Loss for Dense Object Detection - https://arxiv.org/abs/1708.02002
+        Mmdetection - https://github.com/open-mmlab/mmdetection/ (at commit b9daf23)
+        TF TPU version - https://github.com/tensorflow/tpu/tree/master/models/official/retinanet
+    """
     def __init__(
         self,
         encoder_name="resnet50",
         encoder_weights="imagenet",
         pyramid_channels=256,
         num_classes=80,
-        drop_connect_rate=0,
+        # drop_connect_rate=0, # TODO: add 
         encoder_norm_layer="abn",
         encoder_norm_act="relu",
         decoder_norm_layer="none", # None by default to match detectron & mmdet versions
@@ -44,6 +69,8 @@ class RetinaNet(nn.Module):
             layers = []
             for _ in range(4):
                 layers += [conv3x3(pyramid_channels, pyramid_channels, bias=True)]
+                # Norm here is fine for GroupNorm but for BN it should be implemented the other way
+                # see EffDet for example. Maybe need to change this implementation to align with EffDet
                 layers += [norm_layer(pyramid_channels, activation=decoder_norm_act)]
             return nn.Sequential(*layers)
 
@@ -54,7 +81,7 @@ class RetinaNet(nn.Module):
         self.box_head_conv = conv3x3(pyramid_channels, 4 * anchors_per_location, bias=True)
         self.num_classes = num_classes
 
-    # Name from mmdetectin for convinience
+    # Name from mmdetectin for convenience
     def extract_features(self, x):
         """Extract features from backbone + enchance with FPN"""
         # don't use p2 and p1
