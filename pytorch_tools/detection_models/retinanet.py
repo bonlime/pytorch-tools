@@ -9,6 +9,7 @@ from pytorch_tools.modules.fpn import FPN
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules.residual import conv3x3
 from pytorch_tools.segmentation_models.encoders import get_encoder
+import pytorch_tools.utils.box as box_utils
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 
 
@@ -115,6 +116,16 @@ class RetinaNet(nn.Module):
         class_outputs = torch.cat(class_outputs, 1)
         box_outputs = torch.cat(box_outputs, 1)
         return class_outputs, box_outputs
+
+    @torch.no_grad()
+    def predict(self, x):
+        """Run forward on given images and decode raw prediction into bboxes"""
+        class_outputs, box_outputs = self.forward(x)
+        anchors = box_utils.generate_anchors_boxes(x.shape[-2:])[0]
+        out_bboxes, out_scores, out_classes = box_utils.decode(
+            class_outputs, box_outputs, anchors, img_shape=x.shape[-2:]
+        )
+        return out_bboxes, out_scores, out_classes
 
 
 # Don't really now input size for the models. 512 is just a guess
