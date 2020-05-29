@@ -112,8 +112,7 @@ class HRNet(nn.Module):
         self.name = f"segm-{encoder_name}"
         # use lower momemntum 
         patch_bn_mom(self)
-        # works better without init (for some reason)
-        # self._init_weights()
+        self._init_weights()
 
     def forward(self, x):
         """Sequentially pass `x` trough model`s `encoder` and `head` (return logits!)"""
@@ -139,12 +138,15 @@ class HRNet(nn.Module):
             return x
 
     def _init_weights(self):
-        # init all weights except encoder (to allow pretrain)
-        initialize(self.head)
+        # it works better if we only init last bias not whole decoder part
+        # set last layer bias for better convergence with sigmoid loss 
+        # -4.59 = -np.log((1 - 0.01) / 0.01)
         if self.OCR:
-            initialize(self.aux_head)
-            initialize(self.ocr_distri_head)
-            initialize(self.conv3x3)
+            nn.init.constant_(self.head.bias, -4.59)
+            nn.init.constant_(self.aux_head[2].bias, -4.59)
+        else:
+            nn.init.constant_(self.head[2].bias, -4.59)
+
 
 # fmt: off
 SETTINGS = {

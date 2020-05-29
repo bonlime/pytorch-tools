@@ -40,9 +40,7 @@ class UnetDecoder(nn.Module):
         self.layer4 = UnetDecoderBlock(in_channels[3], out_channels[3], **bn_params)
         self.layer5 = UnetDecoderBlock(in_channels[4], out_channels[4], **bn_params)
         self.dropout = nn.Dropout2d(drop_rate, inplace=False) # inplace=True raises a backprop error
-        self.final_conv = conv1x1(out_channels[4], final_channels)
-        # it works much better without initializing decoder. maybe need to investigate into this issue
-        # initialize(self)
+        self.final_conv = conv1x1(out_channels[4], final_channels, bias=True)
 
     def compute_channels(self, encoder_channels, decoder_channels):
         channels = [
@@ -126,3 +124,6 @@ class Unet(EncoderDecoder):
 
         super().__init__(encoder, decoder)
         self.name = f"u-{encoder_name}"
+        # set last layer bias for better convergence with sigmoid loss 
+        # -4.59 = -np.log((1 - 0.01) / 0.01)
+        nn.init.constant_(self.decoder.final_conv.bias, -4.59)
