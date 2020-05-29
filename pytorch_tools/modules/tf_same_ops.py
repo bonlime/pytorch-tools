@@ -23,7 +23,7 @@ class MaxPool2dSamePadding(nn.MaxPool2d):
         h, w = x.shape[-2:]
         pad_w = (math.ceil(w / self.stride) - 1) * self.stride - w + self.kernel_size
         pad_h = (math.ceil(h / self.stride) - 1) * self.stride - h + self.kernel_size
-        x = F.pad(x, [pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2])
+        x = F.pad(x, [pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2], value=-float("inf"))
         return super().forward(x)
 
 
