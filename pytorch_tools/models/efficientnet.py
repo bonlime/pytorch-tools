@@ -139,6 +139,7 @@ class EfficientNet(nn.Module):
             self.dropout = nn.Dropout(drop_rate, inplace=True)
             self.classifier = nn.Linear(num_features, num_classes)
 
+        patch_bn(self) # adjust epsilon
         initialize(self)
 
     def encoder_features(self, x):
@@ -420,7 +421,6 @@ def _efficientnet(arch, pretrained=None, **kwargs):
         if kwargs.get("in_channels", 3) != 3: # support pretrained for custom input channels
             state_dict["conv_stem.weight"] = repeat_channels(state_dict["conv_stem.weight"], kwargs["in_channels"])
         model.load_state_dict(state_dict)
-        patch_bn(model) # adjust epsilon
     setattr(model, "pretrained_settings", cfg_settings)
     return model
 

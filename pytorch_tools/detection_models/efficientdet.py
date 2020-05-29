@@ -111,7 +111,9 @@ class EfficientDet(nn.Module):
             conv_to_same_conv(self)
             maxpool_to_same_maxpool(self)
 
-    def forward(self, x):
+    # Name from mmdetectin for convenience
+    def extract_features(self, x):
+        """Extract features from backbone + enchance with BiFPN"""
         # don't use p2 and p1
         p5, p4, p3, _, _ = self.encoder(x)
         # coarser FPN levels
@@ -122,6 +124,10 @@ class EfficientDet(nn.Module):
         features = self.bifpn(features)
         # want features from lowest OS to highest to align with `generate_anchors_boxes` function
         features = list(reversed(features))
+        return features
+
+    def forward(self, x):
+        features = self.extract_features(x)
         class_outputs = []
         box_outputs = []
         for feat, (cls_bns, box_bns) in zip(features, zip(self.cls_head_norms, self.box_head_norms)):
