@@ -11,6 +11,7 @@ from pytorch_tools.modules.residual import conv3x3
 from pytorch_tools.segmentation_models.encoders import get_encoder
 import pytorch_tools.utils.box as box_utils
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
+from pytorch_tools.utils.misc import initialize_iterator
 
 
 class RetinaNet(nn.Module):
@@ -89,6 +90,7 @@ class RetinaNet(nn.Module):
         self.box_convs = make_final_convs()
         self.box_head_conv = conv3x3(pyramid_channels, 4 * anchors_per_location, bias=True)
         self.num_classes = num_classes
+        self. _initialize_weights()
 
     # Name from mmdetectin for convenience
     def extract_features(self, x):
@@ -129,6 +131,13 @@ class RetinaNet(nn.Module):
         )
         return out_bboxes, out_scores, out_classes
 
+    def _initialize_weights(self):
+        # init everything except encoder
+        no_encoder_m = [m for n, m in self.named_modules() if not "encoder" in n]
+        initialize_iterator(no_encoder_m)
+        # need to init last bias so that after sigmoid it's 0.01 
+        cls_bias_init = -torch.log(torch.tensor((1 - 0.01) / 0.01)) # -4.59
+        nn.init.constant_(self.cls_head_conv.bias, cls_bias_init)
 
 # Don't really know input size for the models. 512 is just a guess
 PRETRAIN_SETTINGS = {**DEFAULT_IMAGENET_SETTINGS, "input_size": (512, 512), "crop_pct": 1, "num_classes": 80}

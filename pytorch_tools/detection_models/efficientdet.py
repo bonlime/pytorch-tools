@@ -19,6 +19,7 @@ from pytorch_tools.segmentation_models.encoders import get_encoder
 
 import pytorch_tools.utils.box as box_utils
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
+from pytorch_tools.utils.misc import initialize_iterator
 
 
 def patch_bn(module):
@@ -105,6 +106,7 @@ class EfficientDet(nn.Module):
         self.num_classes = num_classes
 
         patch_bn(self)
+        self._initialize_weights()
         if match_tf_same_padding:
             conv_to_same_conv(self)
             maxpool_to_same_maxpool(self)
@@ -152,6 +154,14 @@ class EfficientDet(nn.Module):
             class_outputs, box_outputs, anchors, img_shape=x.shape[-2:]
         )
         return out_bboxes, out_scores, out_classes
+
+    def _initialize_weights(self):
+        # init everything except encoder
+        no_encoder_m = [m for n, m in self.named_modules() if not "encoder" in n]
+        initialize_iterator(no_encoder_m)
+        # need to init last bias so that after sigmoid it's 0.01 
+        cls_bias_init = -torch.log(torch.tensor((1 - 0.01) / 0.01)) # -4.59
+        nn.init.constant_(self.cls_head_convs[-1][1].bias, cls_bias_init)
 
 
 PRETRAIN_SETTINGS = {**DEFAULT_IMAGENET_SETTINGS, "input_size": (512, 512), "crop_pct": 1, "num_classes": 90}

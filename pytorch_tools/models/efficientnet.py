@@ -139,7 +139,6 @@ class EfficientNet(nn.Module):
             self.dropout = nn.Dropout(drop_rate, inplace=True)
             self.classifier = nn.Linear(num_features, num_classes)
 
-        # TODO: change to init from official repo. It may be the source of problem for training from scratch
         initialize(self)
 
     def encoder_features(self, x):
