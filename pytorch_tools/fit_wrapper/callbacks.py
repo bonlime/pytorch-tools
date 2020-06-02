@@ -530,6 +530,7 @@ class FileLogger(Callback):
     def reduce_metrics(self):
         # can't reduce AverageMeter so need to reduce every attribute separately
         meters = self.state.train_metrics + [self.state.train_loss,]
+        meters = meters + self.state.metric_meters + [self.state.loss_meter,]
         if self.state.val_loss is not None:
             meters = meters + self.state.val_metrics + [self.state.val_loss,]
         reduce_attributes = ["val", "avg", "avg_smooth", "sum", "count"]
