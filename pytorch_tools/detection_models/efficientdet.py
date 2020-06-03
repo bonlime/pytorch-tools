@@ -37,7 +37,7 @@ class EfficientDet(nn.Module):
     def __init__(
         self,
         pretrained="coco",  # Not used. here for proper signature
-        encoder_name="efficientnet_b0",
+        encoder_name="efficientnet_d0",
         encoder_weights="imagenet",
         pyramid_channels=64,
         num_fpn_layers=3,
@@ -174,7 +174,7 @@ PRETRAIN_SETTINGS = {**DEFAULT_IMAGENET_SETTINGS, "input_size": (512, 512), "cro
 
 # fmt: off
 CFGS = {
-  "efficientdet_b0": {
+  "efficientdet_d0": {
     "default": {
       "params": {
         "encoder_name":"efficientnet_b0",
@@ -186,7 +186,7 @@ CFGS = {
     },
     "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d0.pth",},
   },
-  "efficientdet_b1": {
+  "efficientdet_d1": {
     "default": {
       "params": {
         "encoder_name":"efficientnet_b1",
@@ -199,7 +199,7 @@ CFGS = {
     },
     "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d1.pth",},
   },
-  "efficientdet_b2": {
+  "efficientdet_d2": {
     "default": {
       "params": {
         "encoder_name":"efficientnet_b2",
@@ -212,7 +212,7 @@ CFGS = {
     },
     "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d2.pth",},
   },
-  "efficientdet_b3": {
+  "efficientdet_d3": {
     "default": {
       "params": {
         "encoder_name":"efficientnet_b3",
@@ -225,7 +225,7 @@ CFGS = {
     },
     "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d3.pth",},
   },
-  "efficientdet_b4": {
+  "efficientdet_d4": {
     "default": {
       "params": {
         "encoder_name":"efficientnet_b4",
@@ -238,7 +238,7 @@ CFGS = {
     },
     "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d4.pth",},
   },
-  "efficientdet_b5": {
+  "efficientdet_d5": {
     "default": {
       "params": {
         "encoder_name":"efficientnet_b5",
@@ -251,7 +251,7 @@ CFGS = {
     },
     "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d5.pth",},
   },
-  "efficientdet_b6": {
+  "efficientdet_d6": {
     "default": {
       "params": {
         "encoder_name":"efficientnet_b6",
@@ -290,38 +290,38 @@ def _efficientdet(arch, pretrained=None, **kwargs):
 
 
 @wraps(EfficientDet)
-def efficientdet_b0(pretrained="coco", **kwargs):
-    return _efficientdet("efficientdet_b0", pretrained, **kwargs)
+def efficientdet_d0(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_d0", pretrained, **kwargs)
 
 
 @wraps(EfficientDet)
-def efficientdet_b1(pretrained="coco", **kwargs):
-    return _efficientdet("efficientdet_b1", pretrained, **kwargs)
+def efficientdet_d1(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_d1", pretrained, **kwargs)
 
 
 @wraps(EfficientDet)
-def efficientdet_b2(pretrained="coco", **kwargs):
-    return _efficientdet("efficientdet_b2", pretrained, **kwargs)
+def efficientdet_d2(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_d2", pretrained, **kwargs)
 
 
 @wraps(EfficientDet)
-def efficientdet_b3(pretrained="coco", **kwargs):
-    return _efficientdet("efficientdet_b3", pretrained, **kwargs)
+def efficientdet_d3(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_d3", pretrained, **kwargs)
 
 
 @wraps(EfficientDet)
-def efficientdet_b4(pretrained="coco", **kwargs):
-    return _efficientdet("efficientdet_b4", pretrained, **kwargs)
+def efficientdet_d4(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_d4", pretrained, **kwargs)
 
 
 @wraps(EfficientDet)
-def efficientdet_b5(pretrained="coco", **kwargs):
-    return _efficientdet("efficientdet_b5", pretrained, **kwargs)
+def efficientdet_d5(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_d5", pretrained, **kwargs)
 
 
 @wraps(EfficientDet)
-def efficientdet_b6(pretrained="coco", **kwargs):
-    return _efficientdet("efficientdet_b6", pretrained, **kwargs)
+def efficientdet_d6(pretrained="coco", **kwargs):
+    return _efficientdet("efficientdet_d6", pretrained, **kwargs)
 
 
 # No B7 because it's the same model as B6 but with larger input

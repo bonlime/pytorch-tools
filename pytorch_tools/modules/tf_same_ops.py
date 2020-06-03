@@ -12,7 +12,8 @@ class Conv2dSamePadding(nn.Conv2d):
         h, w = x.shape[-2:]
         pad_w = (math.ceil(w / self.stride[1]) - 1) * self.stride[1] - w + self.kernel_size[1]
         pad_h = (math.ceil(h / self.stride[0]) - 1) * self.stride[0] - h + self.kernel_size[0]
-        x = F.pad(x, [pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2])
+        if pad_w > 0 or pad_h > 0:
+            x = F.pad(x, [pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2])
         return super().forward(x)
 
 
@@ -23,7 +24,8 @@ class MaxPool2dSamePadding(nn.MaxPool2d):
         h, w = x.shape[-2:]
         pad_w = (math.ceil(w / self.stride) - 1) * self.stride - w + self.kernel_size
         pad_h = (math.ceil(h / self.stride) - 1) * self.stride - h + self.kernel_size
-        x = F.pad(x, [pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2], value=-float("inf"))
+        if pad_w > 0 or pad_h > 0:
+            x = F.pad(x, [pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2], value=-float("inf"))
         return super().forward(x)
 
 

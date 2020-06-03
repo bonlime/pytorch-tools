@@ -4,7 +4,7 @@ All models here use `Activated Normalization` layers instead of traditional `Nor
 
 
 ## Encoders 
-All [models](./pytorch_tools/models/) could be used as feature extractors (aka backbones) for segmentation architectures. Almost all combinations of backbones and segm.model are supported.
+All [models](../models/) could be used as feature extractors (aka backbones) for segmentation architectures. Almost all combinations of backbones and segm.model are supported.
 
 
 ## Features
