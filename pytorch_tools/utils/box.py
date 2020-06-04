@@ -20,8 +20,7 @@ def box2delta(boxes, anchors):
     boxes_ctr = boxes[..., :2] + 0.5 * boxes_wh
     offset_delta = (boxes_ctr - anchors_ctr) / anchors_wh
     scale_delta = torch.log(boxes_wh / anchors_wh)
-    cat_dim = boxes.dim() - 1 # 1 if [N, 4] else [BS, N, 4]
-    return torch.cat([offset_delta, scale_delta], cat_dim)
+    return torch.cat([offset_delta, scale_delta], -1)
 
 
 def delta2box(deltas, anchors):
@@ -45,8 +44,7 @@ def delta2box(deltas, anchors):
     deltas[..., 2:] = deltas[..., 2:].clamp(min=-SCALE_CLAMP, max=SCALE_CLAMP)
 
     pred_wh = deltas[..., 2:].exp() * anchors_wh
-    cat_dim = deltas.dim() - 1 # 1 if [N, 4] else [BS, N, 4]
-    return torch.cat([pred_ctr - 0.5 * pred_wh, pred_ctr + 0.5 * pred_wh], cat_dim)
+    return torch.cat([pred_ctr - 0.5 * pred_wh, pred_ctr + 0.5 * pred_wh], -1)
 
 
 def box_area(box):
