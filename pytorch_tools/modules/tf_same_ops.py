@@ -3,30 +3,45 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.modules.utils import _pair
 
+def pad_same(x, k, s, d, value=0):
+    # type: (Tensor, int, int, int, float)->Tensor
+    # x - input tensor, s - stride, k - kernel_size, d - dilation
+    ih, iw = x.size()[-2:]
+    pad_h = max((math.ceil(ih / s) - 1) * s + (k - 1) * d + 1 - ih, 0)
+    pad_w = max((math.ceil(iw / s) - 1) * s + (k - 1) * d + 1 - iw, 0)
+    if pad_h > 0 or pad_w > 0:
+        x = F.pad(x, [pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2], value=value)
+    return x
+
+# current implementation is only for symmetric case. But there are no non symmetric cases 
+def conv2d_same(x, weight, bias=None, stride=(1, 1), dilation=(1, 1), groups=1):
+    # type: (Tensor, Tensor, Optional[torch.Tensor], Tuple[int, int], Tuple[int, int], int)->Tensor
+    x = pad_same(x, weight.shape[-1], stride[0], dilation[0])
+    return F.conv2d(x, weight, bias, stride, (0, 0), dilation, groups)
+
+def maxpool2d_same(x, kernel_size, stride):
+    # type: (Tensor, Tuple[int, int], Tuple[int, int])->Tensor
+    x = pad_same(x, kernel_size[0], stride[0], 1, value=-float('inf'))
+    return F.max_pool2d(x, kernel_size, stride, (0, 0))
 
 class Conv2dSamePadding(nn.Conv2d):
     """Assymetric padding matching TensorFlow `same`"""
 
     def forward(self, x):
-        h, w = x.shape[-2:]
-        pad_w = (math.ceil(w / self.stride[1]) - 1) * self.stride[1] - w + self.kernel_size[1]
-        pad_h = (math.ceil(h / self.stride[0]) - 1) * self.stride[0] - h + self.kernel_size[0]
-        if pad_w > 0 or pad_h > 0:
-            x = F.pad(x, [pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2])
-        return super().forward(x)
+        return conv2d_same(x, self.weight, self.bias, self.stride, self.dilation, self.groups)
 
-
+# as of 1.5 there is no _pair in MaxPool. Remove when this is fixed 
 class MaxPool2dSamePadding(nn.MaxPool2d):
     """Assymetric padding matching TensorFlow `same`"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.kernel_size = _pair(self.kernel_size)
+        self.stride = _pair(self.stride)
 
     def forward(self, x):
-        h, w = x.shape[-2:]
-        pad_w = (math.ceil(w / self.stride) - 1) * self.stride - w + self.kernel_size
-        pad_h = (math.ceil(h / self.stride) - 1) * self.stride - h + self.kernel_size
-        if pad_w > 0 or pad_h > 0:
-            x = F.pad(x, [pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2], value=-float("inf"))
-        return super().forward(x)
+        return maxpool2d_same(x, self.kernel_size, self.stride)
 
 
 def conv_to_same_conv(module):
