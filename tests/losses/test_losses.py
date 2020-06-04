@@ -52,9 +52,7 @@ def test_focal_loss_fn_basic():
 
 @pytest.mark.parametrize("reduction", ["sum", "mean", "none"])
 def test_focal_loss_fn_reduction(reduction):
-    torch_ce = F.binary_cross_entropy_with_logits(
-        INP_BINARY, TARGET_BINARY.float(), reduction=reduction
-    )
+    torch_ce = F.binary_cross_entropy_with_logits(INP_BINARY, TARGET_BINARY.float(), reduction=reduction)
     my_ce = pt_F.focal_loss_with_logits(INP_BINARY, TARGET_BINARY, alpha=0.5, gamma=0, reduction=reduction)
     assert torch.allclose(torch_ce, my_ce * 2)
 
@@ -107,6 +105,7 @@ def test_focal_loss():
     y_true[:, :, :2, :2] = -100
     fl_i = losses.FocalLoss(mode="binary", reduction="sum", ignore_label=-100)(INP_IMG_BINARY, y_true)
     assert torch.allclose(fl.sum() - loss_diff, fl_i)
+
 
 @pytest.mark.parametrize(
     ["y_true", "y_pred", "expected"],
@@ -333,9 +332,7 @@ def test_binary_cross_entropy(reduction):
     assert torch.allclose(torch_ce, my_ce)
 
     # test for images
-    torch_ce = F.binary_cross_entropy_with_logits(
-        INP_IMG_BINARY, TARGET_IMG_BINARY, reduction=reduction
-    )
+    torch_ce = F.binary_cross_entropy_with_logits(INP_IMG_BINARY, TARGET_IMG_BINARY, reduction=reduction)
     my_ce = my_ce_loss(INP_IMG_BINARY, TARGET_IMG_BINARY)
     assert torch.allclose(torch_ce, my_ce)
 

@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.modules.utils import _pair
 
+
 def pad_same(x, k, s, d, value=0):
     # type: (Tensor, int, int, int, float)->Tensor
     # x - input tensor, s - stride, k - kernel_size, d - dilation
@@ -15,16 +16,19 @@ def pad_same(x, k, s, d, value=0):
         x = F.pad(x, [pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2], value=value)
     return x
 
-# current implementation is only for symmetric case. But there are no non symmetric cases 
+
+# current implementation is only for symmetric case. But there are no non symmetric cases
 def conv2d_same(x, weight, bias=None, stride=(1, 1), dilation=(1, 1), groups=1):
     # type: (Tensor, Tensor, Optional[torch.Tensor], Tuple[int, int], Tuple[int, int], int)->Tensor
     x = pad_same(x, weight.shape[-1], stride[0], dilation[0])
     return F.conv2d(x, weight, bias, stride, (0, 0), dilation, groups)
 
+
 def maxpool2d_same(x, kernel_size, stride):
     # type: (Tensor, Tuple[int, int], Tuple[int, int])->Tensor
-    x = pad_same(x, kernel_size[0], stride[0], 1, value=-float('inf'))
+    x = pad_same(x, kernel_size[0], stride[0], 1, value=-float("inf"))
     return F.max_pool2d(x, kernel_size, stride, (0, 0))
+
 
 class Conv2dSamePadding(nn.Conv2d):
     """Assymetric padding matching TensorFlow `same`"""
@@ -32,9 +36,11 @@ class Conv2dSamePadding(nn.Conv2d):
     def forward(self, x):
         return conv2d_same(x, self.weight, self.bias, self.stride, self.dilation, self.groups)
 
-# as of 1.5 there is no _pair in MaxPool. Remove when this is fixed 
+
+# as of 1.5 there is no _pair in MaxPool. Remove when this is fixed
 class MaxPool2dSamePadding(nn.MaxPool2d):
     """Assymetric padding matching TensorFlow `same`"""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.kernel_size = _pair(self.kernel_size)

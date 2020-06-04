@@ -51,7 +51,7 @@ def test_coco_pretrain(arch):
         im = np.array(im.resize((inp_size, inp_size)))
         im_t = tensor_from_rgb_image(preprocess_fn(im)).unsqueeze(0).float().cuda()
         boxes_scores_classes = m.predict(im_t)
-        # check that most confident bbox is close to correct class. The reason for such strange test is 
+        # check that most confident bbox is close to correct class. The reason for such strange test is
         # because in different models class mappings are shifted by +- 1
         assert (boxes_scores_classes[0, 0, 5] - im_cls) < 2
 
@@ -60,6 +60,7 @@ def test_coco_pretrain(arch):
 def test_pretrain_custom_num_classes(arch):
     m = pt_det.__dict__[arch](pretrained="coco", num_classes=80).eval().cuda()
     _test_forward(m)
+
 
 @pytest.mark.parametrize("arch", MODEL_NAMES[:2])
 def test_encoder_frozenabn(arch):

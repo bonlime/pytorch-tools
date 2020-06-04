@@ -90,7 +90,6 @@ class VGG(nn.Module):
         x = self.logits(x)
         return x
 
-
     def _make_layers(self, cfg):
         layers = []
         in_channels = self.in_channels

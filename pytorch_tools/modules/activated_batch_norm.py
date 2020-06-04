@@ -46,7 +46,7 @@ class ABN(nn.Module):
         self.activation = ACT(activation)
         self.activation_param = activation_param
         self.frozen = frozen
-        
+
         if frozen:
             self.register_buffer("weight", torch.ones(num_features))
             self.register_buffer("bias", torch.zeros(num_features))

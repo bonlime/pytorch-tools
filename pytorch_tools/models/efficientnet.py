@@ -144,7 +144,7 @@ class EfficientNet(nn.Module):
             self.dropout = nn.Dropout(drop_rate, inplace=True)
             self.classifier = nn.Linear(num_features, num_classes)
 
-        patch_bn(self) # adjust epsilon
+        patch_bn(self)  # adjust epsilon
         initialize(self)
         if match_tf_same_padding:
             conv_to_same_conv(self)
@@ -397,7 +397,8 @@ def patch_bn(module):
         module.eps = 1e-3
     for m in module.children():
         patch_bn(m)
-  
+
+
 def _efficientnet(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)
     cfg_settings = cfgs[arch]["default"]
@@ -426,8 +427,10 @@ def _efficientnet(arch, pretrained=None, **kwargs):
             )
             state_dict["classifier.weight"] = model.state_dict()["classifier.weight"]
             state_dict["classifier.bias"] = model.state_dict()["classifier.bias"]
-        if kwargs.get("in_channels", 3) != 3: # support pretrained for custom input channels
-            state_dict["conv_stem.weight"] = repeat_channels(state_dict["conv_stem.weight"], kwargs["in_channels"])
+        if kwargs.get("in_channels", 3) != 3:  # support pretrained for custom input channels
+            state_dict["conv_stem.weight"] = repeat_channels(
+                state_dict["conv_stem.weight"], kwargs["in_channels"]
+            )
         model.load_state_dict(state_dict)
     setattr(model, "pretrained_settings", cfg_settings)
     return model

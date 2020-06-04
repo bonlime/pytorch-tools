@@ -2,18 +2,23 @@ import torch
 import pytest
 import pytorch_tools as pt
 
+
 def random_boxes(mean_box, stdev, N):
     return torch.rand(N, 4) * stdev + torch.tensor(mean_box, dtype=torch.float)
 
+
+# fmt: off
 DEVICE_DTYPE =  [
     ("cpu", torch.float), 
     ("cuda", torch.float), 
     ("cuda", torch.half)
 ]
+# fmt: on
 # check that it works for all combinations of dtype and device
 @pytest.mark.parametrize("device_dtype", DEVICE_DTYPE)
 def test_clip_bboxes(device_dtype):
     device, dtype = device_dtype
+    # fmt: off
     bboxes = torch.tensor(
         [
             [-5, -10, 50, 100],
@@ -30,6 +35,7 @@ def test_clip_bboxes(device_dtype):
         device=device,
         dtype=dtype,
     )
+    # fmt: on
     size = (60, 40)
     # test single bbox clip
     res1 = pt.utils.box.clip_bboxes(bboxes, size)
@@ -55,9 +61,11 @@ def test_clip_bboxes(device_dtype):
     res5 = jit_clip(batch_bboxes.clone(), batch_sizes)
     assert torch.allclose(res5, batch_expected)
 
+
 @pytest.mark.parametrize("device_dtype", DEVICE_DTYPE)
 def test_delta2box(device_dtype):
     device, dtype = device_dtype
+    # fmt: off
     anchors = torch.tensor(
         [
             [ 0.,  0.,  1.,  1.],
@@ -84,12 +92,13 @@ def test_delta2box(device_dtype):
             [0.0000, 0.0000, 1.0000, 1.0000],
             [0.1409, 0.1409, 2.8591, 2.8591],
             [-3.1945, 0.3161, 4.1945, 0.6839],
-            [5.0000, 5.0000, 5.0000, 5.0000]
+            [5.0000, 5.0000, 5.0000, 5.0000],
         ],
         device=device,
         dtype=dtype,
     )
-    res1 =  pt.utils.box.delta2box(deltas, anchors)
+    # fmt: on
+    res1 = pt.utils.box.delta2box(deltas, anchors)
     assert torch.allclose(res1, expected_res, atol=3e-4)
 
     BS = 4
@@ -97,14 +106,15 @@ def test_delta2box(device_dtype):
     batch_deltas = deltas.unsqueeze(0).expand(BS, -1, -1)
     batch_expected = expected_res.unsqueeze(0).expand(BS, -1, -1)
 
-    # test applying to batch 
-    res2 =  pt.utils.box.delta2box(batch_deltas.clone(), batch_anchors)
+    # test applying to batch
+    res2 = pt.utils.box.delta2box(batch_deltas.clone(), batch_anchors)
     assert torch.allclose(res2, batch_expected, atol=3e-4)
 
     # check that function is JIT script friendly
     jit_func = torch.jit.script(pt.utils.box.delta2box)
     res3 = jit_func(batch_deltas.clone(), batch_anchors)
     assert torch.allclose(res3, batch_expected, atol=3e-4)
+
 
 @pytest.mark.parametrize("device_dtype", DEVICE_DTYPE)
 def test_box2delta(device_dtype):
@@ -114,12 +124,12 @@ def test_box2delta(device_dtype):
     anchors = random_boxes([10, 10, 20, 20], 10, 10).to(device).to(dtype)
     deltas = pt.utils.box.box2delta(boxes, anchors)
     boxes_reconstructed = pt.utils.box.delta2box(deltas, anchors)
-    atol = 2e-2 if dtype == torch.half else 1e-6 # for fp16 sometimes error is large 
-    assert torch.allclose(boxes, boxes_reconstructed, atol=atol) 
+    atol = 2e-2 if dtype == torch.half else 1e-6  # for fp16 sometimes error is large
+    assert torch.allclose(boxes, boxes_reconstructed, atol=atol)
 
     # check that it's jit friendly
     jit_box2delta = torch.jit.script(pt.utils.box.box2delta)
     jit_delta2box = torch.jit.script(pt.utils.box.delta2box)
     deltas2 = jit_box2delta(boxes, anchors)
     boxes_reconstructed2 = jit_delta2box(deltas2, anchors)
-    assert torch.allclose(boxes, boxes_reconstructed2,  atol=atol)
+    assert torch.allclose(boxes, boxes_reconstructed2, atol=atol)

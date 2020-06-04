@@ -161,16 +161,14 @@ class EfficientDet(nn.Module):
         """
         class_outputs, box_outputs = self.forward(x)
         anchors = box_utils.generate_anchors_boxes(x.shape[-2:])[0]
-        return box_utils.decode(
-            class_outputs, box_outputs, anchors, #img_shape=x.shape[-2:]
-        )
+        return box_utils.decode(class_outputs, box_outputs, anchors)
 
     def _initialize_weights(self):
         # init everything except encoder
         no_encoder_m = [m for n, m in self.named_modules() if not "encoder" in n]
         initialize_iterator(no_encoder_m)
-        # need to init last bias so that after sigmoid it's 0.01 
-        cls_bias_init = -torch.log(torch.tensor((1 - 0.01) / 0.01)) # -4.59
+        # need to init last bias so that after sigmoid it's 0.01
+        cls_bias_init = -torch.log(torch.tensor((1 - 0.01) / 0.01))  # -4.59
         nn.init.constant_(self.cls_head_convs[-1][1].bias, cls_bias_init)
 
 

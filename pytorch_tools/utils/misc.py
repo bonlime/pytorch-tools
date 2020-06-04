@@ -5,10 +5,10 @@ import torch
 import random
 import collections
 import numpy as np
+from functools import partial
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
-from functools import partial
 
 
 def initialize_fn(m):
@@ -27,9 +27,11 @@ def initialize_fn(m):
         nn.init.kaiming_uniform_(m.weight, mode="fan_out", nonlinearity="linear")
         nn.init.constant_(m.bias, 0)
 
+
 def initialize(module):
     for m in module.modules():
         initialize_fn(m)
+
 
 def initialize_iterator(module_iterator):
     for m in module_iterator:
@@ -219,6 +221,7 @@ def make_divisible(v, divisor=8):
         new_v += divisor
     return new_v
 
+
 def repeat_channels(conv_weights, new_channels, old_channels=3):
     """Repeat channels to match new number of input channels
     Args:
@@ -228,5 +231,5 @@ def repeat_channels(conv_weights, new_channels, old_channels=3):
     """
     rep_times = math.ceil(new_channels / old_channels)
     new_weights = conv_weights.repeat(1, rep_times, 1, 1)[:, :new_channels, :, :]
-    new_weights *= old_channels / new_channels # to keep the same output amplitude
+    new_weights *= old_channels / new_channels  # to keep the same output amplitude
     return new_weights

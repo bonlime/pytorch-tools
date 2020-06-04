@@ -7,11 +7,12 @@ import pytorch_tools.segmentation_models as pt_sm
 
 INP = torch.ones(2, 3, 64, 64)
 ENCODERS = ["resnet34", "se_resnet50", "efficientnet_b1", "densenet121"]
-SEGM_ARCHS = [pt_sm.Unet, pt_sm.Linknet, pt_sm.DeepLabV3, pt_sm.SegmentationFPN, pt_sm.SegmentationBiFPN]
+SEGM_ARCHS = [pt_sm.Unet, pt_sm.Linknet, pt_sm.DeepLabV3, pt_sm.SegmentationFPN]  # pt_sm.SegmentationBiFPN
 
 # this lines are usefull for quick tests
 # ENCODERS = ["se_resnet50"]
 # SEGM_ARCHS = [pt_sm.SegmentationFPN, pt_sm.SegmentationFPN]
+
 
 def _test_forward(model):
     with torch.no_grad():
@@ -47,20 +48,23 @@ def test_num_classes(encoder_name, model_class):
     out = _test_forward(m)
     assert out.size(1) == 5
 
+
 @pytest.mark.parametrize("encoder_name", ENCODERS)
 @pytest.mark.parametrize("model_class", SEGM_ARCHS)
 def test_drop_rate(encoder_name, model_class):
     m = model_class(encoder_name=encoder_name, drop_rate=0.2)
     _test_forward(m)
 
+
 @pytest.mark.parametrize("encoder_name", ENCODERS)
 @pytest.mark.parametrize("model_class", [pt_sm.DeepLabV3])  # pt_sm.Unet, pt_sm.Linknet
 @pytest.mark.parametrize("output_stride", [32, 16, 8])
 def test_dilation(encoder_name, model_class, output_stride):
     if output_stride == 8 and model_class != pt_sm.DeepLabV3:
-        return None # OS=8 only supported for Deeplab
+        return None  # OS=8 only supported for Deeplab
     m = model_class(encoder_name=encoder_name, output_stride=output_stride)
     _test_forward(m)
+
 
 @pytest.mark.parametrize("model_class", [pt_sm.DeepLabV3, pt_sm.SegmentationFPN])
 def test_deeplab_last_upsample(model_class):
@@ -73,6 +77,7 @@ def test_deeplab_last_upsample(model_class):
     W, H = INP.shape[-2:]
     # should be 4 times smaller
     assert tuple(out.shape[-2:]) == (W // 4, H // 4)
+
 
 @pytest.mark.parametrize("merge_policy", ["add", "cat"])
 def test_merge_policy(merge_policy):

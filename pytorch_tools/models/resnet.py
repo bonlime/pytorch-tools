@@ -214,7 +214,7 @@ class ResNet(nn.Module):
             # in the paper they use conv1x1 but in code conv3x3 (which seems better)
             self.conv1 = nn.Sequential(SpaceToDepth(), conv3x3(in_channels * 16, stem_width))
             self.bn1 = norm_layer(stem_width, activation=norm_act)
-            self.maxpool = nn.Identity() # not used but needed for code compatability
+            self.maxpool = nn.Identity()  # not used but needed for code compatability
         else:
             if stem_type == "deep":
                 self.conv1 = nn.Sequential(
@@ -225,7 +225,9 @@ class ResNet(nn.Module):
                     conv3x3(stem_width // 2, stem_width),
                 )
             else:
-                self.conv1 = nn.Conv2d(in_channels, stem_width, kernel_size=7, stride=2, padding=3, bias=False)
+                self.conv1 = nn.Conv2d(
+                    in_channels, stem_width, kernel_size=7, stride=2, padding=3, bias=False
+                )
             self.bn1 = norm_layer(stem_width, activation=norm_act)
             self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
@@ -295,6 +297,7 @@ class ResNet(nn.Module):
         keep_prob = 1 - self.drop_connect_rate * self.block_idx / self.num_blocks
         self.block_idx += 1
         return keep_prob
+
 
 # fmt: off
 CFGS = {
