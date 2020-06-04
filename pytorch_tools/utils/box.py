@@ -1,4 +1,4 @@
-"""Various functions to help with bboxes"""
+"""Various functions to help with bboxes for object detection"""
 import torch
 import numpy as np
 from functools import wraps

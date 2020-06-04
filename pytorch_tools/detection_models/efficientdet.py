@@ -104,6 +104,7 @@ class EfficientDet(nn.Module):
         self.box_head_convs = make_head(4 * anchors_per_location)
         self.box_head_norms = make_head_norm()
         self.num_classes = num_classes
+        self.num_head_repeats = num_head_repeats
 
         patch_bn(self)
         self._initialize_weights()
@@ -132,6 +133,8 @@ class EfficientDet(nn.Module):
         box_outputs = []
         for feat, (cls_bns, box_bns) in zip(features, zip(self.cls_head_norms, self.box_head_norms)):
             cls_feat, box_feat = feat, feat
+            # it looks like that with drop_connect there is an additional residual here
+            # TODO: need to investigate using pretrained weights
             for cls_conv, cls_bn in zip(self.cls_head_convs, cls_bns):
                 cls_feat = cls_bn(cls_conv(cls_feat))
             for box_conv, box_bn in zip(self.box_head_convs, box_bns):
@@ -148,18 +151,19 @@ class EfficientDet(nn.Module):
         # my anchors are in [x1, y1, x2,y2] format while pretrained weights are in [y1, x1, y2, x2] format
         # it may be confusing to reorder x and y every time later so I do it once here. it gives
         # compatability with pretrained weigths from Google and doesn't affect training from scratch
-        box_outputs = box_outputs[..., [1, 0, 3, 2]]
+        # box_outputs = box_outputs[..., [1, 0, 3, 2]]  # TODO: return back
         return class_outputs, box_outputs
 
     @torch.no_grad()
     def predict(self, x):
-        """Run forward on given images and decode raw prediction into bboxes"""
+        """Run forward on given images and decode raw prediction into bboxes
+        Returns: bboxes, scores, classes
+        """
         class_outputs, box_outputs = self.forward(x)
         anchors = box_utils.generate_anchors_boxes(x.shape[-2:])[0]
-        out_bboxes, out_scores, out_classes = box_utils.decode(
-            class_outputs, box_outputs, anchors, img_shape=x.shape[-2:]
+        return box_utils.decode(
+            class_outputs, box_outputs, anchors, #img_shape=x.shape[-2:]
         )
-        return out_bboxes, out_scores, out_classes
 
     def _initialize_weights(self):
         # init everything except encoder
