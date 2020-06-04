@@ -43,22 +43,23 @@ def make_layer(inplanes, planes, blocks, norm_layer=ABN, norm_act="relu"):
     layers = []
     layers.append(block(inplanes, planes, downsample=downsample, **bn_args))
     inplanes = planes * block.expansion
-    for i in range(1, blocks):
+    for _ in range(1, blocks):
         layers.append(block(inplanes, planes, **bn_args))
     return nn.Sequential(*layers)
 
+
 class HighResolutionModule(nn.Module):
     def __init__(
-        self, 
-        num_branches, # number of parallel branches
-        num_blocks, # number of blocks
+        self,
+        num_branches,  # number of parallel branches
+        num_blocks,  # number of blocks
         num_channels,
         norm_layer=ABN,
         norm_act="relu",
     ):
         super(HighResolutionModule, self).__init__()
         self.block = BasicBlock
-        self.num_branches = num_branches # used in forward
+        self.num_branches = num_branches  # used in forward
         self.num_inchannels = num_channels
         self.bn_args = {"norm_layer": norm_layer, "norm_act": norm_act}
         branches = [self._make_branch(n_bl, n_ch) for n_bl, n_ch in zip(num_blocks, num_channels)]
@@ -69,6 +70,7 @@ class HighResolutionModule(nn.Module):
     def _make_branch(self, b_blocks, b_channels):
         return nn.Sequential(*[self.block(b_channels, b_channels, **self.bn_args) for _ in range(b_blocks)])
 
+    # fmt: off
     # don't want to rewrite this piece it's too fragile
     def _make_fuse_layers(self, norm_layer, norm_act):
         if self.num_branches == 1:
@@ -104,22 +106,23 @@ class HighResolutionModule(nn.Module):
             fuse_layers.append(nn.ModuleList(fuse_layer))
 
         return nn.ModuleList(fuse_layers)
-
+    # fmt: on
 
     def forward(self, x):
         if self.num_branches == 1:
             return [self.branches[0](x[0])]
-        
+
         x = [branch(x_i) for branch, x_i in zip(self.branches, x)]
 
         x_fuse = []
         for i in range(len(self.fuse_layers)):
             y = x[0] if i == 0 else self.fuse_layers[i][0](x[0])
             for j in range(1, self.num_branches):
-                    y = y + self.fuse_layers[i][j](x[j])
+                y = y + self.fuse_layers[i][j](x[j])
             x_fuse.append(self.relu(y))
 
         return x_fuse
+
 
 class TransitionBlock(nn.Module):
     """Transition is where new branches for smaller resolution are born
@@ -129,7 +132,7 @@ class TransitionBlock(nn.Module):
       \
        \=> --
     """
-    
+
     def __init__(self, prev_channels, current_channels, norm_layer=ABN, norm_act="relu"):
         super().__init__()
         transition_layers = []
@@ -140,40 +143,40 @@ class TransitionBlock(nn.Module):
                 transition_layers.append(nn.Sequential(*layers))
             else:
                 transition_layers.append(nn.Identity())
-                
-        if len(current_channels) > len(prev_channels): # only works for ONE extra branch
+
+        if len(current_channels) > len(prev_channels):  # only works for ONE extra branch
             layers = [
-                conv3x3(prev_channels[-1], current_channels[-1], 2), 
-                norm_layer(current_channels[-1], activation=norm_act)
+                conv3x3(prev_channels[-1], current_channels[-1], 2),
+                norm_layer(current_channels[-1], activation=norm_act),
             ]
             transition_layers.append(nn.Sequential(*layers))
         self.trans_layers = nn.ModuleList(transition_layers)
-        
-    def forward(self, x): # x is actually an array
+
+    def forward(self, x):  # x is actually an array
         out_x = [trans_l(x_i) for x_i, trans_l in zip(x, self.trans_layers)]
         out_x.append(self.trans_layers[-1](x[-1]))
         return out_x
+
 
 class HRClassificationHead(nn.Module):
     def __init__(self, pre_channels, norm_layer=ABN, norm_act="relu"):
         super().__init__()
         head_block = Bottleneck
         head_channels = [32, 64, 128, 256]
-        # Increasing the #channels on each resolution 
+        # Increasing the #channels on each resolution
         # from C, 2C, 4C, 8C to 128, 256, 512, 1024
         incre_modules = []
         for (pre_c, head_c) in zip(pre_channels, head_channels):
             incre_modules.append(make_layer(pre_c, head_c, 1, norm_layer, norm_act))
         self.incre_modules = nn.ModuleList(incre_modules)
-        
+
         # downsampling modules
         downsamp_modules = []
-        for i in range(len(pre_channels)-1):
+        for i in range(len(pre_channels) - 1):
             in_ch = head_channels[i] * head_block.expansion
-            out_ch = head_channels[i+1] * head_block.expansion
+            out_ch = head_channels[i + 1] * head_block.expansion
             downsamp_module = nn.Sequential(
-                conv3x3(in_ch, out_ch, 2, bias=True),
-                norm_layer(out_ch, activation=norm_act)
+                conv3x3(in_ch, out_ch, 2, bias=True), norm_layer(out_ch, activation=norm_act)
             )
             downsamp_modules.append(downsamp_module)
         self.downsamp_modules = nn.ModuleList(downsamp_modules)
@@ -182,13 +185,13 @@ class HRClassificationHead(nn.Module):
             conv1x1(head_channels[3] * head_block.expansion, 2048, bias=True),
             norm_layer(2048, activation=norm_act),
         )
-        
+
     def forward(self, x):
-        x = [self.incre_modules[i](x[i]) for i in range(4)]        
+        x = [self.incre_modules[i](x[i]) for i in range(4)]
         for i in range(1, 4):
-            x[i] = x[i] + self.downsamp_modules[i-1](x[i-1])
+            x[i] = x[i] + self.downsamp_modules[i - 1](x[i - 1])
         return self.final_layer(x[3])
-    
+
 
 class HighResolutionNet(nn.Module):
     """HighResolution Nets constructor
@@ -219,13 +222,14 @@ class HighResolutionNet(nn.Module):
             NOTE: HRNet first features have resolution 4x times smaller than input, not 2x as all other models. 
             So it CAN'T be used as encoder in Unet and Linknet models 
     """
-        # drop_rate (float):
-        #     Dropout probability before classifier, for training. Defaults to 0.
+
+    # drop_rate (float):
+    #     Dropout probability before classifier, for training. Defaults to 0.
     def __init__(
-        self, 
+        self,
         width=18,
         small=False,
-        pretrained=None, # not used. here for proper signature
+        pretrained=None,  # not used. here for proper signature
         num_classes=1000,
         in_channels=3,
         norm_layer="abn",
@@ -241,27 +245,25 @@ class HighResolutionNet(nn.Module):
 
         self.conv2 = conv3x3(stem_width, stem_width, stride=2)
         self.bn2 = norm_layer(stem_width, activation=norm_act)
-        
+
         channels = [width, width * 2, width * 4, width * 8]
         n_blocks = [2 if small else 4] * 4
-        
+
         self.layer1 = make_layer(stem_width, stem_width, n_blocks[0], **bn_args)
-        
+
         self.transition1 = TransitionBlock([stem_width * Bottleneck.expansion], channels[:2], **bn_args)
-        self.stage2 = self._make_stage(
-            n_modules=1, n_branches=2, n_blocks=n_blocks[:2], n_chnls=channels[:2]
-        )
-        
+        self.stage2 = self._make_stage(n_modules=1, n_branches=2, n_blocks=n_blocks[:2], n_chnls=channels[:2])
+
         self.transition2 = TransitionBlock(channels[:2], channels[:3], **bn_args)
-        self.stage3 = self._make_stage( # 3 if small else 4
-            n_modules=(4,3)[small], n_branches=3, n_blocks=n_blocks[:3], n_chnls=channels[:3]
+        self.stage3 = self._make_stage(  # 3 if small else 4
+            n_modules=(4, 3)[small], n_branches=3, n_blocks=n_blocks[:3], n_chnls=channels[:3]
         )
-        
+
         self.transition3 = TransitionBlock(channels[:3], channels, **bn_args)
-        self.stage4 = self._make_stage( # 2 if small else 3
-            n_modules=(3,2)[small], n_branches=4, n_blocks=n_blocks, n_chnls=channels,
+        self.stage4 = self._make_stage(  # 2 if small else 3
+            n_modules=(3, 2)[small], n_branches=4, n_blocks=n_blocks, n_chnls=channels,
         )
-        
+
         self.encoder = encoder
         if encoder:
             self.forward = self.encoder_features
@@ -276,16 +278,9 @@ class HighResolutionNet(nn.Module):
     def _make_stage(self, n_modules, n_branches, n_blocks, n_chnls):
         modules = []
         for i in range(n_modules):
-            modules.append(
-                HighResolutionModule(
-                    n_branches,
-                    n_blocks,
-                    n_chnls,
-                    **self.bn_args,
-                )
-            )
+            modules.append(HighResolutionModule(n_branches, n_blocks, n_chnls, **self.bn_args,))
         return nn.Sequential(*modules)
-    
+
     def encoder_features(self, x):
         # stem
         x = self.conv1(x)
@@ -293,46 +288,46 @@ class HighResolutionNet(nn.Module):
         x = self.conv2(x)
         x = self.bn2(x)
         x = self.layer1(x)
-        
-        x = self.transition1([x]) # x is actually a list now
+
+        x = self.transition1([x])  # x is actually a list now
         x = self.stage2(x)
-        
+
         x = self.transition2(x)
         x = self.stage3(x)
-        
+
         x = self.transition3(x)
         x = self.stage4(x)
-        if self.encoder: # want to return from lowest resolution to highest
+        if self.encoder:  # want to return from lowest resolution to highest
             x = [x[3], x[2], x[1], x[0], x[0]]
         return x
-    
+
     def features(self, x):
         x = self.encoder_features(x)
         x = self.cls_head(x)
         return x
-    
+
     def logits(self, x):
         x = self.global_pool(x)
         x = torch.flatten(x, 1)
-#         x = self.dropout(x)
+        #         x = self.dropout(x)
         x = self.last_linear(x)
         return x
-    
+
     def forward(self, x):
         x = self.features(x)
         x = self.logits(x)
         return x
-    
+
     def load_state_dict(self, state_dict, **kwargs):
         self_keys = list(self.state_dict().keys())
         sd_keys = list(state_dict.keys())
-        sd_keys = [k for k in sd_keys if "num_batches_tracked" not in k] # filter
+        sd_keys = [k for k in sd_keys if "num_batches_tracked" not in k]  # filter
         new_state_dict = {}
         for new_key, old_key in zip(self_keys, sd_keys):
             new_state_dict[new_key] = state_dict[old_key]
         super().load_state_dict(new_state_dict, **kwargs)
-        
-        
+
+
 # fmt: off
 CFGS = {
     "hrnet_w18_small": {
@@ -368,9 +363,10 @@ CFGS = {
         "imagenet": {"url": None},
     },
 }
-    
+
 # fmt:on
-        
+
+
 def _hrnet(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)
     cfg_settings = cfgs[arch]["default"]
@@ -381,11 +377,10 @@ def _hrnet(arch, pretrained=None, **kwargs):
         cfg_settings.update(pretrained_settings)
         cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
-    assert (
-        common_args == set()
-    ), "Args {} are going to be overwritten by default params for {} weights".format(
-        common_args, pretrained
-    )
+    if common_args:
+        logging.warning(
+            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
+        )
     kwargs.update(cfg_params)
     model = HighResolutionNet(**kwargs)
     if pretrained:
@@ -421,7 +416,7 @@ def hrnet_w18_small(**kwargs):
 def hrnet_w18(**kwargs):
     r"""Constructs a HRNetv2-18 model."""
     return _hrnet("hrnet_w18", **kwargs)
-    
+
 
 @wraps(HighResolutionNet)
 @add_docs_for(HighResolutionNet)
@@ -429,11 +424,13 @@ def hrnet_w30(**kwargs):
     r"""Constructs a HRNetv2-30 model."""
     return _hrnet("hrnet_w30", **kwargs)
 
+
 @wraps(HighResolutionNet)
 @add_docs_for(HighResolutionNet)
 def hrnet_w32(**kwargs):
     r"""Constructs a HRNetv2-32 model."""
     return _hrnet("hrnet_w32", **kwargs)
+
 
 @wraps(HighResolutionNet)
 @add_docs_for(HighResolutionNet)
@@ -441,11 +438,13 @@ def hrnet_w40(**kwargs):
     r"""Constructs a HRNetv2-40 model."""
     return _hrnet("hrnet_w40", **kwargs)
 
+
 @wraps(HighResolutionNet)
 @add_docs_for(HighResolutionNet)
 def hrnet_w44(**kwargs):
     r"""Constructs a HRNetv2-44 model."""
     return _hrnet("hrnet_w44", **kwargs)
+
 
 @wraps(HighResolutionNet)
 @add_docs_for(HighResolutionNet)
@@ -453,9 +452,9 @@ def hrnet_w48(**kwargs):
     r"""Constructs a HRNetv2-48 model."""
     return _hrnet("hrnet_w48", **kwargs)
 
+
 @wraps(HighResolutionNet)
 @add_docs_for(HighResolutionNet)
 def hrnet_w64(**kwargs):
     r"""Constructs a HRNetv2-64 model."""
     return _hrnet("hrnet_w64", **kwargs)
-

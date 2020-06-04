@@ -1,6 +1,7 @@
 import torch.nn as nn
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules.residual import conv1x1
+from pytorch_tools.modules.residual import conv3x3
 from pytorch_tools.modules.decoder import UnetDecoderBlock
 from pytorch_tools.utils.misc import initialize
 from .base import EncoderDecoder
@@ -20,6 +21,7 @@ class UnetDecoder(nn.Module):
         final_channels=1,
         center=False,
         drop_rate=0,
+        output_stride=32,
         **bn_params,  # norm layer, norm_act
     ):
 
@@ -32,16 +34,13 @@ class UnetDecoder(nn.Module):
 
         in_channels = self.compute_channels(encoder_channels, decoder_channels)
         out_channels = decoder_channels
-
-        self.layer1 = UnetDecoderBlock(in_channels[0], out_channels[0], **bn_params)
-        self.layer2 = UnetDecoderBlock(in_channels[1], out_channels[1], **bn_params)
+        self.layer1 = UnetDecoderBlock(in_channels[0], out_channels[0], upsample=output_stride == 32, **bn_params)
+        self.layer2 = UnetDecoderBlock(in_channels[1], out_channels[1], upsample=not output_stride == 8, **bn_params)
         self.layer3 = UnetDecoderBlock(in_channels[2], out_channels[2], **bn_params)
         self.layer4 = UnetDecoderBlock(in_channels[3], out_channels[3], **bn_params)
         self.layer5 = UnetDecoderBlock(in_channels[4], out_channels[4], **bn_params)
         self.dropout = nn.Dropout2d(drop_rate, inplace=False) # inplace=True raises a backprop error
-        self.final_conv = conv1x1(out_channels[4], final_channels)
-
-        initialize(self)
+        self.final_conv = conv1x1(out_channels[4], final_channels, bias=True)
 
     def compute_channels(self, encoder_channels, decoder_channels):
         channels = [
@@ -97,11 +96,14 @@ class Unet(EncoderDecoder):
         decoder_channels=(256, 128, 64, 32, 16),
         num_classes=1,
         center=False,  # usefull for VGG models
+        output_stride=32,
         drop_rate=0,
         norm_layer="abn",
         norm_act="relu",
         **encoder_params,
-    ):
+    ):  
+        if output_stride != 32:
+            encoder_params["output_stride"] = output_stride
         encoder = get_encoder(
             encoder_name,
             norm_layer=norm_layer,
@@ -115,9 +117,13 @@ class Unet(EncoderDecoder):
             final_channels=num_classes,
             center=center,
             drop_rate=drop_rate,
+            output_stride=output_stride,
             norm_layer=bn_from_name(norm_layer),
             norm_act=norm_act,
         )
 
         super().__init__(encoder, decoder)
         self.name = f"u-{encoder_name}"
+        # set last layer bias for better convergence with sigmoid loss 
+        # -4.59 = -np.log((1 - 0.01) / 0.01)
+        nn.init.constant_(self.decoder.final_conv.bias, -4.59)

@@ -1,2 +1,2 @@
-# Custom optimizers and utils
+# PyTorch Optimizers and Utils
 Self-explanatory

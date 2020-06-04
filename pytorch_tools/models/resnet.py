@@ -12,12 +12,14 @@ from functools import wraps, partial
 
 import torch
 import torch.nn as nn
-from torchvision.models.utils import load_state_dict_from_url
+from torch.hub import load_state_dict_from_url
 
 from pytorch_tools.modules import BasicBlock, Bottleneck
 from pytorch_tools.modules import GlobalPool2d, BlurPool
 from pytorch_tools.modules.residual import conv1x1, conv3x3
+from pytorch_tools.modules.pooling import FastGlobalAvgPool2d
 from pytorch_tools.modules import bn_from_name
+from pytorch_tools.modules import SpaceToDepth
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from pytorch_tools.utils.misc import repeat_channels
@@ -49,14 +51,19 @@ class ResNet(nn.Module):
             Number of classification classes. Defaults to 1000.
         in_channels (int):
             Number of input (color) channels. Defaults to 3.
-        use_se (bool):
-            Enable Squeeze-Excitation module in blocks.
+        attn_type (Union[str, None]):
+            If given, selects attention type to use in blocks. One of 
+            `se` - Squeeze-Excitation
+            `eca` - Efficient Channel Attention
         groups (int):
             Number of convolution groups for 3x3 conv in Bottleneck. Defaults to 1.
         base_width (int):
             Factor determining bottleneck channels. `planes * base_width / 64 * groups`. Defaults to 64.
-        deep_stem (bool):
-            Whether to replace the 7x7 conv1 with 3 3x3 convolution layers. Defaults to False.
+        stem_type (str):
+            Type on input stem. Supported options are: 
+            '' - default. One 7x7 conv with 64 channels
+            'deep' - three 3x3 conv with 32, 32, 64, channels
+            'space2depth' - Reshape followed by one convolution. Idea from TResNet paper 
         output_stride (List[8, 16, 32]): Applying dilation strategy to pretrained ResNet. Typically used in
             Semantic Segmentation. Defaults to 32.
             NOTE: Don't use this arg with `antialias` and `pretrained` together. it may produce weird results
@@ -74,8 +81,6 @@ class ResNet(nn.Module):
         drop_connect_rate (float):
             Drop rate for StochasticDepth. Randomly removes samples each block. Used as regularization during training. 
             keep prob will be linearly decreased from 1 to 1 - drop_connect_rate each block. Ref: https://arxiv.org/abs/1603.09382
-        global_pool (str):
-            Global pooling type. One of 'avg', 'max', 'avgmax', 'catavgmax'. Defaults to 'avg'.
         init_bn0 (bool):
             Zero-initialize the last BN in each residual branch, so that the residual
             branch starts with zeros, and each residual block behaves like an identity.
@@ -89,10 +94,10 @@ class ResNet(nn.Module):
         pretrained=None,  # not used. here for proper signature
         num_classes=1000,
         in_channels=3,
-        use_se=False,
+        attn_type=None,
         groups=1,
         base_width=64,
-        deep_stem=False,
+        stem_type="",
         output_stride=32,
         norm_layer="abn",
         norm_act="relu",
@@ -100,7 +105,6 @@ class ResNet(nn.Module):
         encoder=False,
         drop_rate=0.0,
         drop_connect_rate=0.0,
-        global_pool="avg",
         init_bn0=True,
     ):
 
@@ -118,20 +122,9 @@ class ResNet(nn.Module):
         self.drop_connect_rate = drop_connect_rate
         super(ResNet, self).__init__()
 
-        if deep_stem:
-            self.conv1 = nn.Sequential(
-                conv3x3(in_channels, stem_width // 2, 2),
-                norm_layer(stem_width // 2, activation=norm_act),
-                conv3x3(stem_width // 2, stem_width // 2),
-                norm_layer(stem_width // 2, activation=norm_act),
-                conv3x3(stem_width // 2, stem_width),
-            )
-        else:
-            self.conv1 = nn.Conv2d(in_channels, stem_width, kernel_size=7, stride=2, padding=3, bias=False)
-        self.bn1 = norm_layer(stem_width, activation=norm_act)
-        self.maxpool = nn.MaxPool2d(
-            kernel_size=3, stride=2, padding=0 if use_se else 1, ceil_mode=True if use_se else False,
-        )
+        # move stem creation in separate function for simplicity
+        self._make_stem(stem_type, stem_width, in_channels, norm_layer, norm_act)
+
         if output_stride not in [8, 16, 32]:
             raise ValueError("Output stride should be in [8, 16, 32]")
         if output_stride == 8:
@@ -140,17 +133,17 @@ class ResNet(nn.Module):
             stride_3, stride_4, dilation_3, dilation_4 = 2, 1, 1, 2
         elif output_stride == 32:
             stride_3, stride_4, dilation_3, dilation_4 = 2, 2, 1, 1
-        largs = dict(use_se=use_se, norm_layer=norm_layer, norm_act=norm_act, antialias=antialias)
+        largs = dict(attn_type=attn_type, norm_layer=norm_layer, norm_act=norm_act, antialias=antialias)
         self.layer1 = self._make_layer(64, layers[0], stride=1, **largs)
         self.layer2 = self._make_layer(128, layers[1], stride=2, **largs)
         self.layer3 = self._make_layer(256, layers[2], stride=stride_3, dilation=dilation_3, **largs)
         self.layer4 = self._make_layer(512, layers[3], stride=stride_4, dilation=dilation_4, **largs)
-        self.global_pool = GlobalPool2d(global_pool)
+        self.global_pool = FastGlobalAvgPool2d()
         self.num_features = 512 * self.expansion
         self.encoder = encoder
         if not encoder:
             self.dropout = nn.Dropout(p=drop_rate, inplace=True)
-            self.last_linear = nn.Linear(self.num_features * self.global_pool.feat_mult(), num_classes)
+            self.last_linear = nn.Linear(self.num_features, num_classes)
         else:
             self.forward = self.encoder_features
 
@@ -162,7 +155,7 @@ class ResNet(nn.Module):
         blocks,
         stride=1,
         dilation=1,
-        use_se=None,
+        attn_type=None,
         norm_layer=None,
         norm_act=None,
         antialias=None,
@@ -188,7 +181,7 @@ class ResNet(nn.Module):
                 downsample=downsample,
                 groups=self.groups,
                 base_width=self.base_width,
-                use_se=use_se,
+                attn_type=attn_type,
                 dilation=first_dilation,
                 norm_layer=norm_layer,
                 norm_act=norm_act,
@@ -205,7 +198,7 @@ class ResNet(nn.Module):
                     planes=planes,
                     groups=self.groups,
                     base_width=self.base_width,
-                    use_se=use_se,
+                    attn_type=attn_type,
                     dilation=first_dilation,
                     norm_layer=norm_layer,
                     norm_act=norm_act,
@@ -214,6 +207,29 @@ class ResNet(nn.Module):
                 )
             )
         return nn.Sequential(*layers)
+
+    def _make_stem(self, stem_type, stem_width, in_channels, norm_layer, norm_act):
+        assert stem_type in {"", "deep", "space2depth"}, f"Stem type {stem_type} is not supported"
+        if stem_type == "space2depth":
+            # in the paper they use conv1x1 but in code conv3x3 (which seems better)
+            self.conv1 = nn.Sequential(SpaceToDepth(), conv3x3(in_channels * 16, stem_width))
+            self.bn1 = norm_layer(stem_width, activation=norm_act)
+            self.maxpool = nn.Identity()  # not used but needed for code compatability
+        else:
+            if stem_type == "deep":
+                self.conv1 = nn.Sequential(
+                    conv3x3(in_channels, stem_width // 2, 2),
+                    norm_layer(stem_width // 2, activation=norm_act),
+                    conv3x3(stem_width // 2, stem_width // 2),
+                    norm_layer(stem_width // 2, activation=norm_act),
+                    conv3x3(stem_width // 2, stem_width),
+                )
+            else:
+                self.conv1 = nn.Conv2d(
+                    in_channels, stem_width, kernel_size=7, stride=2, padding=3, bias=False
+                )
+            self.bn1 = norm_layer(stem_width, activation=norm_act)
+            self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
     def _initialize_weights(self, init_bn0=False):
         for m in self.modules():
@@ -282,6 +298,7 @@ class ResNet(nn.Module):
         self.block_idx += 1
         return keep_prob
 
+
 # fmt: off
 CFGS = {
     # RESNET MODELS
@@ -307,10 +324,32 @@ CFGS = {
     "resnet50": {
         "default": {"params": {"block": Bottleneck, "layers": [3, 4, 6, 3]}, **DEFAULT_IMAGENET_SETTINGS,},
         "imagenet": {"url": "https://download.pytorch.org/models/resnet50-19c8e357.pth"},
+        # I couldn't validate this weights because they give Acc@1 0.1 maybe a bug somewhere. Still leaving them just in case 
+        # it works better that starting from scratch
+        "imagenet_gn": {
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-101-GN-abf6008e.pth", 
+            "params": {"norm_layer": "agn"}
+        },
+        # Acc@1: 76.33. Acc@5: 93.34. This weights only work with weight standardization!
+        "imagenet_gn_ws": {
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-50-GN-WS-fd84efb6.pth", 
+            "params": {"norm_layer": "agn"}
+        },
     },
     "resnet101": {
         "default": {"params": {"block": Bottleneck, "layers": [3, 4, 23, 3]}, **DEFAULT_IMAGENET_SETTINGS,},
         "imagenet": {"url": "https://download.pytorch.org/models/resnet101-5d3b4d8f.pth"},
+        # I couldn't validate this weights because they give Acc@1 0.1 maybe a bug somewhere. Still leaving them just in case 
+        # it works better that starting from scratch
+        "imagenet_gn": {
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-101-GN-abf6008e.pth", 
+            "params": {"norm_layer": "agn"}
+        },
+        # Acc@1: 77.85. Acc@5: 93.90. This weights only work with weight standardization!
+        "imagenet_gn_ws": {
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-101-GN-WS-c067a7de.pth",
+            "params": {"norm_layer": "agn"}
+        },
     },
     "resnet152": {
         "default": {"params": {"block": Bottleneck, "layers": [3, 8, 36, 3]}, **DEFAULT_IMAGENET_SETTINGS,},
@@ -337,25 +376,36 @@ CFGS = {
             "params": {"block": Bottleneck, "layers": [3, 4, 6, 3], "base_width": 4, "groups": 32,},
             **DEFAULT_IMAGENET_SETTINGS,
         },
-        "imagenet": {  # Acc@1: 75.80. Acc@5: 92.71.
-            "url": "https://download.pytorch.org/models/resnext50_32x4d-7cdf4587.pth"
-        },
+        # Acc@1: 75.80. Acc@5: 92.71.
+        "imagenet": {"url": "https://download.pytorch.org/models/resnext50_32x4d-7cdf4587.pth"},
         # weights from rwightman
         "imagenet2": {
             "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/resnext50d_32x4d-103e99f8.pth"
+        },
+        # Acc@1: 77.28. Acc@5: 93.61. This weights only work with weight standardization!
+        "imagenet_gn_ws": {
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/X-50-GN-WS-2dea43a8.pth", 
+            "params": {"norm_layer": "agn"}
         },
     },
     "resnext101_32x4d": {
         "default": {
             "params": {"block": Bottleneck, "layers": [3, 4, 23, 3], "base_width": 4, "groups": 32,},
             **DEFAULT_IMAGENET_SETTINGS,
-        },  # No pretrained
+        },  # No imagenet pretrained
+        # 78.19. Acc@5: 93.98 This weights only work with weight standardization!
+        "imagenet_gn_ws": {
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/X-101-GN-WS-eb1224cd.pth",
+            "params": {"norm_layer": "agn"},
+        }
+
     },
     "resnext101_32x8d": {
         "default": {
             "params": {"block": Bottleneck, "layers": [3, 4, 23, 3], "base_width": 8, "groups": 32,},
             **DEFAULT_IMAGENET_SETTINGS,
         },
+        # on 8.05.20 this link was broken. maybe need to fix in the future
         "imagenet": {"url": "https://download.pytorch.org/models/resnext101_32x8d-8ba56ff5.pth"},
         # pretrained on weakly labeled instagram and then tuned on Imagenet
         "imagenet_ig": {"url": "https://download.pytorch.org/models/ig_resnext101_32x8-c38310e5.pth"},
@@ -386,28 +436,28 @@ CFGS = {
     # SE RESNET MODELS
     "se_resnet34": {
         "default": {
-            "params": {"block": BasicBlock, "layers": [3, 4, 6, 3], "use_se": True},
+            "params": {"block": BasicBlock, "layers": [3, 4, 6, 3], "attn_type": "se"},
             **DEFAULT_IMAGENET_SETTINGS,
         },
         # NO WEIGHTS
     },
     "se_resnet50": {
         "default": {
-            "params": {"block": Bottleneck, "layers": [3, 4, 6, 3], "use_se": True},
+            "params": {"block": Bottleneck, "layers": [3, 4, 6, 3], "attn_type": "se"},
             **DEFAULT_IMAGENET_SETTINGS,
         },
         "imagenet": {"url": "http://data.lip6.fr/cadene/pretrainedmodels/se_resnet50-ce0d4300.pth"},
     },
     "se_resnet101": {
         "default": {
-            "params": {"block": Bottleneck, "layers": [3, 4, 23, 3], "use_se": True},
+            "params": {"block": Bottleneck, "layers": [3, 4, 23, 3], "attn_type": "se"},
             **DEFAULT_IMAGENET_SETTINGS,
         },
         "imagenet": {"url": "http://data.lip6.fr/cadene/pretrainedmodels/se_resnet101-7e38fcc6.pth"},
     },
     "se_resnet152": {
         "default": {
-            "params": {"block": Bottleneck, "layers": [3, 4, 36, 3], "use_se": True},
+            "params": {"block": Bottleneck, "layers": [3, 4, 36, 3], "attn_type": "se"},
             **DEFAULT_IMAGENET_SETTINGS,
         },
         "imagenet": {"url": "http://data.lip6.fr/cadene/pretrainedmodels/se_resnet152-d17c99b7.pth"},
@@ -420,7 +470,7 @@ CFGS = {
                 "layers": [3, 4, 6, 3],
                 "base_width": 4,
                 "groups": 32,
-                "use_se": True,
+                "attn_type": "se",
             },
             **DEFAULT_IMAGENET_SETTINGS,
         },
@@ -433,7 +483,7 @@ CFGS = {
                 "layers": [3, 4, 23, 3],
                 "base_width": 4,
                 "groups": 32,
-                "use_se": True,
+                "attn_type": "se",
             },
             **DEFAULT_IMAGENET_SETTINGS,
         },
@@ -453,11 +503,10 @@ def _resnet(arch, pretrained=None, **kwargs):
         cfg_settings.update(pretrained_settings)
         cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
-    assert (
-        common_args == set()
-    ), "Args {} are going to be overwritten by default params for {} weights".format(
-        common_args, pretrained
-    )
+    if common_args:
+        logging.warning(
+            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
+        )
     kwargs.update(cfg_params)
     model = ResNet(**kwargs)
     if pretrained:

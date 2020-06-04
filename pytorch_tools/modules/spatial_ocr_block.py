@@ -5,7 +5,7 @@
 ## Copyright (c) 2019
 ##
 ## This source code is licensed under the MIT-style license found in the
-## LICENSE file in the root directory of this source tree 
+## LICENSE file in the root directory of this source tree
 ##+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ## modified and simplified by @bonlime
 
@@ -24,18 +24,20 @@ class SpatialOCR_Gather(nn.Module):
     Returns:
         torch.Tensor (B x C_2 x C_1 x 1)
     """
+
     def forward(self, feats, probs):
         # C_1 is number of final classes. C_2 in number of features in `feats`
-        probs = probs.view(probs.size(0), probs.size(1), -1) # B x C_1 x H x W => B x C_1 x HW
-        feats = feats.view(feats.size(0), feats.size(1), -1) # B x C_2 x H x W => B x C_2 x HW
-        feats = feats.permute(0, 2, 1) # B x HW x C_2 
-        probs = probs.softmax(dim=2) # B x C_1 x HW
+        probs = probs.view(probs.size(0), probs.size(1), -1)  # B x C_1 x H x W => B x C_1 x HW
+        feats = feats.view(feats.size(0), feats.size(1), -1)  # B x C_2 x H x W => B x C_2 x HW
+        feats = feats.permute(0, 2, 1)  # B x HW x C_2
+        probs = probs.softmax(dim=2)  # B x C_1 x HW
         # B x C_1 x HW @ B x HW x C_2 => B x C_1 x C_2 => B x C_2 x C_1 => B x C_2 x C_1 x 1
         ocr_context = torch.matmul(probs, feats).permute(0, 2, 1).unsqueeze(3)
         return ocr_context
 
+
 # class ObjectAttentionBlock2D(nn.Module):
-'''
+"""
 The basic implementation for object context block
 Input:
     N X C X H X W
@@ -44,7 +46,8 @@ Parameters:
     key_channels      : the dimension after the key/query transform
 Return:
     N X C X H X W
-'''
+"""
+
 
 class SpatialOCR(nn.Module):
     """
@@ -57,14 +60,8 @@ class SpatialOCR(nn.Module):
         norm_layer (): Normalization layer to use
         norm_act (str): activation to use in `norm_layer`
     """
-    def __init__(
-        self, 
-        in_channels, 
-        key_channels, 
-        out_channels, 
-        norm_layer=ABN,
-        norm_act="relu"
-        ):
+
+    def __init__(self, in_channels, key_channels, out_channels, norm_layer=ABN, norm_act="relu"):
         super().__init__()
 
         self.in_channels = in_channels
@@ -72,28 +69,25 @@ class SpatialOCR(nn.Module):
 
         self.f_pixel = nn.Sequential(
             conv1x1(in_channels, key_channels, bias=True),
-            norm_layer(key_channels, activation=norm_act), 
+            norm_layer(key_channels, activation=norm_act),
             conv1x1(key_channels, key_channels, bias=True),
             norm_layer(key_channels, activation=norm_act),
         )
         self.f_object = nn.Sequential(
             conv1x1(in_channels, key_channels, bias=True),
-            norm_layer(key_channels, activation=norm_act), 
+            norm_layer(key_channels, activation=norm_act),
             conv1x1(key_channels, key_channels, bias=True),
             norm_layer(key_channels, activation=norm_act),
         )
         self.f_down = nn.Sequential(
-            conv1x1(in_channels, key_channels, bias=True),
-            norm_layer(key_channels, activation=norm_act), 
+            conv1x1(in_channels, key_channels, bias=True), norm_layer(key_channels, activation=norm_act),
         )
         self.f_up = nn.Sequential(
-            conv1x1(key_channels, in_channels, bias=True),
-            norm_layer(in_channels, activation=norm_act), 
+            conv1x1(key_channels, in_channels, bias=True), norm_layer(in_channels, activation=norm_act),
         )
 
         self.conv_bn = nn.Sequential(
-            conv1x1(2 * in_channels, out_channels, bias=True),
-            norm_layer(out_channels, activation=norm_act),
+            conv1x1(2 * in_channels, out_channels, bias=True), norm_layer(out_channels, activation=norm_act),
         )
 
     def forward(self, feats, proxy_feats):
@@ -112,8 +106,8 @@ class SpatialOCR(nn.Module):
 
         # sim_map.shape = B x H*W//16 x 256 @ B x 256 x C => B x H*W//16 x C
         sim_map = torch.matmul(query, key)
-        sim_map = (self.key_channels**-.5) * sim_map
-        sim_map = sim_map.softmax(dim=-1)   
+        sim_map = (self.key_channels ** -0.5) * sim_map
+        sim_map = sim_map.softmax(dim=-1)
 
         # add bg context ...
         # context.shape = B x H*W//16 x C @ B x C x 256 => B x H*W//16 x 256

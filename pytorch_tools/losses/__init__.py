@@ -10,6 +10,7 @@ from .wing_loss import WingLoss
 from .vgg_loss import ContentLoss, StyleLoss
 from .smooth import CrossEntropyLoss
 from .hinge import BinaryHinge
+from .huber import SmoothL1Loss
 
 from .functional import focal_loss_with_logits
 from .functional import soft_dice_score

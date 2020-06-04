@@ -1,6 +1,5 @@
 from ..utils.misc import listify
 from ..utils.misc import AverageMeter
-from ..utils.misc import TimeMeter
 
 
 class RunnerState:
@@ -39,7 +38,6 @@ class RunnerState:
         self.loss_meter = AverageMeter("loss")
 
         # for timer callback
-        self.timer = TimeMeter()
         self.__is_frozen = True
 
     def __setattr__(self, key, value):

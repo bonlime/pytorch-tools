@@ -2,17 +2,23 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .activations import activation_from_name
 from .residual import DepthwiseSeparableConv
+from .residual import conv1x1
+from . import ABN
+
 
 class FastNormalizedFusion(nn.Module):
     """Combines 2 or 3 feature maps into one with weights.
     Args:
         input_num (int): 2 for intermediate features, 3 for output features
     """
-    def __init__(self, in_nodes):
+
+    def __init__(self, in_nodes, activation="relu"):
         super().__init__()
         self.weights = nn.Parameter(torch.ones(in_nodes, dtype=torch.float32))
-        self.register_buffer("eps", torch.tensor(0.0001))
+        self.eps = 1e-4
+        self.act = activation_from_name(activation)
 
     def forward(self, *features):
         # Assure that weights are positive (see paper)
@@ -20,103 +26,135 @@ class FastNormalizedFusion(nn.Module):
         # Normalize weights
         weights /= weights.sum() + self.eps
         fused_features = sum([p * w for p, w in zip(features, weights)])
-        return fused_features
+        return self.act(fused_features)
 
 
+# need to create weights to allow loading anyway. So inherit from FastNormalizedFusion for simplicity
+class SumFusion(FastNormalizedFusion):
+    def forward(self, *features):
+        return self.act(sum(features))
 
 
-# close to one in the paper
 class BiFPNLayer(nn.Module):
     r"""Builds one layer of Bi-directional Feature Pyramid Network
     Args:
         channels (int): Number of channels in each feature map after BiFPN. Defaults to 64.
-        downsample_by_stride (bool): If True, use convolution layer with stride=2 instead of F.interpolate
-        upsample_mode (str): how to upsample low resolution features during top_down pathway. 
-            See F.interpolate mode for details.
-
+        
     Input:
-        features (List): 5 feature maps from encoder with resolution from 1/32 to 1/2
+        features (List): 5 feature maps from encoder with resolution from 1/128 to 1/8
 
     Returns:
         p_out: features processed by 1 layer of BiFPN
     """
 
-    def __init__(self, channels=64, output_stride=32, upsample_mode="nearest", **bn_args):
-        super(BiFPNLayer, self).__init__()
-
-        self.up = nn.Upsample(scale_factor=2, mode=upsample_mode)
-        self.first_up = self.up if output_stride == 32 else nn.Identity()
-        last_stride = 2 if output_stride == 32 else 1
-        self.down_p2 = DepthwiseSeparableConv(channels, channels, stride=2, **bn_args)
-        self.down_p3 = DepthwiseSeparableConv(channels, channels, stride=2, **bn_args)
-        self.down_p4 = DepthwiseSeparableConv(channels, channels, stride=last_stride, **bn_args)
-
-        ## TODO (jamil) 11.02.2020 Rewrite this using list comprehensions
-        self.fuse_p4_td = FastNormalizedFusion(in_nodes=2)
-        self.fuse_p3_td = FastNormalizedFusion(in_nodes=2)
-        self.fuse_p2_td = FastNormalizedFusion(in_nodes=2)
-        self.fuse_p1_td = FastNormalizedFusion(in_nodes=2)
-
-        # Top-down pathway, no block for P1 layer
-        self.p4_td = DepthwiseSeparableConv(channels, channels, **bn_args)
-        self.p3_td = DepthwiseSeparableConv(channels, channels, **bn_args)
-        self.p2_td = DepthwiseSeparableConv(channels, channels, **bn_args)
-
-        # Bottom-up pathway
-        self.fuse_p2_out = FastNormalizedFusion(in_nodes=3)
-        self.fuse_p3_out = FastNormalizedFusion(in_nodes=3)
-        self.fuse_p4_out = FastNormalizedFusion(in_nodes=3)
-        self.fuse_p5_out = FastNormalizedFusion(in_nodes=2)
-
-        self.p5_out = DepthwiseSeparableConv(channels, channels, **bn_args)
-        self.p4_out = DepthwiseSeparableConv(channels, channels, **bn_args)
-        self.p3_out = DepthwiseSeparableConv(channels, channels, **bn_args)
-        
-    
-    def forward(self, features):
-        p5_inp, p4_inp, p3_inp, p2_inp = features
-        
-        # Top-down pathway
-        p4_td = self.p4_td(self.fuse_p4_td(p4_inp, self.first_up(p5_inp)))
-        p3_td = self.p3_td(self.fuse_p3_td(p3_inp, self.up(p4_td)))
-        p2_out = self.p2_td(self.fuse_p2_td(p2_inp, self.up(p3_td)))
-
-        # Calculate Bottom-Up Pathway
-        p3_out = self.p3_out(self.fuse_p3_out(p3_inp, p3_td, self.down_p2(p2_out)))
-        p4_out = self.p4_out(self.fuse_p4_out(p4_inp, p4_td, self.down_p3(p3_out)))
-        p5_out = self.p5_out(self.fuse_p5_out(p5_inp, self.down_p4(p4_out)))
-
-        return p5_out, p4_out, p3_out, p2_out
-
-# very simplified
-class SimpleBiFPNLayer(nn.Module):
-    def __init__(self, channels=64, **bn_args):
-        super(SimpleBiFPNLayer, self).__init__()
+    def __init__(self, channels=64, norm_layer=ABN, norm_act="relu"):
+        super().__init__()
 
         self.up = nn.Upsample(scale_factor=2, mode="nearest")
-        self.down_p2 = DepthwiseSeparableConv(channels, channels, stride=2)
-        self.down_p3 = DepthwiseSeparableConv(channels, channels, stride=2)
-        self.down_p4 = DepthwiseSeparableConv(channels, channels, stride=2)
+        self.down = nn.MaxPool2d(3, stride=2, padding=1)  #  padding=1 TODO: change back
 
-        self.fuse = sum
+        # disable attention for large models. This is very dirty way to check that it's B6 & B7. But i don't care
+        Fusion = SumFusion if channels > 288 else FastNormalizedFusion
+
+        # There is no activation in SeparableConvs, instead activation is in fusion layer
+        self.fuse_p6_up = Fusion(in_nodes=2, activation=norm_act)
+        self.fuse_p5_up = Fusion(in_nodes=2, activation=norm_act)
+        self.fuse_p4_up = Fusion(in_nodes=2, activation=norm_act)
+
+        self.fuse_p3_out = Fusion(in_nodes=2, activation=norm_act)
+        self.fuse_p4_out = Fusion(in_nodes=3, activation=norm_act)
+        self.fuse_p5_out = Fusion(in_nodes=3, activation=norm_act)
+        self.fuse_p6_out = Fusion(in_nodes=3, activation=norm_act)
+        self.fuse_p7_out = Fusion(in_nodes=2, activation=norm_act)
+
+        bn_args = dict(norm_layer=norm_layer, norm_act="identity")
+        # Top-down pathway, no block for P7 layer
+        self.p6_up = DepthwiseSeparableConv(channels, channels, **bn_args)
+        self.p5_up = DepthwiseSeparableConv(channels, channels, **bn_args)
+        self.p4_up = DepthwiseSeparableConv(channels, channels, **bn_args)
+
+        # Bottom-up pathway
+        self.p3_out = DepthwiseSeparableConv(channels, channels, **bn_args)
+        self.p4_out = DepthwiseSeparableConv(channels, channels, **bn_args)
+        self.p5_out = DepthwiseSeparableConv(channels, channels, **bn_args)
+        self.p6_out = DepthwiseSeparableConv(channels, channels, **bn_args)
+        self.p7_out = DepthwiseSeparableConv(channels, channels, **bn_args)
 
     def forward(self, features):
-        p5_inp, p4_inp, p3_inp, p2_inp = features
-        
-        # Top-down pathway
-        p4_td = self.fuse(p4_inp, self.up(p5_inp))
-        p3_td = self.fuse(p3_inp, self.up(p4_td))
-        p2_out = self.fuse(p2_inp, self.up(p3_td))
 
-        # Calculate Bottom-Up Pathway
-        p3_out = self.fuse(p3_inp, p3_td, self.down_p2(p2_out))
-        p4_out = self.fuse(p4_inp, p4_td, self.down_p3(p3_out))
-        p5_out = self.fuse(p5_inp, self.down_p4(p4_out))
+        # p7, p6, p5, p4, p3
+        p7_in, p6_in, p5_in, p4_in, p3_in = features
 
-        return p5_out, p4_out, p3_out, p2_out
+        # Top-down pathway (from low res to high res)
+        p6_up = self.p6_up(self.fuse_p6_up(p6_in, self.up(p7_in)))
+        p5_up = self.p5_up(self.fuse_p5_up(p5_in, self.up(p6_up)))
+        p4_up = self.p4_up(self.fuse_p4_up(p4_in, self.up(p5_up)))
+        p3_out = self.p3_out(self.fuse_p3_out(p3_in, self.up(p4_up)))
+
+        # Bottom-Up Pathway (from high res to low res)
+        p4_out = self.p4_out(self.fuse_p4_out(p4_in, p4_up, self.down(p3_out)))
+        p5_out = self.p5_out(self.fuse_p5_out(p5_in, p5_up, self.down(p4_out)))
+        p6_out = self.p6_out(self.fuse_p6_out(p6_in, p6_up, self.down(p5_out)))
+        p7_out = self.p7_out(self.fuse_p7_out(p7_in, self.down(p6_out)))
+
+        return p7_out, p6_out, p5_out, p4_out, p3_out
 
 
-class BiFPN(nn.Module):
+# additionally downsamples the input
+class FirstBiFPNLayer(BiFPNLayer):
+    def __init__(self, encoder_channels, channels=64, norm_layer=ABN, norm_act="relu"):
+        super().__init__(channels=channels, norm_layer=norm_layer, norm_act=norm_act)
+
+        # TODO: later remove bias from downsample
+        self.p5_downsample_1 = nn.Sequential(
+            conv1x1(encoder_channels[0], channels, bias=True), norm_layer(channels, activation="identity")
+        )
+        self.p4_downsample_1 = nn.Sequential(
+            conv1x1(encoder_channels[1], channels, bias=True), norm_layer(channels, activation="identity")
+        )
+        self.p3_downsample_1 = nn.Sequential(
+            conv1x1(encoder_channels[2], channels, bias=True), norm_layer(channels, activation="identity")
+        )
+
+        # Devil is in the details. In original repo they use 2 different downsamples from encoder channels
+        # it makes sense to preseve more information, but most of implementations in the internet
+        # use output of the first downsample
+        self.p4_downsample_2 = nn.Sequential(
+            conv1x1(encoder_channels[1], channels, bias=True), norm_layer(channels, activation="identity")
+        )
+        self.p5_downsample_2 = nn.Sequential(
+            conv1x1(encoder_channels[0], channels, bias=True), norm_layer(channels, activation="identity")
+        )
+        # only one downsample for p3
+
+    def forward(self, features):
+
+        # p7, p6, p5, p4, p3
+        p7_in, p6_in, p5_in, p4_in, p3_in = features
+
+        # downsample input's convs
+        p5_in_down1 = self.p5_downsample_1(p5_in)
+        p5_in_down2 = self.p5_downsample_2(p5_in)
+        p4_in_down1 = self.p4_downsample_1(p4_in)
+        p4_in_down2 = self.p4_downsample_2(p4_in)
+        p3_in_down1 = self.p3_downsample_1(p3_in)
+
+        # Top-down pathway (from low res to high res)
+        p6_up = self.p6_up(self.fuse_p6_up(p6_in, self.up(p7_in)))
+        p5_up = self.p5_up(self.fuse_p5_up(p5_in_down1, self.up(p6_up)))
+        p4_up = self.p4_up(self.fuse_p4_up(p4_in_down1, self.up(p5_up)))
+        p3_out = self.p3_out(self.fuse_p3_out(p3_in_down1, self.up(p4_up)))
+
+        # Bottom-Up Pathway (from high res to low res)
+        p4_out = self.p4_out(self.fuse_p4_out(p4_in_down2, p4_up, self.down(p3_out)))
+        p5_out = self.p5_out(self.fuse_p5_out(p5_in_down2, p5_up, self.down(p4_out)))
+        p6_out = self.p6_out(self.fuse_p6_out(p6_in, p6_up, self.down(p5_out)))
+        p7_out = self.p7_out(self.fuse_p7_out(p7_in, self.down(p6_out)))
+
+        return p7_out, p6_out, p5_out, p4_out, p3_out
+
+
+class BiFPN(nn.Sequential):
     """
     Implementation of Bi-directional Feature Pyramid Network
 
@@ -131,28 +169,10 @@ class BiFPN(nn.Module):
     https://arxiv.org/pdf/1911.09070.pdf
     """
 
-    def __init__(
-        self,
-        encoder_channels,
-        pyramid_channels=64,
-        num_layers=1,
-        output_stride=32,
-        **bn_args,
-    ):
-        super(BiFPN, self).__init__()
-
-        self.input_convs = nn.ModuleList([nn.Conv2d(in_ch, pyramid_channels, 1) for in_ch in encoder_channels])
-
-        bifpns = []
-        for _ in range(num_layers):
-            bifpns.append(BiFPNLayer(pyramid_channels, output_stride, **bn_args))
-        self.bifpn = nn.Sequential(*bifpns)
-    
-    def forward(self, features):
-
-        # Preprocces raw encoder features 
-        p5, p4, p3, p2 = [inp_conv(feature) for inp_conv, feature in zip(self.input_convs, features)]
-
+    def __init__(self, encoder_channels, pyramid_channels=64, num_layers=1, **bn_args):
+        # First layer preprocesses raw encoder features
+        bifpns = [FirstBiFPNLayer(encoder_channels, pyramid_channels, **bn_args)]
         # Apply BiFPN block `num_layers` times
-        p5_out, p4_out, p3_out, p2_out = self.bifpn([p5, p4, p3, p2])
-        return p5_out, p4_out, p3_out, p2_out
+        for _ in range(num_layers - 1):
+            bifpns.append(BiFPNLayer(pyramid_channels, **bn_args))
+        super().__init__(*bifpns)

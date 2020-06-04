@@ -24,6 +24,8 @@ from pytorch_tools.modules import ABN
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules.residual import InvertedResidual
 from pytorch_tools.modules.residual import conv1x1, conv3x3
+from pytorch_tools.modules.tf_same_ops import conv_to_same_conv
+from pytorch_tools.modules.tf_same_ops import maxpool_to_same_maxpool
 from pytorch_tools.utils.misc import initialize
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import make_divisible
@@ -47,12 +49,12 @@ class EfficientNet(nn.Module):
         width_multiplier (float): 
             Multiplyer for number of channels in each block. Don't need to be passed manually
         depth_multiplier (float):
-            Multiplyer for number of InvertedResiduals in each block
+            Multiplyer for number of InvertedResiduals in each block. Don't need to be passed manually
         pretrained (str, optional):
-            If not, returns a model pre-trained on 'str' dataset. `imagenet` is available for every model.
+            If not None, returns a model pre-trained on 'str' dataset. `imagenet` is available for every model.
             NOTE: weights which are loaded into this model were ported from TF. There is a drop in
             accuracy for Imagenet (~1-2% top1) but they work well for finetuning.
-            NOTE 2: models were pretrained on very different resolution. take it into account during finetuning
+            NOTE 2: models were pretrained on very different resolutions. take it into account during finetuning
         num_classes (int):
             Number of classification classes. Defaults to 1000.
         in_channels (int):
@@ -70,6 +72,8 @@ class EfficientNet(nn.Module):
             But increases backward time and doesn't support `swish` activation. Defaults to 'abn'.
         norm_act (str):
             Activation for normalizion layer. It's reccomended to use `leacky_relu` with `inplaceabn`. Defaults to `swish`
+        match_tf_same_padding (bool): If True patches Conv and MaxPool to implements tf-like asymmetric padding
+            Should only be used to validate pretrained weights. Not needed for training. Gives ~10% slowdown 
     """
 
     def __init__(
@@ -87,6 +91,7 @@ class EfficientNet(nn.Module):
         stem_size=32,
         norm_layer="abn",
         norm_act="swish",
+        match_tf_same_padding=False,
     ):
         super().__init__()
         norm_layer = bn_from_name(norm_layer)
@@ -127,19 +132,23 @@ class EfficientNet(nn.Module):
             self.blocks.append(nn.Sequential(*block))
 
         # Head
-        out_channels = block_arg["out_channels"]
-        num_features = make_divisible(1280 * width_multiplier)
-        self.conv_head = conv1x1(out_channels, num_features)
-        self.bn2 = norm_layer(num_features, activation=norm_act)
 
         if encoder:
             self.forward = self.encoder_features
         else:
+            out_channels = block_arg["out_channels"]
+            num_features = make_divisible(1280 * width_multiplier)
+            self.conv_head = conv1x1(out_channels, num_features)
+            self.bn2 = norm_layer(num_features, activation=norm_act)
             self.global_pool = nn.AdaptiveAvgPool2d(1)
             self.dropout = nn.Dropout(drop_rate, inplace=True)
             self.classifier = nn.Linear(num_features, num_classes)
 
+        patch_bn(self)  # adjust epsilon
         initialize(self)
+        if match_tf_same_padding:
+            conv_to_same_conv(self)
+            maxpool_to_same_maxpool(self)
 
     def encoder_features(self, x):
         x0 = self.conv_stem(x)
@@ -148,11 +157,9 @@ class EfficientNet(nn.Module):
         x1 = self.blocks[1](x0)
         x2 = self.blocks[2](x1)
         x3 = self.blocks[3](x2)
-        x4 = self.blocks[4](x3)
-        x4 = self.blocks[5](x4)
+        x3 = self.blocks[4](x3)
+        x4 = self.blocks[5](x3)
         x4 = self.blocks[6](x4)
-        x4 = self.conv_head(x4)
-        x4 = self.bn2(x4)
         return [x4, x3, x2, x1, x0]
 
     def features(self, x):
@@ -234,7 +241,7 @@ def _decode_block_string(block_string):
         out_channels=int(options["o"]),
         dw_kernel_size=int(options["k"]),
         stride=tuple([options["s"], options["s"]]),
-        use_se=float(options["se"]) > 0 if "se" in options else False,
+        attn_type="se" if "se" in options else None,
         expand_ratio=int(options["e"]),
         noskip="noskip" in block_string,
         num_repeat=int(options["r"]),
@@ -391,6 +398,7 @@ def patch_bn(module):
     for m in module.children():
         patch_bn(m)
 
+
 def _efficientnet(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)
     cfg_settings = cfgs[arch]["default"]
@@ -402,12 +410,10 @@ def _efficientnet(arch, pretrained=None, **kwargs):
         cfg_settings.update(pretrained_settings)
         cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
-
-    assert (
-        common_args == set()
-    ), "Args {} are going to be overwritten by default params for {} weights".format(
-        common_args, pretrained
-    )
+    if common_args:
+        logging.warning(
+            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
+        )
     kwargs.update(cfg_params)
     model = EfficientNet(**kwargs)
     if pretrained:
@@ -421,10 +427,11 @@ def _efficientnet(arch, pretrained=None, **kwargs):
             )
             state_dict["classifier.weight"] = model.state_dict()["classifier.weight"]
             state_dict["classifier.bias"] = model.state_dict()["classifier.bias"]
-        if kwargs.get("in_channels", 3) != 3: # support pretrained for custom input channels
-            state_dict["conv_stem.weight"] = repeat_channels(state_dict["conv_stem.weight"], kwargs["in_channels"])
+        if kwargs.get("in_channels", 3) != 3:  # support pretrained for custom input channels
+            state_dict["conv_stem.weight"] = repeat_channels(
+                state_dict["conv_stem.weight"], kwargs["in_channels"]
+            )
         model.load_state_dict(state_dict)
-        patch_bn(model) # adjust epsilon
     setattr(model, "pretrained_settings", cfg_settings)
     return model
 

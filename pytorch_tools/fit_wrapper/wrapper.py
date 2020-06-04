@@ -18,10 +18,11 @@ class Runner:
             must have `name` attribute. Defaults to None.
         callbacks (List): List of Callbacks to use. Defaults to ConsoleLogger().
         gradient_clip_val (float): Gradient clipping value. 0 means no clip. Causes ~5% training slowdown
+        accumulate_steps (int): if > 1 uses gradient accumulation across iterations to simulate larger batch size
 
     """
     def __init__(
-        self, model, optimizer, criterion, metrics=None, callbacks=ConsoleLogger(), gradient_clip_val=0
+        self, model, optimizer, criterion, metrics=None, callbacks=ConsoleLogger(), gradient_clip_val=0, accumulate_steps=1,
     ):
         super().__init__()
 
@@ -33,6 +34,7 @@ class Runner:
         self.callbacks = Callbacks(callbacks)
         self.callbacks.set_state(self.state)
         self.gradient_clip_val = gradient_clip_val
+        self.accumulate_steps = accumulate_steps
 
     def fit(
         self, train_loader, steps_per_epoch=None, val_loader=None, val_steps=None, epochs=1, start_epoch=0,
@@ -78,22 +80,23 @@ class Runner:
         self.state.output = output
         loss = self.state.criterion(output, target)
         if self.state.is_train:
-            self.state.optimizer.zero_grad()
-            with amp.scale_loss(loss, self.state.optimizer) as scaled_loss:
+            with amp.scale_loss(loss / self.accumulate_steps, self.state.optimizer) as scaled_loss:
                 scaled_loss.backward()
             if self.gradient_clip_val > 0:
-                torch.nn.utils.clip_grad_norm_(self.state.model.parameters(), self.gradient_clip_val)
-            self.state.optimizer.step()
+                torch.nn.utils.clip_grad_norm_(amp.master_params(self.state.optimizer), self.gradient_clip_val)
+            if self.state.step % self.accumulate_steps == 0:
+                self.state.optimizer.step()
+                self.state.optimizer.zero_grad()
             torch.cuda.synchronize()
 
         # update metrics
         self.state.loss_meter.update(to_numpy(loss))
-        for metric, meter in zip(self.state.metrics, self.state.metric_meters):
-            meter.update(to_numpy(metric(output, target).squeeze()))
+        with torch.no_grad():
+            for metric, meter in zip(self.state.metrics, self.state.metric_meters):
+                meter.update(to_numpy(metric(output, target).squeeze()))
 
     def _run_loader(self, loader, steps=None):
         self.state.loss_meter.reset()
-        self.state.timer.reset()
         for metric in self.state.metric_meters:
             metric.reset()
         self.state.epoch_size = steps or len(loader)  # steps overwrites len

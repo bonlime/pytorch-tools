@@ -45,3 +45,10 @@ from .hrnet import hrnet_w40
 from .hrnet import hrnet_w44
 from .hrnet import hrnet_w48
 from .hrnet import hrnet_w64
+
+from .bit_resnet import bit_m_50x1
+from .bit_resnet import bit_m_50x3
+from .bit_resnet import bit_m_101x1
+from .bit_resnet import bit_m_101x3
+from .bit_resnet import bit_m_152x2
+from .bit_resnet import bit_m_152x4

@@ -6,6 +6,7 @@ from .adamw import AdamW as AdamW_my
 from .radam import RAdam, PlainRAdam
 from .sgdw import SGDW
 from .schedulers import LinearLR, ExponentialLR
+from .rmsprop import RMSprop
 from .lookahead import Lookahead
 
 from torch import optim
@@ -25,7 +26,8 @@ def optimizer_from_name(optim_name):
         # in this implementation eps in inside sqrt so it can be smaller
         return partial(AdamW_my, center=True, eps=1e-7)
     elif optim_name == "rmsprop":
-        return partial(optim.RMSprop, 2e-5)
+        # in this implementation eps in inside sqrt so it can be smaller
+        return partial(RMSprop, eps=1e-7)
     elif optim_name == "radam":
         return partial(RAdam, eps=2e-5)
     elif optim_name in ["fused_sgd", "fusedsgd"]:

@@ -19,6 +19,7 @@ from pytorch_tools.utils.misc import repeat_channels
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=("__module__", "__name__", "__qualname__", "__annotations__"))
 
+
 class TResNet(ResNet):
     """TResNet M / TResNet L / XL
 
@@ -71,44 +72,45 @@ class TResNet(ResNet):
         drop_rate=0.0,
         drop_connect_rate=0.0,
     ):
-        nn.Module.__init__(self) 
+        nn.Module.__init__(self)
         stem_width = int(64 * width_factor)
         norm_layer = bn_from_name(norm_layer)
         self.inplanes = stem_width
         self.num_classes = num_classes
-        self.groups = 1 # not really used but needed inside _make_layer
-        self.base_width = 64 # used inside _make_layer
+        self.groups = 1  # not really used but needed inside _make_layer
+        self.base_width = 64  # used inside _make_layer
         self.norm_act = norm_act
         self.block_idx = 0
         self.num_blocks = sum(layers)
         self.drop_connect_rate = drop_connect_rate
 
-        # in the paper they use conv1x1 but in code conv3x3 (which seems better)
-        self.conv1 = nn.Sequential(SpaceToDepth(), conv3x3(in_channels * 16, stem_width))
-        self.bn1 = norm_layer(stem_width, activation=norm_act)
-        self.maxpool = nn.Identity() # not used but needed for code compatability
+        self._make_stem("space2depth", stem_width, in_channels, norm_layer, norm_act)
 
         if output_stride not in [8, 16, 32]:
             raise ValueError("Output stride should be in [8, 16, 32]")
         # TODO add OS later
         # if output_stride == 8:
-            # stride_3, stride_4, dilation_3, dilation_4 = 1, 1, 2, 4
+        # stride_3, stride_4, dilation_3, dilation_4 = 1, 1, 2, 4
         # elif output_stride == 16:
-            # stride_3, stride_4, dilation_3, dilation_4 = 2, 1, 1, 2
+        # stride_3, stride_4, dilation_3, dilation_4 = 2, 1, 1, 2
         # elif output_stride == 32:
         stride_3, stride_4, dilation_3, dilation_4 = 2, 2, 1, 1
 
-        largs = dict(use_se=True, norm_layer=norm_layer, norm_act=norm_act, antialias=True)
+        largs = dict(attn_type="se", norm_layer=norm_layer, norm_act=norm_act, antialias=True)
         self.block = TBasicBlock
         self.expansion = TBasicBlock.expansion
         self.layer1 = self._make_layer(stem_width, layers[0], stride=1, **largs)
         self.layer2 = self._make_layer(stem_width * 2, layers[1], stride=2, **largs)
 
-        self.block = TBottleneck # first 2 - Basic, last 2 - Bottleneck
+        self.block = TBottleneck  # first 2 - Basic, last 2 - Bottleneck
         self.expansion = TBottleneck.expansion
-        self.layer3 = self._make_layer(stem_width * 4, layers[2], stride=stride_3, dilation=dilation_3, **largs)
-        largs.update(use_se=False) # no se in last layer
-        self.layer4 = self._make_layer(stem_width * 8, layers[3], stride=stride_4, dilation=dilation_4, **largs)
+        self.layer3 = self._make_layer(
+            stem_width * 4, layers[2], stride=stride_3, dilation=dilation_3, **largs
+        )
+        largs.update(attn_type=None)  # no se in last layer
+        self.layer4 = self._make_layer(
+            stem_width * 8, layers[3], stride=stride_4, dilation=dilation_4, **largs
+        )
         self.global_pool = FastGlobalAvgPool2d(flatten=True)
         self.num_features = stem_width * 8 * self.expansion
         self.encoder = encoder
@@ -125,6 +127,7 @@ class TResNet(ResNet):
             state_dict.pop("last_linear.weight")
             state_dict.pop("last_linear.bias")
         nn.Module.load_state_dict(self, state_dict, **kwargs)
+
 
 # fmt: off
 # images should be normalized to [0, 1]
@@ -171,12 +174,7 @@ CFGS = {
     },
 }
 # fmt: on
-def patch_blur_pool(module):
-    """changes `gauss` attribute in blur pool to True"""
-    if isinstance(module, BlurPool):
-        module.gauss = True    
-    for m in module.children():
-        patch_blur_pool(m)
+
 
 def patch_bn(module):
     """changes weight from InplaceABN to be compatible with usual ABN"""
@@ -184,6 +182,7 @@ def patch_bn(module):
         module.weight = nn.Parameter(module.weight.abs() + 1e-5)
     for m in module.children():
         patch_bn(m)
+
 
 def _resnet(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)
@@ -195,11 +194,10 @@ def _resnet(arch, pretrained=None, **kwargs):
         cfg_settings.update(pretrained_settings)
         cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
-    assert (
-        common_args == set()
-    ), "Args {} are going to be overwritten by default params for {} weights".format(
-        common_args, pretrained
-    )
+    if common_args:
+        logging.warning(
+            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
+        )
     kwargs.update(cfg_params)
     model = TResNet(**kwargs)
     if pretrained:
@@ -214,14 +212,15 @@ def _resnet(arch, pretrained=None, **kwargs):
             # if there is last_linear in state_dict, it's going to be overwritten
             state_dict["last_linear.weight"] = model.state_dict()["last_linear.weight"]
             state_dict["last_linear.bias"] = model.state_dict()["last_linear.bias"]
-        if kwargs.get("in_channels", 3) != 3: # support pretrained for custom input channels
-            state_dict["conv1.1.weight"] = repeat_channels(state_dict["conv1.1.weight"], kwargs["in_channels"] * 16, 3 * 16)
+        if kwargs.get("in_channels", 3) != 3:  # support pretrained for custom input channels
+            state_dict["conv1.1.weight"] = repeat_channels(
+                state_dict["conv1.1.weight"], kwargs["in_channels"] * 16, 3 * 16
+            )
         model.load_state_dict(state_dict)
-        # need to adjust some parameters to be align with original model
-        patch_blur_pool(model)
         patch_bn(model)
     setattr(model, "pretrained_settings", cfg_settings)
     return model
+
 
 @wraps(TResNet)
 @add_docs_for(TResNet)
@@ -229,11 +228,13 @@ def tresnetm(**kwargs):
     r"""Constructs a TResnetM model."""
     return _resnet("tresnetm", **kwargs)
 
+
 @wraps(TResNet)
 @add_docs_for(TResNet)
 def tresnetl(**kwargs):
     r"""Constructs a TResnetL model."""
     return _resnet("tresnetl", **kwargs)
+
 
 @wraps(TResNet)
 @add_docs_for(TResNet)

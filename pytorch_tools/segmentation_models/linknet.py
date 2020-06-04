@@ -22,7 +22,8 @@ class LinknetDecoder(nn.Module):
         self.dropout = nn.Dropout2d(drop_rate, inplace=True)
         self.final_conv = conv1x1(prefinal_channels, final_channels)
 
-        initialize(self)
+        # it works much better without initializing decoder. maybe need to investigate into this issue
+        # initialize(self)
 
     def forward(self, x):
         encoder_head = x[0]
@@ -51,7 +52,7 @@ class Linknet(EncoderDecoder):
         drop_rate (float): Probability of spatial dropout on last feature map
         norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory
             footprint. But increases backward time. Defaults to 'abn'.
-        norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
+        norm_act (str): Activation for normalization layer. 'inplaceabn' doesn't support `ReLU` activation.
     Returns:
         ``torch.nn.Module``: **Linknet**
     .. _Linknet:

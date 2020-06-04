@@ -64,6 +64,7 @@ class GlobalPool2d(nn.Module):
     def __repr__(self):
         return self.__class__.__name__ + " (" + ", pool_type=" + self.pool_type + ")"
 
+
 # https://github.com/mrT23/TResNet/
 class FastGlobalAvgPool2d(nn.Module):
     def __init__(self, flatten=False):
@@ -81,30 +82,24 @@ class FastGlobalAvgPool2d(nn.Module):
 class BlurPool(nn.Module):
     """
     Idea from https://arxiv.org/abs/1904.11486
-    Efficient implementation of Rect-3 using AvgPool
+    Efficient implementation of Rect-3
     Args:
-        channels (int): numbers of channels. needed for gaussian blur
-        gauss (bool): flag to use Gaussian Blur instead of Average Blur. Uses more memory
+        channels (int): numbers of input channels. needed to construct gauss kernel
     """
 
-    def __init__(self, channels=0, gauss=False):
+    def __init__(self, channels=0):
         super(BlurPool, self).__init__()
-        self.gauss = gauss
         self.channels = channels
-        # init both options to be able to switch
-        a = torch.tensor([1., 2., 1.])
-        filt = (a[:, None] * a[None, :]).clone().detach()
+        filt = torch.tensor([1.0, 2.0, 1.0])
+        filt = filt[:, None] * filt[None, :]
         filt = filt / torch.sum(filt)
         filt = filt[None, None, :, :].repeat((self.channels, 1, 1, 1))
         self.register_buffer("filt", filt)
-        self.pool = nn.AvgPool2d(3, stride=2, padding=1)
 
     def forward(self, inp):
-        if self.gauss:
-            inp_pad = F.pad(inp, (1, 1, 1, 1), 'reflect')
-            return F.conv2d(inp_pad, self.filt, stride=2, padding=0, groups=inp.shape[1])
-        else:
-            return self.pool(inp)
+        inp_pad = F.pad(inp, (1, 1, 1, 1), "reflect")
+        return F.conv2d(inp_pad, self.filt, stride=2, padding=0, groups=inp.shape[1])
+
 
 # from https://github.com/mrT23/TResNet/
 class SpaceToDepth(nn.Module):

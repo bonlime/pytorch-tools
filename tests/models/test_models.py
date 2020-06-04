@@ -23,7 +23,14 @@ TRESNET_NAMES = [name for name in ALL_MODEL_NAMES if "tresne" in name]
 HRNET_NAMES = [name for name in ALL_MODEL_NAMES if "hrnet" in name]
 
 # test only part of the models
-TEST_MODEL_NAMES = DENSENET_NAMES[:1] + EFFNET_NAMES[:1] + VGG_NAMES[:1] + RESNET_NAMES[:1] + TRESNET_NAMES[:1] + HRNET_NAMES[:1]
+TEST_MODEL_NAMES = (
+    DENSENET_NAMES[:1]
+    + EFFNET_NAMES[:1]
+    + VGG_NAMES[:1]
+    + RESNET_NAMES[:1]
+    + TRESNET_NAMES[:1]
+    + HRNET_NAMES[:1]
+)
 # TEST_MODEL_NAMES = HRNET_NAMES[:1]
 INP = torch.ones(2, 3, 128, 128)
 
@@ -51,6 +58,7 @@ def test_custom_in_channels(arch):
     m = models.__dict__[arch](in_channels=5)
     with torch.no_grad():
         m(torch.ones(2, 5, 128, 128))
+
 
 @pytest.mark.parametrize("arch", EFFNET_NAMES[:2] + RESNET_NAMES[:2])
 def test_pretrained_custom_in_channels(arch):
@@ -82,10 +90,12 @@ def test_dilation(arch, output_stride):
     W, H = INP.shape[-2:]
     assert res.shape[-2:] == (W // output_stride, H // output_stride)
 
+
 @pytest.mark.parametrize("arch", EFFNET_NAMES[:2] + RESNET_NAMES[:2])
 def test_drop_connect(arch):
     m = models.__dict__[arch](drop_connect_rate=0.2)
     _test_forward(m)
+
 
 NUM_PARAMS = {
     "tresnetm": 31389032,
@@ -96,8 +106,16 @@ NUM_PARAMS = {
     "efficientnet_b2": 9109994,
     "efficientnet_b3": 12233232,
 }
-@pytest.mark.parametrize('name_num_params', zip(NUM_PARAMS.items()))
+
+
+@pytest.mark.parametrize("name_num_params", zip(NUM_PARAMS.items()))
 def test_num_parameters(name_num_params):
     name, num_params = name_num_params[0]
     m = models.__dict__[name]()
     assert pt.utils.misc.count_parameters(m)[0] == num_params
+
+
+@pytest.mark.parametrize("stem_type", ["", "deep", "space2depth"])
+def test_resnet_stem_type(stem_type):
+    m = models.resnet50(stem_type=stem_type)
+    _test_forward(m)

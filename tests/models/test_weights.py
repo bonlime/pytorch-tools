@@ -18,8 +18,8 @@ MODEL_NAMES = sorted(
 # tests are made to be run from root project directory
 # format "imagenet_image_class: PIL Image"
 IMGS = {
-    560: Image.open("tests/models/imgs/helmet.jpeg"),
-    207: Image.open("tests/models/imgs/dog.jpg"),
+    560: Image.open("tests/imgs/helmet.jpeg"),
+    207: Image.open("tests/imgs/dog.jpg"),
 }
 
 # временная заглушка. TODO: убрать
@@ -55,6 +55,7 @@ def test_imagenet_pretrain(arch):
         pred_cls = m(im).argmax()
         assert pred_cls == im_cls
 
+
 # test that output mean for fixed input is the same
 MODEL_NAMES2 = [
     "resnet34",
@@ -67,6 +68,7 @@ MODEL_MEAN = {
     "se_resnet50": -2.6095e-06,
     "efficientnet_b0": 0.0070,
 }
+
 
 @pytest.mark.parametrize("arch", MODEL_NAMES2)
 def test_output_mean(arch):

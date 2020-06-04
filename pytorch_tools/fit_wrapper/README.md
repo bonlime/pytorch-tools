@@ -3,6 +3,8 @@ This module contains model runner (very close to `model.fit` in Keras) for **sup
 `Runner` is used to actually run the train loop calling `Callbacks` at appropriate times.  
 Mixed precision (powered by apex) is supported implicitly. Users are expected to initialize their models before creating runner using `apex.amp.initialize`.
 
+Main idea of this runner is to be as simple as possible. All core functionality is ~100 lines of code. 
+
 ## Minimal example
 This code will run training for 5 epochs.
 ```python
@@ -41,3 +43,10 @@ runner = pt.fit_wrapper.Runner(
 )
 runner.fit(train_loader, epochs=5, val_loader=val_loader)
 ```
+
+## How to
+### Add custom step logic  
+Monkey patch `Runner._make_step` function with yours  
+
+### Process multiple inputs/outputs
+Instead of modifying Runner move this logic inside Loss function.
