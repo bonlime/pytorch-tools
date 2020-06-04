@@ -24,6 +24,8 @@ from pytorch_tools.modules import ABN
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules.residual import InvertedResidual
 from pytorch_tools.modules.residual import conv1x1, conv3x3
+from pytorch_tools.modules.tf_same_ops import conv_to_same_conv
+from pytorch_tools.modules.tf_same_ops import maxpool_to_same_maxpool
 from pytorch_tools.utils.misc import initialize
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import make_divisible
@@ -70,6 +72,8 @@ class EfficientNet(nn.Module):
             But increases backward time and doesn't support `swish` activation. Defaults to 'abn'.
         norm_act (str):
             Activation for normalizion layer. It's reccomended to use `leacky_relu` with `inplaceabn`. Defaults to `swish`
+        match_tf_same_padding (bool): If True patches Conv and MaxPool to implements tf-like asymmetric padding
+            Should only be used to validate pretrained weights. Not needed for training. Gives ~10% slowdown 
     """
 
     def __init__(
@@ -87,6 +91,7 @@ class EfficientNet(nn.Module):
         stem_size=32,
         norm_layer="abn",
         norm_act="swish",
+        match_tf_same_padding=False,
     ):
         super().__init__()
         norm_layer = bn_from_name(norm_layer)
@@ -141,6 +146,9 @@ class EfficientNet(nn.Module):
 
         patch_bn(self) # adjust epsilon
         initialize(self)
+        if match_tf_same_padding:
+            conv_to_same_conv(self)
+            maxpool_to_same_maxpool(self)
 
     def encoder_features(self, x):
         x0 = self.conv_stem(x)

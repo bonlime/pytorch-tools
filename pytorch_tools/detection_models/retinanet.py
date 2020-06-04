@@ -126,10 +126,9 @@ class RetinaNet(nn.Module):
         """Run forward on given images and decode raw prediction into bboxes"""
         class_outputs, box_outputs = self.forward(x)
         anchors = box_utils.generate_anchors_boxes(x.shape[-2:])[0]
-        out_bboxes, out_scores, out_classes = box_utils.decode(
+        return box_utils.decode(
             class_outputs, box_outputs, anchors, img_shape=x.shape[-2:]
         )
-        return out_bboxes, out_scores, out_classes
 
     def _initialize_weights(self):
         # init everything except encoder

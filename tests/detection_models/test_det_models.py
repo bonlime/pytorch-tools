@@ -11,14 +11,14 @@ import pytorch_tools.detection_models as pt_det
 
 # all weights were tested on 05.2020. for now only leave one model for faster tests
 MODEL_NAMES = [
-    "efficientdet_b0",
+    "efficientdet_d0",
     "retinanet_r50_fpn",
-    # "efficientdet_b1",
-    # "efficientdet_b2",
-    # "efficientdet_b3",
-    # "efficientdet_b4",
-    # "efficientdet_b5",
-    # "efficientdet_b6",
+    # "efficientdet_d1",
+    # "efficientdet_d2",
+    # "efficientdet_d3",
+    # "efficientdet_d4",
+    # "efficientdet_d5",
+    # "efficientdet_d6",
     # "retinanet_r101_fpn",
 ]
 
@@ -50,10 +50,10 @@ def test_coco_pretrain(arch):
     for im_cls, im in IMGS.items():
         im = np.array(im.resize((inp_size, inp_size)))
         im_t = tensor_from_rgb_image(preprocess_fn(im)).unsqueeze(0).float().cuda()
-        boxes, scores, classes = m.predict(im_t)
+        boxes_scores_classes = m.predict(im_t)
         # check that most confident bbox is close to correct class. The reason for such strange test is 
         # because in different models class mappings are shifted by +- 1
-        assert (classes[0, 0] - im_cls) < 2
+        assert (boxes_scores_classes[0, 0, 5] - im_cls) < 2
 
 
 @pytest.mark.parametrize("arch", MODEL_NAMES[:2])
