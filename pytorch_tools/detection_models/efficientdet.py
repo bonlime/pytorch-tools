@@ -150,8 +150,8 @@ class EfficientDet(nn.Module):
         box_outputs = torch.cat(box_outputs, 1)
         # my anchors are in [x1, y1, x2,y2] format while pretrained weights are in [y1, x1, y2, x2] format
         # it may be confusing to reorder x and y every time later so I do it once here. it gives
-        # compatability with pretrained weigths from Google and doesn't affect training from scratch
-        # box_outputs = box_outputs[..., [1, 0, 3, 2]]  # TODO: return back
+        # compatability with pretrained weights from Google and doesn't affect training from scratch
+        box_outputs = box_outputs[..., [1, 0, 3, 2]]
         return class_outputs, box_outputs
 
     @torch.no_grad()

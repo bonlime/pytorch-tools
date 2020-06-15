@@ -8,9 +8,9 @@ def random_boxes(mean_box, stdev, N):
 
 
 # fmt: off
-DEVICE_DTYPE =  [
-    ("cpu", torch.float), 
-    ("cuda", torch.float), 
+DEVICE_DTYPE = [
+    ("cpu", torch.float),
+    ("cuda", torch.float),
     ("cuda", torch.half)
 ]
 # fmt: on
@@ -133,3 +133,14 @@ def test_box2delta(device_dtype):
     deltas2 = jit_box2delta(boxes, anchors)
     boxes_reconstructed2 = jit_delta2box(deltas2, anchors)
     assert torch.allclose(boxes, boxes_reconstructed2, atol=atol)
+
+
+def test_generate_anchors():
+    # check that anchor generation is not broken
+    anchors = pt.utils.box.generate_anchors_boxes((64, 64))[0]
+    # check number of anchors
+    assert anchors.shape == (765, 4)
+    # check that mean is the same
+    assert torch.allclose(anchors.mean(0), torch.tensor([1.8604, 1.8604, 62.1393, 62.1393]), rtol=5e-5)
+    # check that it is really xyxy order
+    assert torch.allclose(anchors[-1], torch.tensor([-111.6751, -255.3503, 175.6751, 319.3503]), rtol=5e-5)
