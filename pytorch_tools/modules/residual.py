@@ -91,7 +91,8 @@ class DepthwiseSeparableConv(nn.Sequential):
     ):
         modules = [
             conv3x3(in_channels, in_channels, stride=stride, groups=in_channels, dilation=dilation),
-            conv1x1(in_channels, out_channels, bias=True),  # in efficient det they for some reason add bias
+            # bias is needed for EffDet because in head conv is separated from normalization
+            conv1x1(in_channels, out_channels, bias=True),
             norm_layer(out_channels, activation=norm_act) if use_norm else nn.Identity(),
         ]
         super().__init__(*modules)

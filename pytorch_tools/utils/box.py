@@ -169,6 +169,7 @@ def generate_anchors_boxes(
     # get offsets for anchor boxes for one pixel
     num_anchors = num_scales * len(aspect_ratios)
     ratio_vals_sq = torch.tensor(aspect_ratios).repeat(num_scales).sqrt()
+    # view -> repeat -> view to simulate numpy.tile
     scale_vals = torch.tensor(scale_vals).view(-1, 1).repeat(1, len(aspect_ratios)).view(-1, 1)
     wh = torch.stack([torch.ones(num_anchors) * ratio_vals_sq, torch.ones(num_anchors) / ratio_vals_sq], 1)
     lt = -0.5 * wh * scale_vals
