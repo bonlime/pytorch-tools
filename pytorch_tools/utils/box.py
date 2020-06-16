@@ -139,9 +139,9 @@ def batch_box_iou(box1, box2):
 # based on https://github.com/NVIDIA/retinanet-examples/
 # and on https://github.com/google/automl/
 def generate_anchors_boxes(
-    image_size, num_scales=3, aspect_ratios=(1.0, 2.0, 0.5), pyramid_levels=[3, 4, 5, 6, 7], anchor_scale=4,
+    image_size, num_scales=3, aspect_ratios=(1.0, 2.0, 0.5), pyramid_levels=(3, 4, 5, 6, 7), anchor_scale=4,
 ):
-    # type: (int, int, List[int], List[int], int) -> Tensor, int
+    # type: (Tuple[int, int], int, List[float], List[int], int) -> Tuple[Tensor, int]
     """Generates multiscale anchor boxes
     Minimum object size which could be detected is anchor_scale * 2**pyramid_levels[0]. By default it's 32px
     Maximum object size which could be detected is anchor_scale * 2**pyramid_levels[-1]. By default it's 512px
@@ -167,14 +167,13 @@ def generate_anchors_boxes(
     strides = [2 ** i for i in pyramid_levels]
 
     # get offsets for anchor boxes for one pixel
-    # can rewrite in pure Torch but using np is more convenient. This function usually should only be called once
-    num_anchors = len(scale_vals) * len(aspect_ratios)
-    ratio_vals_sq = np.sqrt(np.tile(aspect_ratios, len(scale_vals)))
-    scale_vals = np.repeat(scale_vals, len(aspect_ratios))[:, np.newaxis]
-    wh = np.stack([np.ones(num_anchors) * ratio_vals_sq, np.ones(num_anchors) / ratio_vals_sq], axis=1)
+    num_anchors = num_scales * len(aspect_ratios)
+    ratio_vals_sq = torch.tensor(aspect_ratios).repeat(num_scales).sqrt()
+    scale_vals = torch.tensor(scale_vals).view(-1, 1).repeat(1, len(aspect_ratios)).view(-1, 1)
+    wh = torch.stack([torch.ones(num_anchors) * ratio_vals_sq, torch.ones(num_anchors) / ratio_vals_sq], 1)
     lt = -0.5 * wh * scale_vals
     rb = 0.5 * wh * scale_vals
-    base_offsets = torch.from_numpy(np.hstack([lt, rb])).float()  # [num_anchors, 4]
+    base_offsets = torch.stack([lt, rb], 1).float()  # [num_anchors, 4]
     base_offsets = base_offsets.view(-1, 1, 1, 4)  # [num_anchors, 1, 1, 4]
     # generate anchor boxes for all given strides
     all_anchors = []
@@ -198,6 +197,7 @@ def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unma
     2) matched_iou > IoU >= unmatched_iou: Medium similarity. Ignored. Mask value is -1
     3) unmatched_iou > IoU: Lowest similarity. Unmatched/Negative. Mask value is 0
 
+    This function works on whole batch of images at once and is very efficient
     Args:
         anchors (torch.Tensor): all anchors on a single image. shape [N, 4]
         batch_gt_boxes (torch.Tensor): all ground truth bounding boxes and classes for the batch. shape [BS, N, 5]
@@ -211,42 +211,35 @@ def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unma
         box_target, cls_target, matches_mask
 
     """
-
-    def _generate_single_targets(gt_boxes):
-        gt_boxes, gt_classes = gt_boxes.split(4, dim=1)
-        overlap = box_iou(anchors, gt_boxes)
-
-        # Keep best box per anchor
-        overlap, indices = overlap.max(1)
-        box_target = box2delta(gt_boxes[indices], anchors)
-
-        # There are three types of anchors.
-        # matched (with objects), unmatched (with background), and in between (which should be ignored)
-        IGNORED_VALUE = -1
-        UNMATCHED_VALUE = 0
-        matches_mask = torch.ones_like(overlap) * IGNORED_VALUE
-        matches_mask[overlap < unmatched_iou] = UNMATCHED_VALUE  # background
-        matches_mask[overlap >= matched_iou] = 1
-
-        # Generate one-hot-encoded target classes
-        cls_target = torch.zeros(
-            (anchors.size(0), num_classes + 1), device=gt_classes.device, dtype=gt_classes.dtype
-        )
-        gt_classes = gt_classes[indices].long()
-        gt_classes[overlap < unmatched_iou] = num_classes  # background has no class
-        cls_target.scatter_(1, gt_classes, 1)
-        cls_target = cls_target[:, :num_classes]  # remove background class from one-hot
-
-        return cls_target, box_target, matches_mask
-
     anchors = anchors.to(batch_gt_boxes)  # change device & type if needed
-    batch_results = ([], [], [])
-    for single_gt_boxes in batch_gt_boxes:
-        single_target_results = _generate_single_targets(single_gt_boxes)
-        for batch_res, single_res in zip(batch_results, single_target_results):
-            batch_res.append(single_res)
-    b_cls_target, b_box_target, b_matches_mask = [torch.stack(targets) for targets in batch_results]
-    return b_cls_target, b_box_target, b_matches_mask
+
+    batch_gt_boxes, batch_gt_classes = batch_gt_boxes.split(4, dim=2)
+    overlap = batch_box_iou(anchors, batch_gt_boxes)
+
+    # Keep best box per anchor
+    overlap, indices = overlap.max(-1)
+    gathered_gt_boxes = batch_gt_boxes.gather(1, indices[..., None].expand(-1, -1, 4))
+    box_target = box2delta(gathered_gt_boxes, anchors[None])
+
+    # There are three types of anchors.
+    # matched (with objects), unmatched (with background), and in between (which should be ignored)
+    IGNORED_VALUE = -1
+    UNMATCHED_VALUE = 0
+    matches_mask = torch.ones_like(overlap) * IGNORED_VALUE
+    matches_mask[overlap < unmatched_iou] = UNMATCHED_VALUE  # background
+    matches_mask[overlap >= matched_iou] = 1
+
+    # Generate one-hot-encoded target classes
+    bs, num_anchors = batch_gt_boxes.size(0), anchors.size(0)
+    cls_target = torch.zeros(
+        (bs, num_anchors, num_classes + 1), device=batch_gt_classes.device, dtype=batch_gt_classes.dtype
+    )
+    gathered_gt_classes = batch_gt_classes.gather(1, indices[..., None]).long()
+    gathered_gt_classes[overlap < unmatched_iou] = num_classes  # background has no class
+    cls_target.scatter_(2, gathered_gt_classes, 1)
+    cls_target = cls_target[..., :num_classes]  # remove background class from one-hot
+
+    return cls_target, box_target, matches_mask
 
 
 # copied from torchvision

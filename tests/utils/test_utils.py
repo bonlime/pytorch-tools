@@ -145,13 +145,43 @@ def test_generate_anchors():
     # check that it is really xyxy order
     assert torch.allclose(anchors[-1], torch.tensor([-111.6751, -255.3503, 175.6751, 319.3503]), rtol=5e-5)
 
+    # test anchors explicitly
+    expected = torch.tensor(
+        [
+            [-12, -12, 20, 20],
+            [-4, -28, 12, 36],
+            [-28, -4, 36, 12],
+            [-4, -12, 28, 20],
+            [4, -28, 20, 36],
+            [-20, -4, 44, 12],
+            [-12, -4, 20, 28],
+            [-4, -20, 12, 44],
+            [-28, 4, 36, 20],
+            [-4, -4, 28, 28],
+            [4, -20, 20, 44],
+            [-20, 4, 44, 20],
+        ]
+    ).float()
+    generated, num_anchors = pt.utils.box.generate_anchors_boxes(
+        16, num_scales=1, aspect_ratios=(1, 0.25, 4), pyramid_levels=[3,]
+    )
+    assert torch.allclose(expected, generated)
+    assert num_anchors == 3
+
+    # check that it is scriptable
+    jit_generate = torch.jit.script(pt.utils.box.generate_anchors_boxes)
+    generated, num_anchors = jit_generate(
+        (16, 16), num_scales=1, aspect_ratios=(1, 0.25, 4), pyramid_levels=[3,]
+    )
+    assert torch.allclose(expected, generated)
+    assert num_anchors == 3
+
 
 @pytest.mark.parametrize("device_dtype", DEVICE_DTYPE)
 def test_batch_iou(device_dtype):
     device, dtype = device_dtype
     # check that batch iou is the same as calculating it for every image separately
     anchors = random_boxes([10, 10, 20, 20], 10, 7).to(device).to(dtype)
-    bboxes2 = random_boxes([10, 10, 20, 20], 10, 15).to(device).to(dtype)
     b_bboxes2 = torch.stack([random_boxes([10, 10, 20, 20], 10, 15) for _ in range(5)]).to(device).to(dtype)
 
     batch_res = pt.utils.box.batch_box_iou(anchors, b_bboxes2)
@@ -167,3 +197,8 @@ def test_batch_iou(device_dtype):
     assert torch.allclose(jit_batch_res, jit_separ_res)
 
     assert torch.allclose(jit_batch_res, batch_res)
+
+
+def test_generate_targets():
+    # checks that generated targets are correct
+    pass
