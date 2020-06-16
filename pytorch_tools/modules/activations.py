@@ -83,6 +83,10 @@ class SwishNaive(nn.Module):
 
 
 #### MISH ####
+# There is equivalent formulation of Mish which could be faster but isn't (in my tests). So not adding it for now
+# feel free to open PR if you manage to speed it up
+# https://github.com/digantamisra98/Mish/issues/22
+# https://github.com/ultralytics/yolov3/issues/1098
 
 
 @torch.jit.script
