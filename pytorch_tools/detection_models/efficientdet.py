@@ -116,8 +116,7 @@ class EfficientDet(nn.Module):
     def extract_features(self, x):
         """Extract features from backbone + enchance with BiFPN"""
         # don't use p2 and p1
-        p5, p4, p3, p2, p1 = self.encoder(x)
-        del p2, p1
+        p5, p4, p3, _, _ = self.encoder(x)
         # coarser FPN levels
         p6 = self.pyramid6(p5)
         p7 = self.pyramid7(p6)
