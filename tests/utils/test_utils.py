@@ -224,5 +224,44 @@ def test_batch_iou(device_dtype):
 
 
 def test_generate_targets():
-    # checks that generated targets are correct
-    pass
+    """checks that generated targets are correct"""
+    # fmt: off
+    bboxes = torch.FloatTensor([
+        [0, 0, 10, 10],
+        [10, 10, 20, 20],
+        [5, 5, 15, 19],
+        [32, 32, 38, 42],
+    ])
+    gt_bboxes = torch.tensor([
+        [0, 0, 10, 9],
+        [0, 5, 12, 19],
+    ])
+    expected_cls_target = torch.tensor([[
+        [0., 0., 1., 0.],
+        [0., 0., 0., 0.],
+        [0., 0., 0., 0.],
+        [0., 0., 0., 0.]
+    ]])
+    expected_matches_mask = torch.tensor([[1, 0, 0, 0]])
+    expected_boxes = torch.tensor([[
+        [ 0.,  0., 10.,  9.],
+        [ 0.,  5., 12., 19.],
+        [ 0.,  5., 12., 19.],
+        [ 0.,  5., 12., 19.]
+    ]])
+    gt_labels = torch.tensor([2, 3])
+    gt = torch.cat([gt_bboxes, gt_labels.unsqueeze(1)], 1)[None].float()
+    # fmt: on
+
+    # test with high unmatched iou
+    box_target, cls_target, matches_mask = pt.utils.box.generate_targets(bboxes, gt, 4, unmatched_iou=0.5)
+    assert torch.allclose(cls_target, expected_cls_target)
+    assert torch.allclose(matches_mask, expected_matches_mask)
+    # predicted target after regression should give one of ground truth bboxes
+    regressed_target = pt.utils.box.delta2box(box_target, bboxes)
+    assert torch.allclose(regressed_target, expected_boxes)
+
+    # test lower unmatched iou. one bbox should be ignored in this case
+    expected_matches_mask2 = torch.tensor([[1, 0, -1, 0]])
+    _, _, matches_mask2 = pt.utils.box.generate_targets(bboxes, gt, 4, unmatched_iou=0.4)
+    assert torch.allclose(expected_matches_mask2, matches_mask2)

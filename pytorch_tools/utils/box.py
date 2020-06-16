@@ -226,7 +226,7 @@ def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unma
     # matched (with objects), unmatched (with background), and in between (which should be ignored)
     IGNORED_VALUE = -1
     UNMATCHED_VALUE = 0
-    matches_mask = torch.ones_like(overlap) * IGNORED_VALUE
+    matches_mask = torch.ones_like(overlap, dtype=torch.long) * IGNORED_VALUE
     matches_mask[overlap < unmatched_iou] = UNMATCHED_VALUE  # background
     matches_mask[overlap >= matched_iou] = 1
 
@@ -240,7 +240,7 @@ def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unma
     cls_target.scatter_(2, gathered_gt_classes, 1)
     cls_target = cls_target[..., :num_classes]  # remove background class from one-hot
 
-    return cls_target, box_target, matches_mask
+    return box_target, cls_target, matches_mask
 
 
 # copied from torchvision
