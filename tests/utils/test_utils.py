@@ -177,10 +177,34 @@ def test_generate_anchors():
     assert num_anchors == 3
 
 
+def test_box_iou():
+    """Make sure IoU is calculated correctly"""
+    # fmt: off
+    bboxes1 = torch.tensor([
+        [0, 0, 10, 10],
+        [10, 10, 20, 20],
+        [5, 5, 15, 19],
+        [32, 32, 38, 42],
+    ]).float()
+    bboxes2 = torch.tensor([
+        [0, 0, 10, 9], 
+        [0, 5, 12, 19],
+    ]).float()
+    expected_res = torch.tensor([
+        [0.9000, 0.2294], # 0.9 = 90 / 100; 0.2294 = 5*10 / (12 * 14 + 10*10 - 5*10)
+        [0.0000, 0.0720],
+        [0.0952, 0.4667],
+        [0.0000, 0.0000]
+    ]).float()
+    # fmt: on
+    res = pt.utils.box.box_iou(bboxes1, bboxes2)
+    assert torch.allclose(res, expected_res, atol=1e-4)
+
+
 @pytest.mark.parametrize("device_dtype", DEVICE_DTYPE)
 def test_batch_iou(device_dtype):
+    """check that batch iou is the same as calculating it for every image separately"""
     device, dtype = device_dtype
-    # check that batch iou is the same as calculating it for every image separately
     anchors = random_boxes([10, 10, 20, 20], 10, 7).to(device).to(dtype)
     b_bboxes2 = torch.stack([random_boxes([10, 10, 20, 20], 10, 15) for _ in range(5)]).to(device).to(dtype)
 
