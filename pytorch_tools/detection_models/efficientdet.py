@@ -116,7 +116,8 @@ class EfficientDet(nn.Module):
     def extract_features(self, x):
         """Extract features from backbone + enchance with BiFPN"""
         # don't use p2 and p1
-        p5, p4, p3, _, _ = self.encoder(x)
+        p5, p4, p3, p2, p1 = self.encoder(x)
+        del p2, p1
         # coarser FPN levels
         p6 = self.pyramid6(p5)
         p7 = self.pyramid7(p6)
@@ -133,8 +134,8 @@ class EfficientDet(nn.Module):
         box_outputs = []
         for feat, (cls_bns, box_bns) in zip(features, zip(self.cls_head_norms, self.box_head_norms)):
             cls_feat, box_feat = feat, feat
-            # it looks like that with drop_connect there is an additional residual here
-            # TODO: need to investigate using pretrained weights
+            # according to https://github.com/google/automl/issues/237
+            # DropConnect is not used in FPN or head
             for cls_conv, cls_bn in zip(self.cls_head_convs, cls_bns):
                 cls_feat = cls_bn(cls_conv(cls_feat))
             for box_conv, box_bn in zip(self.box_head_convs, box_bns):

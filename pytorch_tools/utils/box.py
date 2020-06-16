@@ -104,9 +104,35 @@ def box_iou(boxes1, boxes2):
     rb = torch.min(boxes1[:, None, 2:], boxes2[:, 2:])  # [N,M,2]
 
     wh = (rb - lt).clamp(min=0)  # [N,M,2]
-    inter = wh[:, :, 0] * wh[:, :, 1]  # [N,M]
+    inter = wh[..., 0] * wh[..., 1]  # [N,M]
 
     iou = inter / (area1[:, None] + area2 - inter)
+    return iou
+
+
+# copied from https://github.com/etienne87/torch_object_rnn/blob/master/core/utils/box.py
+def batch_box_iou(box1, box2):
+    """Compute the intersection over union of two set of boxes.
+    The box order must be (xmin, ymin, xmax, ymax).
+    Args:
+        box1: (tensor) bounding boxes, sized [N,4]. It's supposed to be anchors
+        box2: (tensor) bounding boxes, sized [B,M,4].
+    Return:
+        iou (Tensor[B, N, M]): the BxNxM matrix containing the pairwise
+                IoU values for every element in boxes1 and boxes2
+    Reference:
+      https://github.com/chainer/chainercv/blob/master/chainercv/utils/bbox/bbox_iou.py
+    """
+    # [B,N,M,2] = broadcast_max( (_,N,_,2), (B,_,M,2) )
+    lt = torch.max(box1[None, :, None, :2], box2[:, None, :, :2])
+    rb = torch.min(box1[None, :, None, 2:], box2[:, None, :, 2:])  # [B,N,M,2]
+
+    wh = (rb - lt).clamp(min=0)  # [B,N,M,2]
+    inter = wh[..., 0] * wh[..., 1]  # [B,N,M]
+
+    area1 = box_area(box1)  # [N,]
+    area2 = box_area(box2)  # [B,M,]
+    iou = inter / (area1[None, :, None] + area2[:, None, :] - inter)  # [B,N,M]
     return iou
 
 
@@ -178,8 +204,8 @@ def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unma
             classes are expected to be in the last column.
             bboxes are in `ltrb` format!
         num_classes (int): number of classes. needed for one-hot encoding labels
-        matched_iou (float):
-        unmatched_iou (float):
+        matched_iou (float): see above
+        unmatched_iou (float): see above
 
     Returns:
         box_target, cls_target, matches_mask
@@ -270,13 +296,12 @@ def decode(
     batch_box_head,
     anchors,
     img_shapes=None,
-    img_scales=None,
-    threshold=0.05,
+    score_threshold=0.0,
     max_detection_points=5000,
     max_detection_per_image=100,
     iou_threshold=0.5,
 ):
-    # type: (Tensor, Tensor, Tensor, Tensor, Tensor, float, int, int, float)->Tensor
+    # type: (Tensor, Tensor, Tensor, Tensor, float, int, int, float)->Tensor
     """
     Decodes raw outputs of a model for easy visualization of bboxes
 
@@ -285,15 +310,15 @@ def decode(
         batch_box_head (torch.Tensor): shape [BS, *, 4]
         anchors (torch.Tensor): shape [*, 4]
         img_shapes (torch.Tensor): if given clips predicted bboxes to img height and width. Shape [BS, 2] or [2,]
-        img_scales (torch.Tensor): if given used to rescale img_shapes. Shape [BS,]
-        threshold (float): minimum score threshold to consider object detected
+        score_threshold (float): minimum score threshold to consider object detected. Large values give slight speedup
+            but decrease mean recall for small objects
         max_detection_points (int): Maximum number of bboxes to consider for NMS for one image
         max_detection_per_image (int): Maximum number of bboxes to return per image
         iou_threshold (float): iou_threshold for Non Maximum Supression
 
     Returns:
         torch.Tensor with bboxes, scores and classes
-            shape [BS, MAX_DETECTION_PER_IMAGE, 6]. 
+            shape [BS, MAX_DETECTION_PER_IMAGE, 6].
             bboxes in 'ltrb' format. If img_shape is not given they are NOT CLIPPED (!)
     """
 
@@ -319,8 +344,6 @@ def decode(
     anchors_topk_all = torch.gather(anchors, 1, indices_all.unsqueeze(2).expand(-1, -1, 4))
     regressed_boxes_all = delta2box(box_topk_all, anchors_topk_all)
     if img_shapes is not None:
-        if img_scales is not None:
-            img_shapes = img_shapes / img_scales.unsqueeze(1)
         regressed_boxes_all = clip_bboxes_batch(regressed_boxes_all, img_shapes)
 
     # prepare output tensors
@@ -330,8 +353,11 @@ def decode(
 
     for batch in range(batch_size):
         scores_topk = scores_topk_all[batch]
-        classes = classes_all[batch]
-        regressed_boxes = regressed_boxes_all[batch]
+        # additionally filter prediction with low confidence
+        valid_mask = scores_topk.ge(score_threshold)
+        scores_topk = scores_topk[valid_mask]
+        classes = classes_all[batch, valid_mask]
+        regressed_boxes = regressed_boxes_all[batch, valid_mask]
 
         # apply NMS
         nms_idx = batched_nms(regressed_boxes, scores_topk, classes, iou_threshold)

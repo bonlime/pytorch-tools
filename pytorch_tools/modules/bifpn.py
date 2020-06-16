@@ -36,7 +36,7 @@ class SumFusion(FastNormalizedFusion):
 
 
 class BiFPNLayer(nn.Module):
-    r"""Builds one layer of Bi-directional Feature Pyramid Network
+    """Builds one layer of Bi-directional Feature Pyramid Network
     Args:
         channels (int): Number of channels in each feature map after BiFPN. Defaults to 64.
         
@@ -51,7 +51,7 @@ class BiFPNLayer(nn.Module):
         super().__init__()
 
         self.up = nn.Upsample(scale_factor=2, mode="nearest")
-        self.down = nn.MaxPool2d(3, stride=2, padding=1)  #  padding=1 TODO: change back
+        self.down = nn.MaxPool2d(3, stride=2, padding=1)
 
         # disable attention for large models. This is very dirty way to check that it's B6 & B7. But i don't care
         Fusion = SumFusion if channels > 288 else FastNormalizedFusion
