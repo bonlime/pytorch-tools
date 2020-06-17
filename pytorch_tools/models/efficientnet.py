@@ -46,7 +46,7 @@ class EfficientNet(nn.Module):
         blocks_args (List[Dict]):
             Description of each block for the model. Check `decode_block_args` function for more details. Don't need to be
             passed manually
-        width_multiplier (float): 
+        width_multiplier (float):
             Multiplyer for number of channels in each block. Don't need to be passed manually
         depth_multiplier (float):
             Multiplyer for number of InvertedResiduals in each block. Don't need to be passed manually
@@ -73,7 +73,7 @@ class EfficientNet(nn.Module):
         norm_act (str):
             Activation for normalizion layer. It's reccomended to use `leacky_relu` with `inplaceabn`. Defaults to `swish`
         match_tf_same_padding (bool): If True patches Conv and MaxPool to implements tf-like asymmetric padding
-            Should only be used to validate pretrained weights. Not needed for training. Gives ~10% slowdown 
+            Should only be used to validate pretrained weights. Not needed for training. Gives ~10% slowdown
     """
 
     def __init__(

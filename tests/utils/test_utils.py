@@ -265,3 +265,13 @@ def test_generate_targets():
     expected_matches_mask2 = torch.tensor([[1, 0, -1, 0]])
     _, _, matches_mask2 = pt.utils.box.generate_targets(bboxes, gt, 4, unmatched_iou=0.4)
     assert torch.allclose(expected_matches_mask2, matches_mask2)
+
+
+def test_generate_empty_true_targets():
+    """Test behaviour for empty true boxes"""
+    bboxes = random_boxes([10, 10, 20, 20], 10, 10)
+    gt = torch.ones((2, 5)) * -1  # empty
+    _, cls_target, matches_mask = pt.utils.box.generate_targets(bboxes, gt[None], 4)
+    # check that output contains only zeros
+    assert torch.allclose(matches_mask, torch.zeros_like(matches_mask))
+    assert torch.allclose(cls_target, torch.zeros_like(cls_target))

@@ -32,7 +32,40 @@ def patch_bn(module):
 
 
 class EfficientDet(nn.Module):
-    """TODO: add docstring"""
+    """
+    Implementation of the EfficientDet Object Detection model
+
+    Main difference from other implementations available are:
+    * cleanest code. all model is defined in this file with only small modules
+        imported from somewhere else
+    * ability to freeze batch norm in encoder with one line
+    * fast train speed and low memory consumption. partly due to memory efficient Swish
+        partly due to heavy use of inplace operations
+    
+    Args:
+        pretrained (str): one of `coco` or None. if `coco` - load pretrained weights
+        encoder_name (str): name of classification model (without last dense layers) used as feature
+                extractor to build detection model. It could be any model even `resnet`
+        encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-trained on ImageNet)
+        pyramid_channels (int): size of features after BiFPN. Default 256
+        num_fpn_layers (int): Number of BiFPN layers
+        num_head_repeats (int): Number of convs layers in regression and classification heads
+        num_classes (int): a number of classes to predict
+                class_outputs shape is (BS, *, NUM_CLASSES) where each row in * corresponds to one bbox
+        encoder_norm_layer (str): Normalization layer to use in encoder. If using pretrained
+                it should be the same as in pretrained weights. By default batch norm is frozen in encoder
+                pass `abn` not use not frozen version
+        encoder_norm_act (str): Activation for normalization layer in encoder
+        decoder_norm_layer (str): Normalization to use in head convolutions. Default (none) is not to use normalization.
+                Current implementation is optimized for `GroupNorm`, not `BatchNorm` check code for details
+        decoder_norm_act (str): Activation for normalization layer in head convolutions
+        match_tf_same_padding (bool): If True patches Conv and MaxPool to implements tf-like asymmetric padding
+            Should only be used to validate pretrained weights. Not needed for training. Gives ~10% slowdown
+        anchors_per_location (int): Number of anchors per feature map pixel. In fact it only affects the size of output
+        
+    Ref:
+        EfficientDet: Scalable and Efficient Object Detection - https://arxiv.org/abs/1911.09070
+    """
 
     def __init__(
         self,
@@ -43,12 +76,12 @@ class EfficientDet(nn.Module):
         num_fpn_layers=3,
         num_head_repeats=3,
         num_classes=90,
-        drop_connect_rate=0,
-        encoder_norm_layer="abn",  # TODO: set to frozenabn when ready
+        encoder_norm_layer="frozenabn",
         encoder_norm_act="swish",
         decoder_norm_layer="abn",
         decoder_norm_act="swish",
         match_tf_same_padding=False,
+        anchors_per_location=9,
     ):
         super().__init__()
         self.encoder = get_encoder(
@@ -76,7 +109,6 @@ class EfficientDet(nn.Module):
         def make_head(out_size):
             layers = []
             for _ in range(num_head_repeats):
-                # TODO: add drop connect
                 layers += [DepthwiseSeparableConv(pyramid_channels, pyramid_channels, use_norm=False)]
             layers += [DepthwiseSeparableConv(pyramid_channels, out_size, use_norm=False)]
             return nn.ModuleList(layers)
@@ -98,7 +130,6 @@ class EfficientDet(nn.Module):
                 ]
             )
 
-        anchors_per_location = 9  # TODO: maybe allow to pass this arg?
         self.cls_head_convs = make_head(num_classes * anchors_per_location)
         self.cls_head_norms = make_head_norm()
         self.box_head_convs = make_head(4 * anchors_per_location)
@@ -156,9 +187,12 @@ class EfficientDet(nn.Module):
 
     @torch.no_grad()
     def predict(self, x):
-        """Run forward on given images and decode raw prediction into bboxes
-        Returns: bboxes, scores, classes
         """
+        Run forward on given images and decode raw prediction into bboxes
+		Returns:
+            torch.Tensor with bboxes, scores and classes. bboxes in `lrtb` format
+            shape [BS, MAX_DETECTION_PER_IMAGE, 6]
+		"""
         class_outputs, box_outputs = self.forward(x)
         anchors = box_utils.generate_anchors_boxes(x.shape[-2:])[0]
         return box_utils.decode(class_outputs, box_outputs, anchors)
@@ -176,96 +210,96 @@ PRETRAIN_SETTINGS = {**DEFAULT_IMAGENET_SETTINGS, "input_size": (512, 512), "cro
 
 # fmt: off
 CFGS = {
-  "efficientdet_d0": {
-    "default": {
-      "params": {
-        "encoder_name":"efficientnet_b0",
-        "pyramid_channels":64,
-        "num_fpn_layers":3,
-        "num_head_repeats":3,
-      },
-      **PRETRAIN_SETTINGS,
-    },
-    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d0.pth",},
-  },
-  "efficientdet_d1": {
-    "default": {
-      "params": {
-        "encoder_name":"efficientnet_b1",
-        "pyramid_channels":88,
-        "num_fpn_layers":4,
-        "num_head_repeats":3,
-      },
-      **PRETRAIN_SETTINGS,
-      "input_size": (640, 640),
-    },
-    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d1.pth",},
-  },
-  "efficientdet_d2": {
-    "default": {
-      "params": {
-        "encoder_name":"efficientnet_b2",
-        "pyramid_channels":112,
-        "num_fpn_layers":5,
-        "num_head_repeats":3,
-      },
-      **PRETRAIN_SETTINGS,
-      "input_size": (768, 768),
-    },
-    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d2.pth",},
-  },
-  "efficientdet_d3": {
-    "default": {
-      "params": {
-        "encoder_name":"efficientnet_b3",
-        "pyramid_channels":160,
-        "num_fpn_layers":6,
-        "num_head_repeats":4,
-      },
-      **PRETRAIN_SETTINGS,
-      "input_size": (896, 896),
-    },
-    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d3.pth",},
-  },
-  "efficientdet_d4": {
-    "default": {
-      "params": {
-        "encoder_name":"efficientnet_b4",
-        "pyramid_channels":224,
-        "num_fpn_layers":7,
-        "num_head_repeats":4,
-      },
-      **PRETRAIN_SETTINGS,
-      "input_size": (1024, 1024),
-    },
-    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d4.pth",},
-  },
-  "efficientdet_d5": {
-    "default": {
-      "params": {
-        "encoder_name":"efficientnet_b5",
-        "pyramid_channels":288,
-        "num_fpn_layers":7,
-        "num_head_repeats":4,
-      },
-      **PRETRAIN_SETTINGS,
-      "input_size": (1280, 1280),
-    },
-    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d5.pth",},
-  },
-  "efficientdet_d6": {
-    "default": {
-      "params": {
-        "encoder_name":"efficientnet_b6",
-        "pyramid_channels":384,
-        "num_fpn_layers":8,
-        "num_head_repeats":5,
-      },
-      **PRETRAIN_SETTINGS,
-      "input_size": (1280, 1280),
-    },
-    "coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d6.pth",},
-  },
+	"efficientdet_d0": {
+		"default": {
+			"params": {
+				"encoder_name":"efficientnet_b0",
+				"pyramid_channels":64,
+				"num_fpn_layers":3,
+				"num_head_repeats":3,
+			},
+			**PRETRAIN_SETTINGS,
+		},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d0.pth",},
+	},
+	"efficientdet_d1": {
+		"default": {
+			"params": {
+				"encoder_name":"efficientnet_b1",
+				"pyramid_channels":88,
+				"num_fpn_layers":4,
+				"num_head_repeats":3,
+			},
+			**PRETRAIN_SETTINGS,
+			"input_size": (640, 640),
+		},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d1.pth",},
+	},
+	"efficientdet_d2": {
+		"default": {
+			"params": {
+				"encoder_name":"efficientnet_b2",
+				"pyramid_channels":112,
+				"num_fpn_layers":5,
+				"num_head_repeats":3,
+			},
+			**PRETRAIN_SETTINGS,
+			"input_size": (768, 768),
+		},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d2.pth",},
+	},
+	"efficientdet_d3": {
+		"default": {
+			"params": {
+				"encoder_name":"efficientnet_b3",
+				"pyramid_channels":160,
+				"num_fpn_layers":6,
+				"num_head_repeats":4,
+			},
+			**PRETRAIN_SETTINGS,
+			"input_size": (896, 896),
+		},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d3.pth",},
+	},
+	"efficientdet_d4": {
+		"default": {
+			"params": {
+				"encoder_name":"efficientnet_b4",
+				"pyramid_channels":224,
+				"num_fpn_layers":7,
+				"num_head_repeats":4,
+			},
+			**PRETRAIN_SETTINGS,
+			"input_size": (1024, 1024),
+		},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d4.pth",},
+	},
+	"efficientdet_d5": {
+		"default": {
+			"params": {
+				"encoder_name":"efficientnet_b5",
+				"pyramid_channels":288,
+				"num_fpn_layers":7,
+				"num_head_repeats":4,
+			},
+			**PRETRAIN_SETTINGS,
+			"input_size": (1280, 1280),
+		},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d5.pth",},
+	},
+	"efficientdet_d6": {
+		"default": {
+			"params": {
+				"encoder_name":"efficientnet_b6",
+				"pyramid_channels":384,
+				"num_fpn_layers":8,
+				"num_head_repeats":5,
+			},
+			**PRETRAIN_SETTINGS,
+			"input_size": (1280, 1280),
+		},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d6.pth",},
+	},
 }
 # fmt: on
 
