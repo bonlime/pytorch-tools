@@ -3,9 +3,10 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from pytorch_tools.utils.misc import set_random_seed
-import pytorch_tools.losses.functional as pt_F
+import pytorch_tools as pt
 import pytorch_tools.losses as losses
+import pytorch_tools.losses.functional as pt_F
+from pytorch_tools.utils.misc import set_random_seed
 
 """
 Some test were taken from repo by BloodAxe
@@ -435,3 +436,41 @@ def test_smoothl1(reduction):
     loss_my = losses.SmoothL1Loss(delta=0, reduction=reduction)(INP, TARGET_MULTILABEL)
     loss_torch = F.l1_loss(INP, TARGET_MULTILABEL, reduction=reduction)
     assert torch.allclose(loss_my, loss_torch)
+
+
+def test_detection_loss_is_scriptabble():
+    # this is a piece of real target and box/cls outputs for COCO images
+    # fmt:off
+    target = torch.tensor([
+        [[190., 114., 209., 170.,  0.], [  6., 134., 125., 210.,  0.]],
+        [[  1.,  55., 469., 506.,  1.], [ -1.,  -1.,  -1.,  -1., -1.]],
+        [[  3., 213., 324., 380.,  1.], [147., 109., 195., 183.,  1.]],
+        [[123.,  74., 261., 230.,  1.], [126., 286., 149., 317.,  1.]],
+        [[  1.,  45., 276., 422.,  0.], [  2., 223., 256., 506.,  0.]]
+    ])
+    anchors = torch.tensor([
+        [-12.0000, -12.0000,  20.0000,  20.0000], 
+        [-18.6274,  -7.3137,  26.6274,  15.3137]
+    ])
+    cls_out = torch.tensor([
+        [[-3.4645, -4.9549], [-6.3456, -7.3695]], 
+        [[-4.7375, -5.5270], [-5.4755, -6.7083]],
+        [[-3.7339, -4.7242], [-6.2671, -6.8925]],
+        [[-3.6217, -4.7811], [-5.6993, -6.7674]],
+        [[-5.2376, -6.1608], [-6.1039, -7.0789]]
+    ])
+    box_out = torch.tensor([
+        [[-0.0600,  6.1500, -21.8200,   0.2200], [ 0.0800,  0.0400,  -1.1300,  -1.4700]],
+        [[ 7.5100, 13.2500,   0.2400, -17.7700], [ 0.2800,  0.0400,  -0.6500,  -3.1200]],
+        [[-0.0000,  5.2600, -21.9700,   0.4900], [ 0.0700,  0.0500,  -1.2000,  -1.4800]],
+        [[ 6.8300,  8.2000, -21.9800,  -0.5200], [ 0.1000, -0.0200,  -1.2300,  -1.4100]],
+        [[ 4.0100,  5.3500, -21.8100,   0.9900], [ 0.1700, -0.1000,  -0.9500,  -1.6500]]
+    ])
+
+    # fmt: on
+    loss = losses.DetectionLoss(anchors=anchors)
+    loss_jit = torch.jit.script(loss)
+    res = loss((cls_out, box_out), target)
+    res_jit = loss_jit((cls_out, box_out), target)
+    assert torch.allclose(res, res_jit)
+    assert torch.allclose(res, torch.tensor(5e-07))

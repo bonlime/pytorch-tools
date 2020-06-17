@@ -80,7 +80,7 @@ def focal_loss_with_logits(
     # compute the smooth combination
     if combine_thr > 0:
         # FIXME: maybe can do it in a more efficient way
-        # version for combine thr == 0 is much faster requires less memory
+        # version for combine thr == 0 is faster and requires less memory
         pt = torch.exp(-cross_entropy)
         focal_term = ((1.0 - pt) / (1 - combine_thr)).pow(gamma)
         focal_term.where(pt > combine_thr, torch.zeros_like(focal_term))
