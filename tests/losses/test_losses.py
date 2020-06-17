@@ -389,3 +389,8 @@ def test_binary_hinge():
 def test_smoothl1(reduction):
     loss_my = losses.SmoothL1Loss(delta=1, reduction=reduction)(INP, TARGET_MULTILABEL)
     loss_torch = F.smooth_l1_loss(INP, TARGET_MULTILABEL, reduction=reduction)
+    assert torch.allclose(loss_my, loss_torch)
+    # check that delta = 0 turns it into l1
+    loss_my = losses.SmoothL1Loss(delta=0, reduction=reduction)(INP, TARGET_MULTILABEL)
+    loss_torch = F.l1_loss(INP, TARGET_MULTILABEL, reduction=reduction)
+    assert torch.allclose(loss_my, loss_torch)
