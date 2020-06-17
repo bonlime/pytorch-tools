@@ -8,11 +8,13 @@ class Mode(Enum):
     MULTICLASS = "multiclass"
     MULTILABEL = "multilabel"
 
+
 class Reduction(Enum):
     SUM = "sum"
     MEAN = "mean"
     NONE = "none"
-    
+
+
 class Loss(_Loss):
     """Loss which supports addition and multiplication"""
 
@@ -44,12 +46,10 @@ class WeightedLoss(Loss):
     def __init__(self, loss, weight=1.0):
         super().__init__()
         self.loss = loss
-        self.weight = torch.Tensor([weight])
+        self.register_buffer("weight", torch.tensor([weight]))
 
     def forward(self, *inputs):
-        l = self.loss(*inputs)
-        self.weight = self.weight.to(l.device)
-        return l * self.weight[0]
+        return self.loss(*inputs) * self.weight[0]
 
 
 class SumOfLosses(Loss):
