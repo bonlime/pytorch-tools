@@ -1,7 +1,9 @@
-"""Various functions to help with bboxes for object detection"""
+"""
+Various functions to help with bboxes for object detection
+Everything is covered with tests to ensure correct output and scriptability (torch.jit.script)
+Written by @bonlime
+"""
 import torch
-import numpy as np
-from functools import wraps
 
 
 def box2delta(boxes, anchors):
@@ -49,6 +51,7 @@ def delta2box(deltas, anchors):
 
 
 def box_area(box):
+    # type: (Tensor) -> Tensor
     """Args:
     box (torch.Tensor): shape [N, 4] or [BS, N, 4] in 'ltrb' format
     """
@@ -56,6 +59,7 @@ def box_area(box):
 
 
 def clip_bboxes(bboxes, size):
+    # type: (Tensor, Tuple[int, int]) -> Tensor
     """Args:
         bboxes (torch.Tensor): in `ltrb` format. Shape [N, 4]
         size (Union[torch.Size, tuple]): (H, W). Shape [2,]"""
@@ -65,7 +69,7 @@ def clip_bboxes(bboxes, size):
 
 
 def clip_bboxes_batch(bboxes, size):
-    # type: (Tensor, Tensor)->Tensor
+    # type: (Tensor, Tensor) -> Tensor
     """Args:
         bboxes (torch.Tensor): in `ltrb` format. Shape [BS, N, 4]
         size (torch.Tensor): (H, W). Shape [BS, 2] """
@@ -112,6 +116,7 @@ def box_iou(boxes1, boxes2):
 
 # copied from https://github.com/etienne87/torch_object_rnn/blob/master/core/utils/box.py
 def batch_box_iou(box1, box2):
+    # type: (Tensor, Tensor) -> Tensor
     """Compute the intersection over union of two set of boxes.
     The box order must be (xmin, ymin, xmax, ymax).
     Args:
@@ -191,6 +196,7 @@ def generate_anchors_boxes(
 
 
 def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unmatched_iou=0.4):
+    # type: (Tensor, Tensor, int, float, float) -> Tuple[Tensor, Tensor, Tensor]
     """Generate targets for regression and classification
     
     Based on IoU between anchor and true bounding box there are three types of anchor boxes
@@ -225,10 +231,11 @@ def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unma
     # There are three types of anchors.
     # matched (with objects), unmatched (with background), and in between (which should be ignored)
     IGNORED_VALUE = -1
-    UNMATCHED_VALUE = 0
     matches_mask = torch.ones_like(overlap, dtype=torch.long) * IGNORED_VALUE
+    UNMATCHED_VALUE = torch.tensor(0).to(matches_mask)
+    MATCHED_VALUE = torch.tensor(1).to(matches_mask)
     matches_mask[overlap < unmatched_iou] = UNMATCHED_VALUE  # background
-    matches_mask[overlap >= matched_iou] = 1
+    matches_mask[overlap >= matched_iou] = MATCHED_VALUE  # foreground
 
     # Generate one-hot-encoded target classes
     bs, num_anchors = batch_gt_boxes.size(0), anchors.size(0)
@@ -236,7 +243,8 @@ def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unma
         (bs, num_anchors, num_classes + 1), device=batch_gt_classes.device, dtype=batch_gt_classes.dtype
     )
     gathered_gt_classes = batch_gt_classes.gather(1, indices[..., None]).long()
-    gathered_gt_classes[overlap < unmatched_iou] = num_classes  # background has no class
+    # set background to last class for scatter
+    gathered_gt_classes[overlap < unmatched_iou] = torch.tensor(num_classes).to(gathered_gt_classes)
     cls_target.scatter_(2, gathered_gt_classes, 1)
     cls_target = cls_target[..., :num_classes]  # remove background class from one-hot
 
@@ -245,7 +253,7 @@ def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unma
 
 # copied from torchvision
 def batched_nms(boxes, scores, idxs, iou_threshold):
-    # type: (Tensor, Tensor, Tensor, float)->Tensor
+    # type: (Tensor, Tensor, Tensor, float) -> Tensor
     """
     Performs non-maximum suppression in a batched fashion.
     Each index value correspond to a category, and NMS
@@ -282,6 +290,7 @@ def batched_nms(boxes, scores, idxs, iou_threshold):
     return keep
 
 
+# TODO: cover this with tests
 # jit actually makes it slower for fp16 and results are different!
 # FIXME: check it after 1.6 release. maybe they will fix JIT by that time
 # @torch.jit.script

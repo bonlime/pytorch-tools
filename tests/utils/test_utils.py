@@ -275,3 +275,16 @@ def test_generate_empty_true_targets():
     # check that output contains only zeros
     assert torch.allclose(matches_mask, torch.zeros_like(matches_mask))
     assert torch.allclose(cls_target, torch.zeros_like(cls_target))
+
+
+def test_generate_targes_is_scriptable():
+    bboxes = random_boxes([10, 10, 20, 20], 10, 10)
+    N_CLASSES = 10
+    gt = torch.randint(N_CLASSES, (2, 5)).float()[None]
+    gt[..., 2:4] += gt[..., :2]  # make sure bbox is correct
+    jit_func = torch.jit.script(pt.utils.box.generate_targets)
+    box_t, cls_t, matches = pt.utils.box.generate_targets(bboxes, gt, N_CLASSES)
+    box_t_jit, cls_t_jit, matches_jit = jit_func(bboxes, gt, N_CLASSES)
+    assert torch.allclose(box_t, box_t_jit)
+    assert torch.allclose(cls_t, cls_t_jit)
+    assert torch.allclose(matches, matches_jit)
