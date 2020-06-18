@@ -1,2 +1,2 @@
-torch>=1.4
-inplace-abn
+torch>=1.6
+inplace-abn>=1.0.12
