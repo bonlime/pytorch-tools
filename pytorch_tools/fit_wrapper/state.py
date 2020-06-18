@@ -1,5 +1,6 @@
-from ..utils.misc import listify
-from ..utils.misc import AverageMeter
+from torch.cuda.amp import GradScaler
+from pytorch_tools.utils.misc import listify
+from pytorch_tools.utils.misc import AverageMeter
 
 
 class RunnerState:
@@ -11,13 +12,17 @@ class RunnerState:
     __isfrozen = False
 
     def __init__(
-        self, *, model=None, optimizer=None, criterion=None, metrics=None,
+        self, *, model=None, optimizer=None, criterion=None, metrics=None, use_fp16=False,
     ):
         # base
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
         self.metrics = listify(metrics)
+
+        # make state aware of fp16 and scale. if use_fp16 is False, grad_scaler is NoOp
+        self.use_fp16 = use_fp16
+        self.grad_scaler = GradScaler(enabled=use_fp16)
 
         # data pipeline
         self.input = None
