@@ -43,11 +43,13 @@ class SwishFunction(torch.autograd.Function):
     """
 
     @staticmethod
+    @torch.cuda.amp.custom_fwd
     def forward(ctx, x):
         ctx.save_for_backward(x)
         return swish_jit_fwd(x)
 
     @staticmethod
+    @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
         x = ctx.saved_tensors[0]
         return swish_jit_bwd(x, grad_output)
@@ -103,11 +105,13 @@ def mish_jit_bwd(x, grad_output):
 
 class MishFunction(torch.autograd.Function):
     @staticmethod
+    @torch.cuda.amp.custom_fwd
     def forward(ctx, x):
         ctx.save_for_backward(x)
         return mish_jit_fwd(x)
 
     @staticmethod
+    @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
         x = ctx.saved_tensors[0]
         return mish_jit_bwd(x, grad_output)
