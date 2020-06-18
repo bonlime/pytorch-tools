@@ -2,7 +2,6 @@ import os
 import pytest
 import torch
 import torch.nn as nn
-import apex
 from pytorch_tools.metrics import Accuracy
 from pytorch_tools.fit_wrapper import Runner
 from pytorch_tools.losses import CrossEntropyLoss
@@ -80,9 +79,6 @@ TEST_SEGM_OPTIMZER = torch.optim.SGD(TEST_SEGM_MODEL.parameters(), lr=1e-3)
 TEST_CRITERION = CrossEntropyLoss().cuda()
 TEST_METRIC = Accuracy()
 
-TEST_MODEL, TEST_OPTIMIZER = apex.amp.initialize(TEST_MODEL, TEST_OPTIMIZER, verbosity=0)
-TEST_SEGM_MODEL, TEST_SEGM_OPTIMZER = apex.amp.initialize(TEST_SEGM_MODEL, TEST_SEGM_OPTIMZER)
-
 
 def test_default():
     runner = Runner(
@@ -118,6 +114,17 @@ def test_accumulate_steps():
         criterion=TEST_CRITERION,
         metrics=TEST_METRIC,
         accumulate_steps=10,
+    )
+    runner.fit(TEST_LOADER, epochs=2)
+
+
+def test_fp16_training():
+    runner = Runner(
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        metrics=TEST_METRIC,
+        use_fp16=True,
     )
     runner.fit(TEST_LOADER, epochs=2)
 
