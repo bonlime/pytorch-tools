@@ -189,7 +189,7 @@ def test_box_iou():
         [32, 32, 38, 42],
     ]).float()
     bboxes2 = torch.tensor([
-        [0, 0, 10, 9], 
+        [0, 0, 10, 9],
         [0, 5, 12, 19],
     ]).float()
     expected_res = torch.tensor([
@@ -201,6 +201,13 @@ def test_box_iou():
     # fmt: on
     res = pt.utils.box.box_iou(bboxes1, bboxes2)
     assert torch.allclose(res, expected_res, atol=1e-4)
+
+
+def test_iou_for_zero_bbox():
+    b1 = random_boxes([10, 10, 10, 10], 10, 7)
+    b2 = torch.zeros(5, 4)
+    iou = pt.utils.box.box_iou(b1, b2)
+    assert torch.allclose(iou, torch.zeros(7, 5))
 
 
 @pytest.mark.parametrize("device_dtype", DEVICE_DTYPE)
@@ -232,7 +239,7 @@ def test_generate_targets():
         [0, 0, 10, 10],
         [10, 10, 20, 20],
         [5, 5, 15, 19],
-        [32, 32, 38, 42],
+        [11, 18, 38, 42],
     ])
     gt_bboxes = torch.tensor([
         [0, 0, 10, 9],

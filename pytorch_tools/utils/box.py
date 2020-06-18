@@ -71,6 +71,8 @@ def clip_bboxes(bboxes, size):
 def clip_bboxes_batch(bboxes, size):
     # type: (Tensor, Tensor) -> Tensor
     """Args:
+        This function could also accept not batched bboxes but it works
+        slower than `clip_bboxes` in that case
         bboxes (torch.Tensor): in `ltrb` format. Shape [BS, N, 4]
         size (torch.Tensor): (H, W). Shape [BS, 2] """
     size = size.to(bboxes)
