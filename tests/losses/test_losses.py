@@ -389,6 +389,24 @@ def test_binary_cross_entropy(reduction):
     assert torch.allclose(torch_ce.squeeze(), my_ce.squeeze())
 
 
+def test_binary_cross_entropy_from_logits():
+    """Check that passing from_logits True and taking sigmoid manually gives the same result"""
+    loss_1 = losses.CrossEntropyLoss(mode="binary")
+    res_1 = loss_1(INP_BINARY, TARGET_BINARY)
+    loss_2 = losses.CrossEntropyLoss(mode="binary", from_logits=False)
+    res_2 = loss_2(INP_BINARY.sigmoid(), TARGET_BINARY)
+    assert torch.allclose(res_1, res_2)
+
+
+def test_cross_entropy_from_logits():
+    """Check that passing from_logits True and taking softmax manually gives the same result"""
+    loss_1 = losses.CrossEntropyLoss()
+    res_1 = loss_1(INP, TARGET)
+    loss_2 = losses.CrossEntropyLoss(from_logits=False)
+    res_2 = loss_2(INP.softmax(1), TARGET)
+    assert torch.allclose(res_1, res_2)
+
+
 @torch.no_grad()
 def test_cross_entropy_weight():
     weight_1 = torch.randint(1, 100, (N_CLASSES,)).float()
