@@ -3,41 +3,6 @@ import torch
 import torch.nn.functional as F
 from .base import Reduction
 
-# code for focal loss was borrowed from Bloodaxe
-def focal_loss_with_logits_old(
-    y_pred, y_true, gamma=2.0, alpha=0.25, reduction="mean", normalized=False, combine_thr=0,
-):
-    # type: (Tensor, Tensor, float, float, str, bool, float) -> Tensor
-    """see pytorch_tools.losses.focal.FocalLoss for docstring"""
-    reduction = Reduction(reduction)
-    y_true = y_true.to(y_pred)
-
-    logpt = F.binary_cross_entropy_with_logits(y_pred, y_true, reduction="none")
-    pt = torch.exp(-logpt)
-
-    # compute the smooth combination
-    if combine_thr is None or combine_thr == 0:
-        focal_term = (1 - pt).pow(gamma)
-    else:
-        focal_term = ((1.0 - pt) / (1 - combine_thr)).pow(gamma)
-        focal_term[pt < combine_thr] = 1
-
-    loss = focal_term * logpt
-
-    if alpha is not None:
-        loss = loss * (alpha * y_true + (1 - alpha) * (1 - y_true))
-
-    if normalized:
-        norm_factor = focal_term.sum() + 1e-5
-        loss = loss / norm_factor
-
-    if reduction == Reduction.MEAN:
-        loss = loss.mean()
-    elif reduction == Reduction.SUM:
-        loss = loss.sum()
-    return loss
-
-
 # copy from @rwightman with modifications
 # https://github.com/rwightman/efficientdet-pytorch/blob/master/effdet/loss.py
 def focal_loss_with_logits(
@@ -75,12 +40,9 @@ def focal_loss_with_logits(
     # Therefore one unified form for positive (z = 1) and negative (z = 0)
     # samples is:
     #      (1 - p_t)^r = exp(-r * z * x - r * log(1 + exp(-x))).
-    # neg_logits = -1.0 * logits
 
     # compute the smooth combination
     if combine_thr > 0:
-        # FIXME: maybe can do it in a more efficient way
-        # version for combine thr == 0 is faster and requires less memory
         pt = torch.exp(-cross_entropy)
         focal_term = ((1.0 - pt) / (1 - combine_thr)).pow(gamma)
         focal_term.where(pt > combine_thr, torch.zeros_like(focal_term))
