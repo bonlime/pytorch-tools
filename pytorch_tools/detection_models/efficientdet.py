@@ -1,3 +1,9 @@
+"""
+Implementation of EfficientDet object detection network
+Reference: EfficientDet: Scalable and Efficient Object Detection - https://arxiv.org/abs/1911.09070
+This version supports init from pretrained weights and easy changing of many hyper-parameters
+hacked by @bonlime
+"""
 import logging
 from copy import deepcopy
 from functools import wraps
@@ -10,7 +16,6 @@ from pytorch_tools.modules import ABN
 from pytorch_tools.modules.bifpn import BiFPN
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules.residual import conv1x1
-from pytorch_tools.modules.residual import conv3x3
 from pytorch_tools.modules.residual import DepthwiseSeparableConv
 from pytorch_tools.modules.tf_same_ops import conv_to_same_conv
 from pytorch_tools.modules.tf_same_ops import maxpool_to_same_maxpool
@@ -100,7 +105,7 @@ class EfficientDet(nn.Module):
         self.pyramid7 = nn.MaxPool2d(3, stride=2, padding=1)  # in EffDet it's a simple maxpool
 
         self.bifpn = BiFPN(
-            self.encoder.out_shapes[:-2],
+            encoder_channels=(pyramid_channels,) * 2 + self.encoder.out_shapes[:-2],
             pyramid_channels=pyramid_channels,
             num_layers=num_fpn_layers,
             **bn_args,
@@ -110,7 +115,6 @@ class EfficientDet(nn.Module):
             layers = []
             for _ in range(num_head_repeats):
                 layers += [DepthwiseSeparableConv(pyramid_channels, pyramid_channels, use_norm=False)]
-            layers += [DepthwiseSeparableConv(pyramid_channels, out_size, use_norm=False)]
             return nn.ModuleList(layers)
 
         # The convolution layers in the head are shared among all levels, but
@@ -124,16 +128,23 @@ class EfficientDet(nn.Module):
                             norm_layer(pyramid_channels, activation=decoder_norm_act)
                             for _ in range(num_head_repeats)
                         ]
-                        + [nn.Identity()]  # no bn after last depthwise conv
                     )
                     for _ in range(5)
                 ]
             )
 
-        self.cls_head_convs = make_head(num_classes * anchors_per_location)
-        self.cls_head_norms = make_head_norm()
-        self.box_head_convs = make_head(4 * anchors_per_location)
-        self.box_head_norms = make_head_norm()
+        self.cls_convs = make_head(num_classes * anchors_per_location)
+        self.cls_head_conv = DepthwiseSeparableConv(
+            pyramid_channels, num_classes * anchors_per_location, use_norm=False
+        )
+        self.cls_norms = make_head_norm()
+
+        self.box_convs = make_head(4 * anchors_per_location)
+        self.box_head_conv = DepthwiseSeparableConv(
+            pyramid_channels, 4 * anchors_per_location, use_norm=False
+        )
+        self.box_norms = make_head_norm()
+
         self.num_classes = num_classes
         self.num_head_repeats = num_head_repeats
 
@@ -162,14 +173,18 @@ class EfficientDet(nn.Module):
         features = self.extract_features(x)
         class_outputs = []
         box_outputs = []
-        for feat, (cls_bns, box_bns) in zip(features, zip(self.cls_head_norms, self.box_head_norms)):
+        # for feat, (cls_bns, box_bns) in zip(features, zip(self.cls_head_norms, self.box_head_norms)):
+        for feat, (cls_bns, box_bns) in zip(features, zip(self.cls_norms, self.box_norms)):
             cls_feat, box_feat = feat, feat
             # according to https://github.com/google/automl/issues/237
             # DropConnect is not used in FPN or head
-            for cls_conv, cls_bn in zip(self.cls_head_convs, cls_bns):
+            for cls_conv, cls_bn in zip(self.cls_convs, cls_bns):
                 cls_feat = cls_bn(cls_conv(cls_feat))
-            for box_conv, box_bn in zip(self.box_head_convs, box_bns):
+            cls_feat = self.cls_head_conv(cls_feat)  # no bn after last cls conv
+
+            for box_conv, box_bn in zip(self.box_convs, box_bns):
                 box_feat = box_bn(box_conv(box_feat))
+            box_feat = self.box_head_conv(box_feat)  # no bn after last box conv
 
             box_feat = box_feat.permute(0, 2, 3, 1)
             box_outputs.append(box_feat.contiguous().view(box_feat.shape[0], -1, 4))
@@ -203,7 +218,7 @@ class EfficientDet(nn.Module):
         initialize_iterator(no_encoder_m)
         # need to init last bias so that after sigmoid it's 0.01
         cls_bias_init = -torch.log(torch.tensor((1 - 0.01) / 0.01))  # -4.59
-        nn.init.constant_(self.cls_head_convs[-1][1].bias, cls_bias_init)
+        nn.init.constant_(self.cls_head_conv[1].bias, cls_bias_init)
 
 
 PRETRAIN_SETTINGS = {**DEFAULT_IMAGENET_SETTINGS, "input_size": (512, 512), "crop_pct": 1, "num_classes": 90}
@@ -220,7 +235,7 @@ CFGS = {
 			},
 			**PRETRAIN_SETTINGS,
 		},
-		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d0.pth",},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/effdet-d0-bdea4ff9.pth",},
 	},
 	"efficientdet_d1": {
 		"default": {
@@ -233,7 +248,7 @@ CFGS = {
 			**PRETRAIN_SETTINGS,
 			"input_size": (640, 640),
 		},
-		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d1.pth",},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/effdet-d1-503733a9.pth",},
 	},
 	"efficientdet_d2": {
 		"default": {
@@ -246,7 +261,7 @@ CFGS = {
 			**PRETRAIN_SETTINGS,
 			"input_size": (768, 768),
 		},
-		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d2.pth",},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/effdet-d2-e5ec6289.pth",},
 	},
 	"efficientdet_d3": {
 		"default": {
@@ -259,7 +274,7 @@ CFGS = {
 			**PRETRAIN_SETTINGS,
 			"input_size": (896, 896),
 		},
-		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d3.pth",},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/effdet-d3-f6e6d52c.pth",},
 	},
 	"efficientdet_d4": {
 		"default": {
@@ -272,7 +287,7 @@ CFGS = {
 			**PRETRAIN_SETTINGS,
 			"input_size": (1024, 1024),
 		},
-		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d4.pth",},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/effdet-d4-76ba1095.pth",},
 	},
 	"efficientdet_d5": {
 		"default": {
@@ -285,7 +300,7 @@ CFGS = {
 			**PRETRAIN_SETTINGS,
 			"input_size": (1280, 1280),
 		},
-		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d5.pth",},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/effdet-d5-52e946b7.pth",},
 	},
 	"efficientdet_d6": {
 		"default": {
@@ -298,7 +313,7 @@ CFGS = {
 			**PRETRAIN_SETTINGS,
 			"input_size": (1280, 1280),
 		},
-		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/efficientdet-d6.pth",},
+		"coco": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.5/effdet-d6-3b8c5be0.pth",},
 	},
 }
 # fmt: on
@@ -317,10 +332,9 @@ def _efficientdet(arch, pretrained=None, **kwargs):
             logging.warning(
                 f"Using model pretrained for {cfg_settings['num_classes']} classes with {kwargs_cls} classes. Last layer is initialized randomly"
             )
-            last_conv_name = f"cls_head_convs.{kwargs['num_head_repeats']}.1"
-            state_dict[f"{last_conv_name}.weight"] = model.state_dict()[f"{last_conv_name}.weight"]
-            state_dict[f"{last_conv_name}.bias"] = model.state_dict()[f"{last_conv_name}.bias"]
-        model.load_state_dict(state_dict)
+            state_dict["cls_head_conv.1.weight"] = model.state_dict()[f"cls_head_conv.1.weight"]
+            state_dict["cls_head_conv.1.bias"] = model.state_dict()["cls_head_conv.1.bias"]
+        model.load_state_dict(state_dict, strict=True)
     setattr(model, "pretrained_settings", cfg_settings)
     return model
 
