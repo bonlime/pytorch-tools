@@ -142,7 +142,7 @@ class EfficientNet(nn.Module):
             self.bn2 = norm_layer(num_features, activation=norm_act)
             self.global_pool = nn.AdaptiveAvgPool2d(1)
             self.dropout = nn.Dropout(drop_rate, inplace=True)
-            self.classifier = nn.Linear(num_features, num_classes)
+            self.last_linear = nn.Linear(num_features, num_classes)
 
         patch_bn(self)  # adjust epsilon
         initialize(self)
@@ -176,7 +176,7 @@ class EfficientNet(nn.Module):
         x = self.global_pool(x)
         x = torch.flatten(x, 1)
         x = self.dropout(x)
-        x = self.classifier(x)
+        x = self.last_linear(x)
         return x
 
     def load_state_dict(self, state_dict, **kwargs):
