@@ -69,7 +69,9 @@ class SegmentationBiFPN(nn.Module):
         self.num_classes = num_classes
 
         patch_bn_tf(self)
-        self._initialize_weights()
+        # set last layer bias for better convergence with sigmoid loss
+        # -4.59 = -np.log((1 - 0.01) / 0.01)
+        nn.init.constant_(self.cls_head_conv[-1][1].bias, -4.59)
 
     def _initialize_weights(self):
         pass
