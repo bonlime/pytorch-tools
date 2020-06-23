@@ -6,26 +6,31 @@ from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules.residual import conv1x1
 from pytorch_tools.modules.residual import conv3x3
 from pytorch_tools.modules.decoder import SegmentationUpsample
-from .encoders import get_encoder
+from pytorch_tools.segmentation_models.encoders import get_encoder
 
 
 class PanopticDecoder(nn.Module):
     """ Takes a feature pyramid, upscales the feature map to the same size and merges by sum or concatenation"""
-    def __init__(self, 
+
+    def __init__(
+        self,
         pyramid_channels=256,
         segmentation_channels=128,
         merge_policy="add",
         upsamples=[3, 2, 1, 0],
         **bn_args,
     ):
- 
-        super().__init__()
-        self.seg_blocks = nn.ModuleList([
-            SegmentationUpsample(pyramid_channels, segmentation_channels, n_upsamples=n_upsamples, **bn_args)
-            for n_upsamples in upsamples
-        ])
-        self.policy = merge_policy
 
+        super().__init__()
+        self.seg_blocks = nn.ModuleList(
+            [
+                SegmentationUpsample(
+                    pyramid_channels, segmentation_channels, n_upsamples=n_upsamples, **bn_args
+                )
+                for n_upsamples in upsamples
+            ]
+        )
+        self.policy = merge_policy
 
     def forward(self, features):
         c5, c4, c3, c2 = features
@@ -61,7 +66,9 @@ class SegmentationFPN(nn.Module):
         norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
     
     """
+
     FEATURE_PYRAMID = FPN
+
     def __init__(
         self,
         encoder_name="resnet34",
@@ -77,7 +84,7 @@ class SegmentationFPN(nn.Module):
         norm_layer="abn",
         norm_act="relu",
         **encoder_params,
-    ):  
+    ):
         super().__init__()
         if output_stride != 32:
             encoder_params["output_stride"] = output_stride
@@ -88,15 +95,15 @@ class SegmentationFPN(nn.Module):
             encoder_weights=encoder_weights,
             **encoder_params,
         )
-        
+
         bn_args = {"norm_layer": bn_from_name(norm_layer), "norm_act": norm_act}
 
         self.fpn = self.__class__.FEATURE_PYRAMID(
-           self.encoder.out_shapes[:-1], # only want features from 1/4 to 1/32
-           pyramid_channels=pyramid_channels,
-           num_layers=num_fpn_layers,
-           output_stride=output_stride,
-           **bn_args,
+            self.encoder.out_shapes[:-1],  # only want features from 1/4 to 1/32
+            pyramid_channels=pyramid_channels,
+            num_layers=num_fpn_layers,
+            output_stride=output_stride,
+            **bn_args,
         )
 
         self.decoder = PanopticDecoder(
@@ -108,22 +115,18 @@ class SegmentationFPN(nn.Module):
         )
         if merge_policy == "cat":
             segmentation_channels *= 4
-            
+
         self.dropout = nn.Dropout2d(drop_rate, inplace=True)
         self.segm_head = conv1x1(segmentation_channels, num_classes)
         self.upsample = nn.Upsample(scale_factor=4, mode="bilinear") if last_upsample else nn.Identity()
         self.name = f"segm-fpn-{encoder_name}"
 
     def forward(self, x):
-        x = self.encoder(x) # returns 5 features maps
+        x = self.encoder(x)  # returns 5 features maps
         # only use first 4 feature maps
         x = self.fpn(x[:-1])
-        x = self.decoder(x) # return 1 feature map
+        x = self.decoder(x)  # return 1 feature map
         x = self.dropout(x)
         x = self.segm_head(x)
         x = self.upsample(x)
         return x
-
-# the only difference is how feature maps are processed inside
-class SegmentationBiFPN(SegmentationFPN):
-    FEATURE_PYRAMID = BiFPN

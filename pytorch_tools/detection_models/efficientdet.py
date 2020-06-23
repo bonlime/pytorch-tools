@@ -25,15 +25,7 @@ from pytorch_tools.segmentation_models.encoders import get_encoder
 import pytorch_tools.utils.box as box_utils
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from pytorch_tools.utils.misc import initialize_iterator
-
-
-def patch_bn(module):
-    """TF ported weights use slightly different eps in BN. Need to adjust for better performance"""
-    if isinstance(module, ABN):
-        module.eps = 1e-3
-        module.momentum = 1e-2
-    for m in module.children():
-        patch_bn(m)
+from pytorch_tools.models.efficientnet import patch_bn_tf
 
 
 class EfficientDet(nn.Module):
@@ -75,7 +67,7 @@ class EfficientDet(nn.Module):
     def __init__(
         self,
         pretrained="coco",  # Not used. here for proper signature
-        encoder_name="efficientnet_d0",
+        encoder_name="efficientnet_b0",
         encoder_weights="imagenet",
         pyramid_channels=64,
         num_fpn_layers=3,
@@ -87,6 +79,7 @@ class EfficientDet(nn.Module):
         decoder_norm_act="swish",
         match_tf_same_padding=False,
         anchors_per_location=9,
+        **encoder_params,
     ):
         super().__init__()
         self.encoder = get_encoder(
@@ -94,6 +87,7 @@ class EfficientDet(nn.Module):
             norm_layer=encoder_norm_layer,
             norm_act=encoder_norm_act,
             encoder_weights=encoder_weights,
+            **encoder_params,
         )
         norm_layer = bn_from_name(decoder_norm_layer)
         bn_args = dict(norm_layer=norm_layer, norm_act=decoder_norm_act)
@@ -148,7 +142,7 @@ class EfficientDet(nn.Module):
         self.num_classes = num_classes
         self.num_head_repeats = num_head_repeats
 
-        patch_bn(self)
+        patch_bn_tf(self)
         self._initialize_weights()
         if match_tf_same_padding:
             conv_to_same_conv(self)

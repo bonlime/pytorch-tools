@@ -144,7 +144,7 @@ class EfficientNet(nn.Module):
             self.dropout = nn.Dropout(drop_rate, inplace=True)
             self.last_linear = nn.Linear(num_features, num_classes)
 
-        patch_bn(self)  # adjust epsilon
+        patch_bn_tf(self)  # adjust epsilon
         initialize(self)
         if match_tf_same_padding:
             conv_to_same_conv(self)
@@ -391,12 +391,13 @@ CFGS = {
 # fmt: on
 
 
-def patch_bn(module):
+def patch_bn_tf(module):
     """TF ported weights use slightly different eps in BN. Need to adjust for better performance"""
     if isinstance(module, ABN):
         module.eps = 1e-3
+        module.momentum = 1e-2
     for m in module.children():
-        patch_bn(m)
+        patch_bn_tf(m)
 
 
 def _efficientnet(arch, pretrained=None, **kwargs):
