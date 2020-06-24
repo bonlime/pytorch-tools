@@ -426,8 +426,8 @@ def _efficientnet(arch, pretrained=None, **kwargs):
                     cfg_settings["num_classes"], kwargs_cls
                 )
             )
-            state_dict["classifier.weight"] = model.state_dict()["classifier.weight"]
-            state_dict["classifier.bias"] = model.state_dict()["classifier.bias"]
+            state_dict["classifier.weight"] = model.state_dict()["last_linear.weight"]
+            state_dict["classifier.bias"] = model.state_dict()["last_linear.bias"]
         if kwargs.get("in_channels", 3) != 3:  # support pretrained for custom input channels
             state_dict["conv_stem.weight"] = repeat_channels(
                 state_dict["conv_stem.weight"], kwargs["in_channels"]
