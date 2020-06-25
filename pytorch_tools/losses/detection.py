@@ -37,6 +37,9 @@ class DetectionLoss(Loss):
         self.box_weight = box_weight
         self.matched_iou = matched_iou
         self.unmatched_iou = unmatched_iou
+        # init with tensor to be scriptable
+        self._cls_loss = torch.tensor(0)
+        self._box_loss = torch.tensor(0)
 
     def forward(self, outputs, target):
         # type: (Tuple[Tensor, Tensor], Tensor) -> Tensor
@@ -67,5 +70,7 @@ class DetectionLoss(Loss):
         # if torch.isnan(cls_loss) or torch.isnan(box_loss):
         # raise ValueError
 
-        loss = cls_loss + self.box_weight * box_loss
-        return loss
+        # save cls and box loss as attributes to be able to access them from callbacks
+        self._cls_loss = cls_loss
+        self._box_loss = self.box_weight * box_loss
+        return self._cls_loss + self._box_loss
