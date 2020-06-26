@@ -138,6 +138,9 @@ class AverageMeter:
         self.count += 1
         self.avg = self.sum / self.count
 
+    def __call__(self, val):
+        return self.update(val)
+
 
 class TimeMeter:
     def __init__(self):
@@ -233,3 +236,12 @@ def repeat_channels(conv_weights, new_channels, old_channels=3):
     new_weights = conv_weights.repeat(1, rep_times, 1, 1)[:, :new_channels, :, :]
     new_weights *= old_channels / new_channels  # to keep the same output amplitude
     return new_weights
+
+
+# fmt: off
+# basic CudaLoader more than enough for majority of problems
+class ToCudaLoader:
+    def __init__(self, loader): self.loader = loader
+    def __iter__(self): return ([i.cuda(non_blocking=True), t.cuda(non_blocking=True)] for i, t in self.loader)
+    def __len__(self): return len(self.loader)
+# fmt: on
