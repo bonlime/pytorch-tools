@@ -1,18 +1,20 @@
 import os
 import math
 import logging
+import numpy as np
 from tqdm import tqdm
 from enum import Enum
 from copy import deepcopy
 from collections import OrderedDict
 from collections import defaultdict
-import numpy as np
+
 import torch
-from torch.utils.tensorboard import SummaryWriter
-from .state import RunnerState
+
+from pytorch_tools.fit_wrapper.state import RunnerState
 import pytorch_tools.utils.misc as utils
 from pytorch_tools.utils.visualization import plot_confusion_matrix
 from pytorch_tools.utils.visualization import render_figure_to_tensor
+from pytorch_tools.utils.tensorboard import CorrectedSummaryWriter as SummaryWriter
 
 
 class Callback(object):
