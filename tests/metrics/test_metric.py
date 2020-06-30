@@ -11,14 +11,65 @@ import numpy as np
 
 METRIC_NAMES = sorted(name for name in pt.metrics.__dict__ if not name.islower())
 
-
+## Accuracy tests
 def test_accuracy():
     output = torch.rand((16, 4))
     output_np = output.numpy()
     target = torch.randint(0, 4, (16,))
     target_np = target.numpy()
     expected = 100 * accuracy_score(target_np, np.argmax(output_np, 1))
-    result = Accuracy()(output, target).flatten().numpy()
+    result = Accuracy()(output, target).item()
+    assert np.allclose(expected, result)
+    # check that is also works in case of extra dim for target
+    result2 = Accuracy()(output, target.view(16, 1)).item()
+    assert np.allclose(expected, result2)
+
+
+def test_accuracy_topk():
+    # fmt: off
+    output = torch.tensor([
+        [ 10,   5, -10,],
+        [ 10, -10,   5,],
+        [  5,  10, -10,],
+        [-10,   5,  10,],
+        [-10,   5,  10,],
+    ])
+    # fmt: on
+    target = torch.tensor([1, 1, 1, 1, 1])
+    result = Accuracy(2)(output, target).item()
+    assert np.allclose(result, 4 / 5 * 100)
+    target2 = torch.tensor([2, 2, 2, 2, 2])
+    result2 = Accuracy(2)(output, target2).item()
+    assert np.allclose(result2, 3 / 5 * 100)
+
+
+def test_binary_accuracy():
+    output = torch.rand((16, 1))
+    output_np = output.numpy()
+    target = torch.randint(0, 2, (16,))
+    target_np = target.numpy()
+    expected = 100 * accuracy_score(target_np, output_np > 0)
+    result = Accuracy()(output, target).item()
+    assert np.allclose(expected, result)
+
+
+def test_binary_accuracy_image():
+    output = torch.rand((16, 1, 20, 20)) - 0.5
+    output_np = output.numpy()
+    target = torch.randint(0, 2, (16, 1, 20, 20))
+    target_np = target.numpy()
+    expected = 100 * accuracy_score(target_np.flatten(), output_np.flatten() > 0)
+    result = Accuracy()(output, target).item()
+    assert np.allclose(expected, result)
+
+
+def test_accuracy_image():
+    output = torch.rand((16, 4, 20, 20))
+    target = torch.randint(0, 2, (16, 1, 20, 20))
+    # output_np = output.numpy()
+    # target_np = target.numpy()
+    expected = 100 * accuracy_score(target.flatten().numpy(), output.argmax(1).flatten())
+    result = Accuracy()(output, target).item()
     assert np.allclose(expected, result)
 
 
@@ -35,8 +86,6 @@ def test_balanced_accuracy():
 IM_SIZE = 10
 BS = 8
 # only check that score == 1 - loss. see losses/test_losses for more tests
-
-
 def test_dice_score():
     inp = torch.randn(BS, 1, IM_SIZE, IM_SIZE).float()
     target = torch.randint(0, 2, (BS, 1, IM_SIZE, IM_SIZE)).float()
