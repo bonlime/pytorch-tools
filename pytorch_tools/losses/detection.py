@@ -66,11 +66,7 @@ class DetectionLoss(Loss):
         box_loss.div_(self.loss_normalizer + 1)
         cls_loss.div_(self.loss_normalizer + 1)
 
-        # will leave it here for now
-        # if torch.isnan(cls_loss) or torch.isnan(box_loss):
-        # raise ValueError
-
         # save cls and box loss as attributes to be able to access them from callbacks
         self._cls_loss = cls_loss
-        self._box_loss = self.box_weight * box_loss
-        return self._cls_loss + self._box_loss
+        self._box_loss = box_loss
+        return self._cls_loss + self._box_loss * self.box_weight

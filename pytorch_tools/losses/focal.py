@@ -24,7 +24,7 @@ class FocalLoss(Loss):
             'none' - no reduction will be applied
             'sum' - the output will be summed
             'mean' - the sum of the output will be divided by the number of elements in the output
-        normalized (bool): Normalize focal loss by sum of focal term in the batch. 
+        normalized (bool): Normalize focal loss by sum of focal term in the batch.
             Speeds up convergence at the end slightly. See `Reference` for paper
         combine_thr (float): Threshold for smooth combination of BCE and focal. 0 turns loss into
             pure focal, 1 turns loss into pure BCE. This is also known as `Reduced Focal Loss`.

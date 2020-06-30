@@ -50,8 +50,8 @@ class SEModule(nn.Module):
 
 class ECAModule(nn.Module):
     """Efficient Channel Attention
-    This implementation is different from the paper. I've removed all hyperparameters and 
-    use fixed kernel size of 3. If you think it may be better to use different k_size - feel free to open an issue. 
+    This implementation is different from the paper. I've removed all hyperparameters and
+    use fixed kernel size of 3. If you think it may be better to use different k_size - feel free to open an issue.
 
     Ref: ECA-Net: Efficient Channel Attention for Deep Convolutional Neural Networks
     https://arxiv.org/abs/1910.03151
