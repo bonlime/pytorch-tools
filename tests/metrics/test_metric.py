@@ -20,7 +20,7 @@ def test_accuracy():
     expected = 100 * accuracy_score(target_np, np.argmax(output_np, 1))
     result = Accuracy()(output, target).item()
     assert np.allclose(expected, result)
-    # check that is also works in case of extra dim for target
+    # check that it also works in case of extra dim for target
     result2 = Accuracy()(output, target.view(16, 1)).item()
     assert np.allclose(expected, result2)
 
@@ -66,8 +66,6 @@ def test_binary_accuracy_image():
 def test_accuracy_image():
     output = torch.rand((16, 4, 20, 20))
     target = torch.randint(0, 2, (16, 1, 20, 20))
-    # output_np = output.numpy()
-    # target_np = target.numpy()
     expected = 100 * accuracy_score(target.flatten().numpy(), output.argmax(1).flatten())
     result = Accuracy()(output, target).item()
     assert np.allclose(expected, result)
