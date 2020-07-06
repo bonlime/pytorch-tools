@@ -20,6 +20,7 @@ class ACT(Enum):
     SELU = "selu"
     SWISH = "swish"
     SWISH_NAIVE = "swish_naive"
+    SWISH_HARD = "swish_hard"  # hard swish
 
 
 #### SWISH ####
@@ -82,6 +83,16 @@ class SwishNaive(nn.Module):
 
     def forward(self, x):
         return swish_naive(x)
+
+
+# FIXME: remove when master starts to support `inplace` for module. probably after 1.6 or 1.7
+class HardSwish(nn.Module):
+    def __init__(self, inplace=False):
+        super().__init__()
+        self.inplace = inplace
+
+    def forward(self, input):
+        return F.hardswish(input, inplace=self.inplace)
 
 
 #### MISH ####
@@ -174,6 +185,7 @@ ACT_DICT = {
     ACT.SELU: nn.SELU,
     ACT.SWISH: Swish,
     ACT.SWISH_NAIVE: SwishNaive,
+    ACT.SWISH_HARD: HardSwish,
 }
 
 ACT_FUNC_DICT = {
@@ -191,6 +203,7 @@ ACT_FUNC_DICT = {
     ACT.SELU: F.selu,
     ACT.SWISH: swish,
     ACT.SWISH_NAIVE: swish_naive,
+    ACT.SWISH_HARD: F.hardswish,
 }
 
 
