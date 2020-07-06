@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -108,6 +109,10 @@ class ABN(nn.Module):
 
 
 class SyncABN(ABN):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        assert int(os.environ.get("WORLD_SIZE", 1)) > 1, "SyncABN is only supported in multi-GPU mode"
+
     def forward(self, x):
         if not self.training:
             # don't reduce for validation
