@@ -238,20 +238,15 @@ class StateReduce(Callback):
     NOTE: Should be the first callback in the list to work as expected properly
     """
 
-    def on_loader_end(self):
+    def on_epoch_end(self):
         if self.state.world_size == 1:
             return
-
-        # can't reduce AverageMeter so need to reduce every attribute separately
         meters = self.state.train_metrics + [self.state.train_loss]
         meters = meters + self.state.metric_meters + [self.state.loss_meter]
         if self.state.val_loss is not None:
             meters = meters + self.state.val_metrics + [self.state.val_loss]
-        reduce_attributes = ["val", "avg", "avg_smooth", "sum", "count"]
         for meter in meters:
-            for attr in reduce_attributes:
-                old_value = utils.to_tensor([getattr(meter, attr)]).float().cuda()
-                setattr(meter, attr, utils.reduce_tensor(old_value).cpu().numpy()[0])
+            meter = utils.reduce_meter(meter)
 
 
 class ReduceMode(Enum):

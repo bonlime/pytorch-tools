@@ -42,6 +42,10 @@ runner = pt.fit_wrapper.Runner(
 )
 runner.fit(train_loader, epochs=5, val_loader=val_loader)
 ```
+## Distributed Training
+This runner is very simple and requires writing thin wrapper for DDP every time. The preferred (and the only tested way) of running distributed training is using
+`python3 -m torch.distributed.launch --nproc_per_node=$NUM_GPUS <your training code .py>`
+`torch.distributed.launch` implicitly sets environmental variables which code for callbacks relies on. Make sure to properly set `RANK` and `WORLD_SIZE`  
 
 ## How to
 ### Add custom step logic  
