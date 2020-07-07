@@ -1,10 +1,10 @@
 import torch
 from copy import copy
 from torch.cuda import amp
-from .state import RunnerState
-from .callbacks import Callbacks
-from .callbacks import ConsoleLogger
-from ..utils.misc import to_numpy
+from pytorch_tools.fit_wrapper.state import RunnerState
+from pytorch_tools.fit_wrapper.callbacks import Callbacks
+from pytorch_tools.fit_wrapper.callbacks import ConsoleLogger
+from pytorch_tools.utils.misc import to_numpy
 
 
 class Runner:

@@ -56,12 +56,12 @@ class DetectionLoss(Loss):
             matched_iou=self.matched_iou,
             unmatched_iou=self.unmatched_iou,
         )
+        # use foreground and background for classification and only foreground for regression
         box_loss = self.box_criterion(box_out, box_t)[matches > 0].sum()
         cls_loss = self.cls_criterion(cls_out, cls_t)[matches >= 0].sum()
 
-        # use foreground and background for classification and only foreground for regression
-        num_fg = (matches > 0).sum()
         # using hardcoded value 0.9 for momentum. it works reasonably well and I doubt anyone would optimize it anyway
+        num_fg = (matches > 0).sum()
         self.loss_normalizer = self.loss_normalizer * 0.9 + num_fg * 0.1
         box_loss.div_(self.loss_normalizer + 1)
         cls_loss.div_(self.loss_normalizer + 1)

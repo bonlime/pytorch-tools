@@ -1,6 +1,5 @@
 from torch.cuda.amp import GradScaler
-from pytorch_tools.utils.misc import listify
-from pytorch_tools.utils.misc import AverageMeter
+from pytorch_tools.utils import misc as utils
 
 
 class RunnerState:
@@ -18,7 +17,7 @@ class RunnerState:
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
-        self.metrics = listify(metrics)
+        self.metrics = utils.listify(metrics)
 
         # make state aware of fp16 and scale. if use_fp16 is False, grad_scaler is NoOp
         self.use_fp16 = use_fp16
@@ -39,10 +38,13 @@ class RunnerState:
         self.epoch_size = None
         self.step = None
         self.batch_size = 0
-        self.metric_meters = [AverageMeter(name=m.name) for m in self.metrics]
-        self.loss_meter = AverageMeter("loss")
+        self.metric_meters = [utils.AverageMeter(name=m.name) for m in self.metrics]
+        self.loss_meter = utils.AverageMeter("loss")
 
-        # for timer callback
+        # for DDP
+        self.rank = utils.env_rank()
+        self.world_size = utils.env_world_size()
+
         self.__is_frozen = True
 
     def __setattr__(self, key, value):

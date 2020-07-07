@@ -231,6 +231,29 @@ class PhasesScheduler(Callback):
             param_group["momentum"] = mom
 
 
+class StateReduce(Callback):
+    """
+    Reduced everything in state (that needs reduction) at the end of loader.
+    Needed for proper saving/logging/metric calculation
+    NOTE: Should be the first callback in the list to work as expected properly
+    """
+
+    def on_loader_end(self):
+        if self.state.world_size == 1:
+            return
+
+        # can't reduce AverageMeter so need to reduce every attribute separately
+        meters = self.state.train_metrics + [self.state.train_loss]
+        meters = meters + self.state.metric_meters + [self.state.loss_meter]
+        if self.state.val_loss is not None:
+            meters = meters + self.state.val_metrics + [self.state.val_loss]
+        reduce_attributes = ["val", "avg", "avg_smooth", "sum", "count"]
+        for meter in meters:
+            for attr in reduce_attributes:
+                old_value = utils.to_tensor([getattr(meter, attr)]).float().cuda()
+                setattr(meter, attr, utils.reduce_tensor(old_value).cpu().numpy()[0])
+
+
 class ReduceMode(Enum):
     MIN = "min"
     MAX = "max"
@@ -378,12 +401,8 @@ class TensorBoard(Callback):
     def on_batch_end(self):
         self.current_step += self.state.batch_size
         if self.state.is_train and (self.current_step % self.log_every == 0):
-            self.writer.add_scalar(
-                # need proper name
-                "train_/loss",
-                self.state.loss_meter.val,
-                self.current_step,
-            )
+            # TODO: select better name instead of train_ ?
+            self.writer.add_scalar("train_/loss", self.state.loss_meter.val, self.current_step)
             for m in self.state.metric_meters:
                 self.writer.add_scalar(f"train_/{m.name}", m.val, self.current_step)
 
@@ -393,7 +412,6 @@ class TensorBoard(Callback):
             self.writer.add_scalar(f"train/{m.name}", m.avg, self.current_step)
 
         lr = sorted([pg["lr"] for pg in self.state.optimizer.param_groups])[-1]  # largest lr
-        # TODO: select better name instead of train_ ?
         self.writer.add_scalar("train_/lr", lr, self.current_step)
         self.writer.add_scalar("train/epoch", self.state.epoch, self.current_step)
         # don't log if no val
@@ -502,8 +520,6 @@ class FileLogger(Callback):
         self.logger.info(f"Epoch {self.state.epoch_log} | lr {self.current_lr:.2e}")
 
     def on_epoch_end(self):
-        if utils.env_world_size() > 1:
-            self.reduce_metrics()
         loss, metrics = self.state.train_loss, self.state.train_metrics
         self.logger.info("Train " + self._format_meters(loss, metrics))
         if self.state.val_loss is not None:
@@ -528,20 +544,6 @@ class FileLogger(Callback):
     @staticmethod
     def _format_meters(loss, metrics):
         return f"loss: {loss.avg:.4f} | " + " | ".join(f"{m.name}: {m.avg:.4f}" for m in metrics)
-
-    def reduce_metrics(self):
-        # can't reduce AverageMeter so need to reduce every attribute separately
-        meters = self.state.train_metrics + [self.state.train_loss]
-        meters = meters + self.state.metric_meters + [self.state.loss_meter]
-        if self.state.val_loss is not None:
-            meters = (
-                meters + self.state.val_metrics + [self.state.val_loss,]
-            )
-        reduce_attributes = ["val", "avg", "avg_smooth", "sum", "count"]
-        for meter in meters:
-            for attr in reduce_attributes:
-                old_value = utils.to_tensor([getattr(meter, attr)]).float().cuda()
-                setattr(meter, attr, utils.reduce_tensor(old_value).cpu().numpy()[0])
 
 
 class Mixup(Callback):
@@ -697,7 +699,7 @@ class ScheduledDropout(Callback):
 
 
 class ResetOptimizer(Callback):
-    """Set's Optimizers state to empty for epoch in `reset_epoch`. Could be used for restarts. 
+    """Set's Optimizers state to empty for epoch in `reset_epoch`. Could be used for restarts.
         Args:
             reset_epoch (List[int]): after which epochs to reset optimizer
             verbose (bool): Flag to print that optimizer was reset."""
