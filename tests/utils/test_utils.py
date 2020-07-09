@@ -95,7 +95,7 @@ def test_delta2box(device_dtype):
             [5.0000, 5.0000, 5.0000, 5.0000],
         ],
         device=device,
-        dtype=dtype,
+        dtype=torch.float32, # should always be float!
     )
     # fmt: on
     res1 = pt.utils.box.delta2box(deltas, anchors)
@@ -124,15 +124,15 @@ def test_box2delta(device_dtype):
     anchors = random_boxes([10, 10, 20, 20], 10, 10).to(device).to(dtype)
     deltas = pt.utils.box.box2delta(boxes, anchors)
     boxes_reconstructed = pt.utils.box.delta2box(deltas, anchors)
-    atol = 2e-2 if dtype == torch.half else 1e-6  # for fp16 sometimes error is large
-    assert torch.allclose(boxes, boxes_reconstructed, atol=atol)
+    # output of box2delta should always be float to avoid numerical instability
+    assert torch.allclose(boxes.float(), boxes_reconstructed, atol=1e-6)
 
     # check that it's jit friendly
     jit_box2delta = torch.jit.script(pt.utils.box.box2delta)
     jit_delta2box = torch.jit.script(pt.utils.box.delta2box)
     deltas2 = jit_box2delta(boxes, anchors)
     boxes_reconstructed2 = jit_delta2box(deltas2, anchors)
-    assert torch.allclose(boxes, boxes_reconstructed2, atol=atol)
+    assert torch.allclose(boxes.float(), boxes_reconstructed2, atol=1e-6)
 
 
 def test_generate_anchors():

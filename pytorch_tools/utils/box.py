@@ -16,7 +16,8 @@ def box2delta(boxes, anchors):
         deltas (torch.Tensor): shape [N, 4] or [BS, N, 4]
             offset_x, offset_y, scale_x, scale_y
     """
-
+    # cast to fp32 to avoid numerical problems with log
+    boxes, anchors = boxes.float(), anchors.float()
     anchors_wh = anchors[..., 2:] - anchors[..., :2]
     anchors_ctr = anchors[..., :2] + 0.5 * anchors_wh
     boxes_wh = boxes[..., 2:] - boxes[..., :2]
@@ -36,6 +37,8 @@ def delta2box(deltas, anchors):
         bboxes (torch.Tensor): bboxes obtained from anchors by regression 
             Output shape is [N, 4] or [BS, N, 4] depending on input
     """
+    # cast to fp32 to avoid numerical problems with exponent
+    deltas, anchors = deltas.float(), anchors.float()
     anchors_wh = anchors[..., 2:] - anchors[..., :2]
     ctr = anchors[..., :2] + 0.5 * anchors_wh
     pred_ctr = deltas[..., :2] * anchors_wh + ctr
@@ -330,31 +333,33 @@ def decode(
     batch_size = batch_cls_head.size(0)
     num_classes = batch_cls_head.size(-1)
 
-    anchors = anchors.to(batch_cls_head).unsqueeze(0).expand(batch_size, -1, -1)  # [N, 4] -> [BS, N, 4]
-    # it has to be raw logits but check anyway to avoid applying sigmoid twice
-    if batch_cls_head.min() < 0 or batch_cls_head.max() > 1:
-        batch_cls_head = batch_cls_head.sigmoid()
-
     # It's much faster to calculate topk once for full batch here rather than doing it inside loop
     # In TF The same bbox may belong to two different objects
     # select `max_detection_points` scores and corresponding bboxes
     scores_topk_all, cls_topk_indices_all = torch.topk(
         batch_cls_head.view(batch_size, -1), k=max_detection_points
     )
-    indices_all = cls_topk_indices_all / num_classes
+    indices_all = cls_topk_indices_all // num_classes
     classes_all = cls_topk_indices_all % num_classes
+
+    # it has to be raw logits but check anyway to avoid applying sigmoid twice
+    # applying sigmoid after topk is slightly faster than applying before
+    if scores_topk_all.min() < 0 or scores_topk_all.max() > 1:
+        scores_topk_all = scores_topk_all.sigmoid()
 
     # Gather corresponding bounding boxes & anchors, then regress and clip
     box_topk_all = torch.gather(batch_box_head, 1, indices_all.unsqueeze(2).expand(-1, -1, 4))
+    anchors = anchors.unsqueeze(0).expand(batch_size, -1, -1).to(box_topk_all)  # [N, 4] -> [BS, N, 4]
     anchors_topk_all = torch.gather(anchors, 1, indices_all.unsqueeze(2).expand(-1, -1, 4))
     regressed_boxes_all = delta2box(box_topk_all, anchors_topk_all)
     if img_shapes is not None:
         regressed_boxes_all = clip_bboxes_batch(regressed_boxes_all, img_shapes)
 
     # prepare output tensors
-    out_scores = torch.zeros((batch_size, max_detection_per_image)).to(batch_cls_head)
-    out_boxes = torch.zeros((batch_size, max_detection_per_image, 4)).to(batch_cls_head)
-    out_classes = torch.zeros((batch_size, max_detection_per_image)).to(batch_cls_head)
+    device_dtype = {"device": regressed_boxes_all.device, "dtype": regressed_boxes_all.dtype}
+    out_scores = torch.zeros((batch_size, max_detection_per_image), **device_dtype)
+    out_boxes = torch.zeros((batch_size, max_detection_per_image, 4), **device_dtype)
+    out_classes = torch.zeros((batch_size, max_detection_per_image), **device_dtype)
 
     for batch in range(batch_size):
         scores_topk = scores_topk_all[batch]
