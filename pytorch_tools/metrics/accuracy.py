@@ -20,8 +20,10 @@ class Accuracy:
             return y_pred.eq(y_true).float().mean() * 100.0
         else:
             # multiclass case
-            _, y_pred = y_pred.topk(self.topk, 1, True, True)  # BS x C (x H x W)-> BS x 1 (x H x W)
-            y_pred = y_pred.view(self.topk, -1)  # BS x 1 -> 1 x BS
+            _, y_pred = y_pred.topk(self.topk, 1, True, True)  # BS x C (x H x W)-> BS x topk (x H x W)
+            if y_pred.dim() == 4:  # BS x topk x H x W -> BS * H * W x topk
+                y_pred = y_pred.permute(0, 2, 3, 1).reshape(-1, self.topk)
+            y_pred = y_pred.t()  # BS (* H * W) x topk -> topk x BS (* H * W)
             # revert one hot
             if y_true.dim() > 1 and y_true.size(1) != 1:
                 y_true = y_true.argmax(1)  # BS x C (x H x W) -> BS (x H x W)
