@@ -20,6 +20,7 @@ from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.modules.pooling import FastGlobalAvgPool2d
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules import SpaceToDepth
+from pytorch_tools.modules import conv_to_ws_conv
 from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from pytorch_tools.utils.misc import repeat_channels
@@ -489,6 +490,35 @@ CFGS = {
         },
         "imagenet": {"url": "http://data.lip6.fr/cadene/pretrainedmodels/se_resnext101_32x4d-3b2fe3d8.pth"},
     },
+    "bresnet50":{
+        # BResNet stands for Bonlime ResNet - unpublished variant of ResNet with all possible improvements and hacks
+        # This is an attempt to train ultimate encoder with low memory consumption (InplaceABN) and high accuracy
+        "default": {
+            "params": {
+                "block": Bottleneck,
+                "layers": [3, 4, 6, 3],
+                "antialias": True,
+                "attn_type": "eca",
+                "stem_type": "space2depth",
+                "norm_act": "leaky_relu",
+                "norm_layer": "inplaceabn",
+            },
+            **DEFAULT_IMAGENET_SETTINGS,
+            "weight_standardization": True,
+            "input_size": [3, 288, 288], # was trained on larger resolution
+            "resize_method": "bicubic", # with bicubic interpolation
+
+        },
+        # Acc@1 81.420 Acc@5 95.654 in ~60h with some restarts. Need to run again later with drop_connect
+        "imagenet": {"url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.6/bresnet50_encoder_sd.pth"},
+        # Acc@1 80.84 Acc@5 95.62 in ~112h 39.5m (on 3xV100). 336 total GPU hours
+        # Results are worse than for usual BResNet. maybe because of dropout? maybe because of swish? who knows
+        # 200 epochs are not enough. The loss is still decreasing even till the end and no sign of overfit
+        "imagenet_agn": {
+            "params": {"norm_act": "swish", "norm_layer": "agn"},
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.6/bresnet50_agn_sd.pth"
+        },
+    }
 }
 # fmt: on
 
@@ -528,6 +558,9 @@ def _resnet(arch, pretrained=None, **kwargs):
             old_weights = state_dict.get("layer0.conv1.weight") if old_weights is None else old_weights
             state_dict["layer0.conv1.weight"] = repeat_channels(old_weights, kwargs["in_channels"])
         model.load_state_dict(state_dict)
+        if cfg_settings.get("weight_standardization"):
+            # convert to ws implicitly. maybe need a logging warning here?
+            model = conv_to_ws_conv(model)
     setattr(model, "pretrained_settings", cfg_settings)
     return model
 
@@ -681,3 +714,10 @@ def se_resnext50_32x4d(**kwargs):
 def se_resnext101_32x4d(**kwargs):
     """TODO: Add Doc"""
     return _resnet("se_resnext101_32x4d", **kwargs)
+
+
+@wraps(ResNet)
+@add_docs_for(ResNet)
+def bresnet50(**kwargs):
+    r"""Constructs a BResNet-50 model. Which stands for @bonlime version of ResNet"""
+    return _resnet("bresnet50", **kwargs)

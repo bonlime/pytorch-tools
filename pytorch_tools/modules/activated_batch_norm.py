@@ -1,8 +1,8 @@
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn import init
-from torch.nn.parameter import Parameter
+from torch.nn.modules._functions import SyncBatchNorm as sync_batch_norm
 
 from .activations import ACT
 from .activations import ACT_FUNC_DICT
@@ -106,3 +106,35 @@ class ABN(nn.Module):
         if self.frozen:
             rep += ", frozen=True"
         return rep.format(**self.__dict__)
+
+
+class SyncABN(ABN):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        assert int(os.environ.get("WORLD_SIZE", 1)) > 1, "SyncABN is only supported in multi-GPU mode"
+
+    def forward(self, x):
+        if not self.training:
+            # don't reduce for validation
+            return super().forward(x)
+        # assume there is only one (default) process group
+        process_group = torch.distributed.group.WORLD
+        world_size = torch.distributed.get_world_size(process_group)
+        x = sync_batch_norm.apply(
+            x,
+            self.weight,
+            self.bias,
+            self.running_mean,
+            self.running_var,
+            self.eps,
+            self.momentum,
+            process_group,
+            world_size,
+        )
+        func = ACT_FUNC_DICT[self.activation]
+        if self.activation == ACT.LEAKY_RELU:
+            return func(x, inplace=True, negative_slope=self.activation_param)
+        elif self.activation == ACT.ELU:
+            return func(x, inplace=True, alpha=self.activation_param)
+        else:
+            return func(x, inplace=True)

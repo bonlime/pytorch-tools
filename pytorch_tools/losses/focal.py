@@ -6,6 +6,7 @@ from .base import Mode
 from .base import Reduction
 from .functional import focal_loss_with_logits
 
+
 class FocalLoss(Loss):
     """Compute focal loss between target and output logits.
 
@@ -23,7 +24,7 @@ class FocalLoss(Loss):
             'none' - no reduction will be applied
             'sum' - the output will be summed
             'mean' - the sum of the output will be divided by the number of elements in the output
-        normalized (bool): Normalize focal loss by sum of focal term in the batch. 
+        normalized (bool): Normalize focal loss by sum of focal term in the batch.
             Speeds up convergence at the end slightly. See `Reference` for paper
         combine_thr (float): Threshold for smooth combination of BCE and focal. 0 turns loss into
             pure focal, 1 turns loss into pure BCE. This is also known as `Reduced Focal Loss`.
@@ -41,47 +42,56 @@ class FocalLoss(Loss):
         Normalized focal loss: https://arxiv.org/abs/1909.07829
         Reduced focal loss: https://arxiv.org/abs/1903.01347
     """
+
     def __init__(
-        self, 
+        self,
         mode="binary",
         gamma=2.0,
         alpha=0.25,
         reduction="mean",
         normalized=False,
-        combine_thr=0,
-        ignore_label=-1
-    ):  
+        combine_thr=0.0,
+        ignore_label=-1,
+    ):
         super().__init__()
-        self.loss_fn = partial(
-            focal_loss_with_logits,
-            gamma=gamma,
-            alpha=alpha,
-            reduction="none",
-            normalized=normalized,
-            combine_thr=combine_thr,
-        )
-        self.reduction = Reduction(reduction)
-        self.mode = Mode(mode)
+        # use Enum to validate that values are valid
+        Mode(mode)
+        Reduction(reduction)
+        self.mode = mode
+        self.gamma = gamma
+        self.alpha = alpha
+        self.reduction = reduction
+        self.normalized = normalized
+        self.combine_thr = combine_thr
         self.ignore_label = ignore_label
 
     def forward(self, y_pred, y_true):
-        ignore = y_true == self.ignore_label
-        if self.mode == Mode.MULTICLASS:
+        not_ignored = y_true.ne(self.ignore_label)
+        if self.mode == "multiclass":
             # to hangle ignore label we set it to 0, then scatter and set it to ignore index back
-            y_true[ignore] = 0
+            y_true = y_true.where(not_ignored, torch.zeros(1).to(y_true))
             y_true_one_hot = torch.zeros_like(y_pred)
             y_true_one_hot.scatter_(1, y_true.unsqueeze(1), 1.0)
             y_true = y_true_one_hot
             # need to avoid mask shape mismatch later
-            ignore = torch.stack([ignore,] * y_pred.size(1), dim=1)
+            not_ignored = torch.stack([not_ignored,] * y_pred.size(1), dim=1)
 
-        loss = self.loss_fn(y_pred, y_true)
+        loss = focal_loss_with_logits(
+            y_pred,
+            y_true,
+            gamma=self.gamma,
+            alpha=self.alpha,
+            reduction="none",
+            normalized=self.normalized,
+            combine_thr=self.combine_thr,
+        )
 
         # Filter anchors with -1 label from loss computation
-        loss[ignore] = 0
+        loss = loss.where(not_ignored, torch.zeros(1).to(loss))
 
-        if self.reduction == Reduction.MEAN:
-            loss = loss.mean()
-        elif self.reduction == Reduction.SUM:
-            loss = loss.sum()
-        return loss
+        if self.reduction == "mean":
+            return loss.mean()
+        elif self.reduction == "sum":
+            return loss.sum()
+        else:
+            return loss

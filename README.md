@@ -14,5 +14,8 @@ Tool box for PyTorch for fast prototyping.
 # Installation
 Requires GPU drivers and CUDA already installed.
 
-`pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git`  
 `pip install git+https://github.com/bonlime/pytorch-tools.git@master`
+
+It is also recommended to install NVIDIA Apex to allow usage of additional optimizers
+
+`pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git`  

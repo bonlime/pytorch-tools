@@ -3,9 +3,10 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from pytorch_tools.utils.misc import set_random_seed
-import pytorch_tools.losses.functional as pt_F
+import pytorch_tools as pt
 import pytorch_tools.losses as losses
+import pytorch_tools.losses.functional as pt_F
+from pytorch_tools.utils.misc import set_random_seed
 
 """
 Some test were taken from repo by BloodAxe
@@ -39,15 +40,17 @@ LOSSES_NAMES = sorted(name for name in losses.__dict__ if not name.islower())
 LOSSES_NAMES.pop(LOSSES_NAMES.index("ContentLoss"))
 LOSSES_NAMES.pop(LOSSES_NAMES.index("StyleLoss"))
 
-
+## Tests for Focal loss
 def test_focal_loss_fn_basic():
+    """explicit tests for values in two corner cases"""
     input_good = torch.Tensor([10, -10, 10]).float()
     input_bad = torch.Tensor([-1, 2, 0]).float()
     target = torch.Tensor([1, 0, 1])
 
     loss_good = pt_F.focal_loss_with_logits(input_good, target)
     loss_bad = pt_F.focal_loss_with_logits(input_bad, target)
-    assert loss_good < loss_bad
+    assert torch.allclose(loss_good, torch.tensor(0.0))
+    assert torch.allclose(loss_bad, torch.tensor(0.4854), atol=1e-4)
 
 
 @pytest.mark.parametrize("reduction", ["sum", "mean", "none"])
@@ -60,7 +63,7 @@ def test_focal_loss_fn_reduction(reduction):
 def test_focal_loss_fn():
     # classification test
     torch_ce = F.binary_cross_entropy_with_logits(INP_BINARY, TARGET_BINARY.float())
-    my_ce = pt_F.focal_loss_with_logits(INP_BINARY, TARGET_BINARY, alpha=None, gamma=0)
+    my_ce = pt_F.focal_loss_with_logits(INP_BINARY, TARGET_BINARY, alpha=-1, gamma=0)
     assert torch.allclose(torch_ce, my_ce)
 
     # check that smooth combination works
@@ -72,7 +75,7 @@ def test_focal_loss_fn():
 
     # images test
     torch_ce = F.binary_cross_entropy_with_logits(INP_IMG_BINARY, TARGET_IMG_BINARY)
-    my_ce = pt_F.focal_loss_with_logits(INP_IMG_BINARY, TARGET_IMG_BINARY, alpha=None, gamma=0)
+    my_ce = pt_F.focal_loss_with_logits(INP_IMG_BINARY, TARGET_IMG_BINARY, alpha=-1, gamma=0)
     assert torch.allclose(torch_ce, my_ce)
 
 
@@ -84,7 +87,7 @@ def test_focal_loss_fn_normalize():
     assert my_ce_normalized > my_ce
 
 
-def test_focal_loss():
+def test_focal_loss_modes():
     # check that multilabel == one-hot-encoded multiclass
     fl_multiclass = losses.FocalLoss(mode="multiclass", reduction="sum")(INP_IMG, TARGET_IMG_MULTICLASS)
     fl_multilabel = losses.FocalLoss(mode="multilabel", reduction="sum")(INP_IMG, TARGET_IMG_MULTILABEL)
@@ -107,6 +110,37 @@ def test_focal_loss():
     assert torch.allclose(fl.sum() - loss_diff, fl_i)
 
 
+def test_focal_incorrect_mode():
+    with pytest.raises(ValueError):
+        losses.FocalLoss(mode="some_mode")
+
+
+def test_focal_incorrect_reduction():
+    with pytest.raises(ValueError):
+        losses.FocalLoss(reduction="some_reduction")
+
+
+def test_focal_fn_is_scribtable():
+    """check that script gives the same results"""
+    input_bad = torch.Tensor([-1, 2, 0]).float()
+    target = torch.Tensor([1, 0, 1])
+    loss = pt_F.focal_loss_with_logits(input_bad, target)
+    jit_func = torch.jit.script(pt_F.focal_loss_with_logits)
+    loss_jit = jit_func(input_bad, target)
+    assert torch.allclose(loss, loss_jit)
+
+
+def test_focal_class_is_scribtable():
+    """check that script gives the same results"""
+    input_bad = torch.Tensor([-1, 2, 0]).float()
+    target = torch.Tensor([1, 0, 1])
+    loss = losses.FocalLoss()(input_bad, target)
+    jit_class = torch.jit.script(losses.FocalLoss())
+    loss_jit = jit_class(input_bad, target)
+    assert torch.allclose(loss, loss_jit)
+
+
+## Tests for JaccardLoss
 @pytest.mark.parametrize(
     ["y_true", "y_pred", "expected"],
     [
@@ -302,6 +336,14 @@ def test_loss_addition():
     assert torch.allclose(res, d_res * 0.5 + bf_res * 5)
 
 
+# comment out because it requires loading GPU which is slow
+# def test_loss_multiplication():
+#     """checks that weights are moved to the loss device as well"""
+#     l = (losses.CrossEntropyLoss(mode="binary") * 5).cuda()
+#     res = l(INP_IMG_BINARY.cuda(), TARGET_IMG_BINARY.cuda())
+#     assert res
+
+
 @torch.no_grad()
 def test_cross_entropy():
     c = np.random.beta(0.4, 0.4)
@@ -347,6 +389,24 @@ def test_binary_cross_entropy(reduction):
     assert torch.allclose(torch_ce.squeeze(), my_ce.squeeze())
 
 
+def test_binary_cross_entropy_from_logits():
+    """Check that passing from_logits True and taking sigmoid manually gives the same result"""
+    loss_1 = losses.CrossEntropyLoss(mode="binary")
+    res_1 = loss_1(INP_BINARY, TARGET_BINARY)
+    loss_2 = losses.CrossEntropyLoss(mode="binary", from_logits=False)
+    res_2 = loss_2(INP_BINARY.sigmoid(), TARGET_BINARY)
+    assert torch.allclose(res_1, res_2)
+
+
+def test_cross_entropy_from_logits():
+    """Check that passing from_logits True and taking softmax manually gives the same result"""
+    loss_1 = losses.CrossEntropyLoss()
+    res_1 = loss_1(INP, TARGET)
+    loss_2 = losses.CrossEntropyLoss(from_logits=False)
+    res_2 = loss_2(INP.softmax(1), TARGET)
+    assert torch.allclose(res_1, res_2)
+
+
 @torch.no_grad()
 def test_cross_entropy_weight():
     weight_1 = torch.randint(1, 100, (N_CLASSES,)).float()
@@ -389,3 +449,46 @@ def test_binary_hinge():
 def test_smoothl1(reduction):
     loss_my = losses.SmoothL1Loss(delta=1, reduction=reduction)(INP, TARGET_MULTILABEL)
     loss_torch = F.smooth_l1_loss(INP, TARGET_MULTILABEL, reduction=reduction)
+    assert torch.allclose(loss_my, loss_torch)
+    # check that delta = 0 turns it into l1
+    loss_my = losses.SmoothL1Loss(delta=0, reduction=reduction)(INP, TARGET_MULTILABEL)
+    loss_torch = F.l1_loss(INP, TARGET_MULTILABEL, reduction=reduction)
+    assert torch.allclose(loss_my, loss_torch)
+
+
+def test_detection_loss_is_scriptabble():
+    # this is a piece of real target and box/cls outputs for COCO images
+    # fmt:off
+    target = torch.tensor([
+        [[190., 114., 209., 170.,  0.], [  6., 134., 125., 210.,  0.]],
+        [[  1.,  55., 469., 506.,  1.], [ -1.,  -1.,  -1.,  -1., -1.]],
+        [[  3., 213., 324., 380.,  1.], [147., 109., 195., 183.,  1.]],
+        [[123.,  74., 261., 230.,  1.], [126., 286., 149., 317.,  1.]],
+        [[  1.,  45., 276., 422.,  0.], [  2., 223., 256., 506.,  0.]]
+    ])
+    anchors = torch.tensor([
+        [-12.0000, -12.0000,  20.0000,  20.0000], 
+        [-18.6274,  -7.3137,  26.6274,  15.3137]
+    ])
+    cls_out = torch.tensor([
+        [[-3.4645, -4.9549], [-6.3456, -7.3695]], 
+        [[-4.7375, -5.5270], [-5.4755, -6.7083]],
+        [[-3.7339, -4.7242], [-6.2671, -6.8925]],
+        [[-3.6217, -4.7811], [-5.6993, -6.7674]],
+        [[-5.2376, -6.1608], [-6.1039, -7.0789]]
+    ])
+    box_out = torch.tensor([
+        [[-0.0600,  6.1500, -21.8200,   0.2200], [ 0.0800,  0.0400,  -1.1300,  -1.4700]],
+        [[ 7.5100, 13.2500,   0.2400, -17.7700], [ 0.2800,  0.0400,  -0.6500,  -3.1200]],
+        [[-0.0000,  5.2600, -21.9700,   0.4900], [ 0.0700,  0.0500,  -1.2000,  -1.4800]],
+        [[ 6.8300,  8.2000, -21.9800,  -0.5200], [ 0.1000, -0.0200,  -1.2300,  -1.4100]],
+        [[ 4.0100,  5.3500, -21.8100,   0.9900], [ 0.1700, -0.1000,  -0.9500,  -1.6500]]
+    ])
+
+    # fmt: on
+    loss = losses.DetectionLoss(anchors=anchors)
+    loss_jit = torch.jit.script(loss)
+    res = loss((cls_out, box_out), target)
+    res_jit = loss_jit((cls_out, box_out), target)
+    assert torch.allclose(res, res_jit)
+    assert torch.allclose(res, torch.tensor(5e-07))

@@ -19,6 +19,8 @@ from .resnet import se_resnet101
 
 from .resnet import se_resnext50_32x4d
 
+from .resnet import bresnet50
+
 from .densenet import densenet121
 from .densenet import densenet161
 from .densenet import densenet169

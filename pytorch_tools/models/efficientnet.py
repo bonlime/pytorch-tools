@@ -46,7 +46,7 @@ class EfficientNet(nn.Module):
         blocks_args (List[Dict]):
             Description of each block for the model. Check `decode_block_args` function for more details. Don't need to be
             passed manually
-        width_multiplier (float): 
+        width_multiplier (float):
             Multiplyer for number of channels in each block. Don't need to be passed manually
         depth_multiplier (float):
             Multiplyer for number of InvertedResiduals in each block. Don't need to be passed manually
@@ -73,7 +73,7 @@ class EfficientNet(nn.Module):
         norm_act (str):
             Activation for normalizion layer. It's reccomended to use `leacky_relu` with `inplaceabn`. Defaults to `swish`
         match_tf_same_padding (bool): If True patches Conv and MaxPool to implements tf-like asymmetric padding
-            Should only be used to validate pretrained weights. Not needed for training. Gives ~10% slowdown 
+            Should only be used to validate pretrained weights. Not needed for training. Gives ~10% slowdown
     """
 
     def __init__(
@@ -142,9 +142,9 @@ class EfficientNet(nn.Module):
             self.bn2 = norm_layer(num_features, activation=norm_act)
             self.global_pool = nn.AdaptiveAvgPool2d(1)
             self.dropout = nn.Dropout(drop_rate, inplace=True)
-            self.classifier = nn.Linear(num_features, num_classes)
+            self.last_linear = nn.Linear(num_features, num_classes)
 
-        patch_bn(self)  # adjust epsilon
+        patch_bn_tf(self)  # adjust epsilon
         initialize(self)
         if match_tf_same_padding:
             conv_to_same_conv(self)
@@ -176,7 +176,7 @@ class EfficientNet(nn.Module):
         x = self.global_pool(x)
         x = torch.flatten(x, 1)
         x = self.dropout(x)
-        x = self.classifier(x)
+        x = self.last_linear(x)
         return x
 
     def load_state_dict(self, state_dict, **kwargs):
@@ -391,12 +391,13 @@ CFGS = {
 # fmt: on
 
 
-def patch_bn(module):
+def patch_bn_tf(module):
     """TF ported weights use slightly different eps in BN. Need to adjust for better performance"""
     if isinstance(module, ABN):
         module.eps = 1e-3
+        module.momentum = 1e-2
     for m in module.children():
-        patch_bn(m)
+        patch_bn_tf(m)
 
 
 def _efficientnet(arch, pretrained=None, **kwargs):
@@ -425,8 +426,8 @@ def _efficientnet(arch, pretrained=None, **kwargs):
                     cfg_settings["num_classes"], kwargs_cls
                 )
             )
-            state_dict["classifier.weight"] = model.state_dict()["classifier.weight"]
-            state_dict["classifier.bias"] = model.state_dict()["classifier.bias"]
+            state_dict["classifier.weight"] = model.state_dict()["last_linear.weight"]
+            state_dict["classifier.bias"] = model.state_dict()["last_linear.bias"]
         if kwargs.get("in_channels", 3) != 3:  # support pretrained for custom input channels
             state_dict["conv_stem.weight"] = repeat_channels(
                 state_dict["conv_stem.weight"], kwargs["in_channels"]

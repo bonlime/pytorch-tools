@@ -20,6 +20,7 @@ class ACT(Enum):
     SELU = "selu"
     SWISH = "swish"
     SWISH_NAIVE = "swish_naive"
+    SWISH_HARD = "swish_hard"  # hard swish
 
 
 #### SWISH ####
@@ -43,11 +44,13 @@ class SwishFunction(torch.autograd.Function):
     """
 
     @staticmethod
+    @torch.cuda.amp.custom_fwd
     def forward(ctx, x):
         ctx.save_for_backward(x)
         return swish_jit_fwd(x)
 
     @staticmethod
+    @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
         x = ctx.saved_tensors[0]
         return swish_jit_bwd(x, grad_output)
@@ -82,7 +85,21 @@ class SwishNaive(nn.Module):
         return swish_naive(x)
 
 
+# FIXME: remove when master starts to support `inplace` for module. probably after 1.6 or 1.7
+class HardSwish(nn.Module):
+    def __init__(self, inplace=False):
+        super().__init__()
+        self.inplace = inplace
+
+    def forward(self, input):
+        return F.hardswish(input, inplace=self.inplace)
+
+
 #### MISH ####
+# There is equivalent formulation of Mish which could be faster but isn't (in my tests). So not adding it for now
+# feel free to open PR if you manage to speed it up
+# https://github.com/digantamisra98/Mish/issues/22
+# https://github.com/ultralytics/yolov3/issues/1098
 
 
 @torch.jit.script
@@ -99,11 +116,13 @@ def mish_jit_bwd(x, grad_output):
 
 class MishFunction(torch.autograd.Function):
     @staticmethod
+    @torch.cuda.amp.custom_fwd
     def forward(ctx, x):
         ctx.save_for_backward(x)
         return mish_jit_fwd(x)
 
     @staticmethod
+    @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
         x = ctx.saved_tensors[0]
         return mish_jit_bwd(x, grad_output)
@@ -166,6 +185,7 @@ ACT_DICT = {
     ACT.SELU: nn.SELU,
     ACT.SWISH: Swish,
     ACT.SWISH_NAIVE: SwishNaive,
+    ACT.SWISH_HARD: HardSwish,
 }
 
 ACT_FUNC_DICT = {
@@ -183,6 +203,7 @@ ACT_FUNC_DICT = {
     ACT.SELU: F.selu,
     ACT.SWISH: swish,
     ACT.SWISH_NAIVE: swish_naive,
+    ACT.SWISH_HARD: F.hardswish,
 }
 
 

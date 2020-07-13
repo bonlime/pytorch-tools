@@ -138,6 +138,9 @@ class AverageMeter:
         self.count += 1
         self.avg = self.sum / self.count
 
+    def __call__(self, val):
+        return self.update(val)
+
 
 class TimeMeter:
     def __init__(self):
@@ -188,6 +191,19 @@ def sum_tensor(tensor):
     return rt
 
 
+def reduce_meter(meter):
+    """Args:
+        meter (AverageMeter): meter to reduce """
+    if env_world_size() == 1:
+        return meter
+    # can't reduce AverageMeter so need to reduce every attribute separately
+    reduce_attributes = ["val", "avg", "avg_smooth", "sum", "count"]
+    for attr in reduce_attributes:
+        old_value = to_tensor([getattr(meter, attr)]).float().cuda()
+        setattr(meter, attr, reduce_tensor(old_value).cpu().numpy()[0])
+    return meter
+
+
 def filter_bn_from_wd(model):
     """
     Filter out batch norm parameters and remove them from weight decay. Gives
@@ -233,3 +249,13 @@ def repeat_channels(conv_weights, new_channels, old_channels=3):
     new_weights = conv_weights.repeat(1, rep_times, 1, 1)[:, :new_channels, :, :]
     new_weights *= old_channels / new_channels  # to keep the same output amplitude
     return new_weights
+
+
+# fmt: off
+# basic CudaLoader more than enough for majority of problems
+class ToCudaLoader:
+    """Simple wrapper which moves batches to cuda. Usage: loader = ToCudaLoader(loader)"""
+    def __init__(self, loader): self.loader = loader
+    def __iter__(self): return ([i.cuda(non_blocking=True), t.cuda(non_blocking=True)] for i, t in self.loader)
+    def __len__(self): return len(self.loader)
+# fmt: on

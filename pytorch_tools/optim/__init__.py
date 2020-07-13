@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 from functools import partial
-from apex.optimizers import FusedNovoGrad, FusedAdam, FusedSGD
 from .lr_finder import LRFinder
 from .adamw import AdamW as AdamW_my
 from .radam import RAdam, PlainRAdam
@@ -10,6 +9,15 @@ from .rmsprop import RMSprop
 from .lookahead import Lookahead
 
 from torch import optim
+
+try:
+    from apex.optimizers import FusedSGD
+    from apex.optimizers import FusedAdam
+    from apex.optimizers import FusedNovoGrad
+
+    HAS_APEX = True
+except ModuleNotFoundError:
+    HAS_APEX = False
 
 # 2e-5 is the lowest epsilon than saves from overflow in fp16
 def optimizer_from_name(optim_name):
@@ -30,11 +38,11 @@ def optimizer_from_name(optim_name):
         return partial(RMSprop, eps=1e-7)
     elif optim_name == "radam":
         return partial(RAdam, eps=2e-5)
-    elif optim_name in ["fused_sgd", "fusedsgd"]:
+    elif optim_name in ["fused_sgd", "fusedsgd"] and HAS_APEX:
         return FusedSGD
-    elif optim_name in ["fused_adam", "fusedadam"]:
+    elif optim_name in ["fused_adam", "fusedadam"] and HAS_APEX:
         return partial(FusedAdam, eps=2e-5)
-    elif optim_name in ["fused_novograd", "fusednovograd", "novograd"]:
+    elif optim_name in ["fused_novograd", "fusednovograd", "novograd"] and HAS_APEX:
         return partial(FusedNovoGrad, eps=2e-5)
     else:
-        raise ValueError(f"Optimizer {optim_name} not found")
+        raise ValueError(f"Optimizer {optim_name} not found or apex is not installed.")

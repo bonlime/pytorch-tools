@@ -1,10 +1,10 @@
 import torch
 from copy import copy
-from apex import amp
-from .state import RunnerState
-from .callbacks import Callbacks
-from .callbacks import ConsoleLogger
-from ..utils.misc import to_numpy
+from torch.cuda import amp
+from pytorch_tools.fit_wrapper.state import RunnerState
+from pytorch_tools.fit_wrapper.callbacks import Callbacks
+from pytorch_tools.fit_wrapper.callbacks import ConsoleLogger
+from pytorch_tools.utils.misc import to_numpy
 
 
 class Runner:
@@ -19,18 +19,24 @@ class Runner:
         callbacks (List): List of Callbacks to use. Defaults to ConsoleLogger().
         gradient_clip_val (float): Gradient clipping value. 0 means no clip. Causes ~5% training slowdown
         accumulate_steps (int): if > 1 uses gradient accumulation across iterations to simulate larger batch size
-
+        use_fp16 (bool): Flag which enables mixed precision
     """
+
     def __init__(
-        self, model, optimizer, criterion, metrics=None, callbacks=ConsoleLogger(), gradient_clip_val=0, accumulate_steps=1,
+        self,
+        model,
+        optimizer,
+        criterion,
+        metrics=None,
+        callbacks=ConsoleLogger(),
+        gradient_clip_val=0,
+        accumulate_steps=1,
+        use_fp16=False,
     ):
         super().__init__()
-
-        if not hasattr(amp._amp_state, "opt_properties"):
-            model_optimizer = amp.initialize(model, optimizer, enabled=False)
-            model, optimizer = (model_optimizer, None) if optimizer is None else model_optimizer
-
-        self.state = RunnerState(model=model, optimizer=optimizer, criterion=criterion, metrics=metrics,)
+        self.state = RunnerState(
+            model=model, optimizer=optimizer, criterion=criterion, metrics=metrics, use_fp16=use_fp16
+        )
         self.callbacks = Callbacks(callbacks)
         self.callbacks.set_state(self.state)
         self.gradient_clip_val = gradient_clip_val
@@ -76,16 +82,24 @@ class Runner:
 
     def _make_step(self):
         data, target = self.state.input
-        output = self.state.model(data)
+
+        with amp.autocast(self.state.use_fp16):
+            output = self.state.model(data)
+            loss = self.state.criterion(output, target)
         self.state.output = output
-        loss = self.state.criterion(output, target)
+
         if self.state.is_train:
-            with amp.scale_loss(loss / self.accumulate_steps, self.state.optimizer) as scaled_loss:
-                scaled_loss.backward()
-            if self.gradient_clip_val > 0:
-                torch.nn.utils.clip_grad_norm_(amp.master_params(self.state.optimizer), self.gradient_clip_val)
+            # backward for every batch
+            self.state.grad_scaler.scale(loss / self.accumulate_steps).backward()
+            # everything else only before making step
             if self.state.step % self.accumulate_steps == 0:
-                self.state.optimizer.step()
+
+                if self.gradient_clip_val > 0:
+                    self.state.grad_scaler.unscale_(self.state.optimizer)
+                    torch.nn.utils.clip_grad_norm_(self.state.model.parameters(), self.gradient_clip_val)
+
+                self.state.grad_scaler.step(self.state.optimizer)
+                self.state.grad_scaler.update()
                 self.state.optimizer.zero_grad()
             torch.cuda.synchronize()
 

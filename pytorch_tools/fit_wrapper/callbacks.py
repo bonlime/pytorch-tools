@@ -1,18 +1,20 @@
 import os
 import math
 import logging
+import numpy as np
 from tqdm import tqdm
 from enum import Enum
 from copy import deepcopy
 from collections import OrderedDict
 from collections import defaultdict
-import numpy as np
+
 import torch
-from torch.utils.tensorboard import SummaryWriter
-from .state import RunnerState
+
+from pytorch_tools.fit_wrapper.state import RunnerState
 import pytorch_tools.utils.misc as utils
 from pytorch_tools.utils.visualization import plot_confusion_matrix
 from pytorch_tools.utils.visualization import render_figure_to_tensor
+from pytorch_tools.utils.tensorboard import CorrectedSummaryWriter as SummaryWriter
 
 
 class Callback(object):
@@ -229,6 +231,24 @@ class PhasesScheduler(Callback):
             param_group["momentum"] = mom
 
 
+class StateReduce(Callback):
+    """
+    Reduced everything in state (that needs reduction) at the end of loader.
+    Needed for proper saving/logging/metric calculation
+    NOTE: Should be the first callback in the list to work as expected properly
+    """
+
+    def on_epoch_end(self):
+        if self.state.world_size == 1:
+            return
+        meters = self.state.train_metrics + [self.state.train_loss]
+        meters = meters + self.state.metric_meters + [self.state.loss_meter]
+        if self.state.val_loss is not None:
+            meters = meters + self.state.val_metrics + [self.state.val_loss]
+        for meter in meters:
+            meter = utils.reduce_meter(meter)
+
+
 class ReduceMode(Enum):
     MIN = "min"
     MAX = "max"
@@ -376,12 +396,8 @@ class TensorBoard(Callback):
     def on_batch_end(self):
         self.current_step += self.state.batch_size
         if self.state.is_train and (self.current_step % self.log_every == 0):
-            self.writer.add_scalar(
-                # need proper name
-                "train_/loss",
-                self.state.loss_meter.val,
-                self.current_step,
-            )
+            # TODO: select better name instead of train_ ?
+            self.writer.add_scalar("train_/loss", self.state.loss_meter.val, self.current_step)
             for m in self.state.metric_meters:
                 self.writer.add_scalar(f"train_/{m.name}", m.val, self.current_step)
 
@@ -391,7 +407,6 @@ class TensorBoard(Callback):
             self.writer.add_scalar(f"train/{m.name}", m.avg, self.current_step)
 
         lr = sorted([pg["lr"] for pg in self.state.optimizer.param_groups])[-1]  # largest lr
-        # TODO: select better name instead of train_ ?
         self.writer.add_scalar("train_/lr", lr, self.current_step)
         self.writer.add_scalar("train/epoch", self.state.epoch, self.current_step)
         # don't log if no val
@@ -497,11 +512,9 @@ class FileLogger(Callback):
         self.logger = logger or self._get_logger(os.path.join(log_dir, "logs.txt"))
 
     def on_epoch_begin(self):
-        self.logger.info(f"Epoch {self.state.epoch_log} | lr {self.current_lr:.3f}")
+        self.logger.info(f"Epoch {self.state.epoch_log} | lr {self.current_lr:.2e}")
 
     def on_epoch_end(self):
-        if utils.env_world_size() > 1:
-            self.reduce_metrics()
         loss, metrics = self.state.train_loss, self.state.train_metrics
         self.logger.info("Train " + self._format_meters(loss, metrics))
         if self.state.val_loss is not None:
@@ -527,17 +540,6 @@ class FileLogger(Callback):
     def _format_meters(loss, metrics):
         return f"loss: {loss.avg:.4f} | " + " | ".join(f"{m.name}: {m.avg:.4f}" for m in metrics)
 
-    def reduce_metrics(self):
-        # can't reduce AverageMeter so need to reduce every attribute separately
-        meters = self.state.train_metrics + [self.state.train_loss,]
-        meters = meters + self.state.metric_meters + [self.state.loss_meter,]
-        if self.state.val_loss is not None:
-            meters = meters + self.state.val_metrics + [self.state.val_loss,]
-        reduce_attributes = ["val", "avg", "avg_smooth", "sum", "count"]
-        for meter in meters:
-            for attr in reduce_attributes:
-                old_value = utils.to_tensor([getattr(meter, attr)]).float().cuda()
-                setattr(meter, attr, utils.reduce_tensor(old_value).cpu().numpy()[0])
 
 class Mixup(Callback):
     """Performs mixup on input. Only for classification.
@@ -690,11 +692,13 @@ class ScheduledDropout(Callback):
         current_rate = self.drop_rate * min(1, self.state.epoch / self.epochs)
         setattr(self.state.model, self.attr_name, current_rate)
 
+
 class ResetOptimizer(Callback):
-    """Set's Optimizers state to empty for epoch in `reset_epoch`. Could be used for restarts. 
+    """Set's Optimizers state to empty for epoch in `reset_epoch`. Could be used for restarts.
         Args:
             reset_epoch (List[int]): after which epochs to reset optimizer
             verbose (bool): Flag to print that optimizer was reset."""
+
     def __init__(self, reset_epochs=[], verbose=True):
         super().__init__()
         self.reset_epochs = set(reset_epochs)
@@ -703,13 +707,14 @@ class ResetOptimizer(Callback):
     def on_epoch_end(self):
         if self.state.epoch_log in self.reset_epochs:
             # any optimizer inherited from torch.Optimizer has state which can be reset
-            if hasattr(self.state.optimizer, "optimizer"): # for lookahead
+            if hasattr(self.state.optimizer, "optimizer"):  # for lookahead
                 self.state.optimizer.optimizer.state = defaultdict(dict)
             else:
                 self.state.optimizer.state = defaultdict(dict)
-                
+
             if self.verbose:
                 print("Reseting optimizer")
+
 
 # docstring from https://github.com/rwightman/pytorch-image-models
 class ModelEma(Callback):
@@ -743,13 +748,14 @@ class ModelEma(Callback):
         decay_every (int): how oftern to really decay weights. Decaying every step produced a 
             visible training slowdown. Real decay factor is adjusted to match every step update.
     """
+
     def __init__(self, model, decay=0.9999, decay_every=10):
         super().__init__()
-        self.ema = deepcopy(model).eval()    
+        self.ema = deepcopy(model).eval()
         for p in self.ema.parameters():
             p.requires_grad_(False)
         self.model_copy = None
-        self.decay_factor = 1 - decay ** decay_every # simulate every step decay
+        self.decay_factor = 1 - decay ** decay_every  # simulate every step decay
         self.decay_every = decay_every
 
     def on_batch_end(self):
@@ -758,19 +764,19 @@ class ModelEma(Callback):
 
         with torch.no_grad():
             for (ema_v, m_v) in zip(self.ema.state_dict().values(), self.state.model.state_dict().values()):
-                if m_v.numel() == 1: # to prevent errors on `num_batches_tracked` in BN
-                    continue 
+                if m_v.numel() == 1:  # to prevent errors on `num_batches_tracked` in BN
+                    continue
                 ema_v.sub_(ema_v.sub(m_v), alpha=self.decay_factor)
 
     def on_loader_begin(self):
         if self.state.is_train:
-           return
+            return
         # validate on ema model
         self.model_copy = self.state.model
         self.state.model = self.ema
-        
+
     def on_epoch_end(self):
         if self.state.is_train:
-           return
+            return
         # return model back
         self.state.model = self.model_copy

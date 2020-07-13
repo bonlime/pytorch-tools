@@ -1,3 +1,9 @@
+"""
+Implementation of Bidirectional Feature Pyramid Network module (BiFPN)
+Reference: EfficientDet: Scalable and Efficient Object Detection - https://arxiv.org/abs/1911.09070
+This version supports any number of input feature maps and is suitable for segmentation as well
+hacked by @bonlime
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -36,7 +42,7 @@ class SumFusion(FastNormalizedFusion):
 
 
 class BiFPNLayer(nn.Module):
-    r"""Builds one layer of Bi-directional Feature Pyramid Network
+    """Builds one layer of Bi-directional Feature Pyramid Network
     Args:
         channels (int): Number of channels in each feature map after BiFPN. Defaults to 64.
         
@@ -47,111 +53,132 @@ class BiFPNLayer(nn.Module):
         p_out: features processed by 1 layer of BiFPN
     """
 
-    def __init__(self, channels=64, norm_layer=ABN, norm_act="relu"):
+    def __init__(self, num_features=5, channels=64, norm_layer=ABN, norm_act="relu"):
         super().__init__()
 
         self.up = nn.Upsample(scale_factor=2, mode="nearest")
-        self.down = nn.MaxPool2d(3, stride=2, padding=1)  #  padding=1 TODO: change back
+        self.down = nn.MaxPool2d(3, stride=2, padding=1)
+        self.num_features = num_features
 
-        # disable attention for large models. This is very dirty way to check that it's B6 & B7. But i don't care
+        # disable attention for large models. This is a very dirty way to check that it's B6 & B7. But i don't care
         Fusion = SumFusion if channels > 288 else FastNormalizedFusion
 
         # There is no activation in SeparableConvs, instead activation is in fusion layer
-        self.fuse_p6_up = Fusion(in_nodes=2, activation=norm_act)
-        self.fuse_p5_up = Fusion(in_nodes=2, activation=norm_act)
-        self.fuse_p4_up = Fusion(in_nodes=2, activation=norm_act)
+        # fusions for p6, p5, p4, p3. (no fusion for first feature map)
+        self.fuse_up = nn.ModuleList(
+            [Fusion(in_nodes=2, activation=norm_act) for _ in range(num_features - 1)]
+        )
 
-        self.fuse_p3_out = Fusion(in_nodes=2, activation=norm_act)
-        self.fuse_p4_out = Fusion(in_nodes=3, activation=norm_act)
-        self.fuse_p5_out = Fusion(in_nodes=3, activation=norm_act)
-        self.fuse_p6_out = Fusion(in_nodes=3, activation=norm_act)
-        self.fuse_p7_out = Fusion(in_nodes=2, activation=norm_act)
+        # fusions for p4, p5, p6, p7. last is different because there is no bottop up tensor for it
+        self.fuse_out = nn.ModuleList(
+            [
+                *(Fusion(in_nodes=3, activation=norm_act) for _ in range(num_features - 2)),
+                Fusion(in_nodes=2, activation=norm_act),
+            ]
+        )
 
         bn_args = dict(norm_layer=norm_layer, norm_act="identity")
-        # Top-down pathway, no block for P7 layer
-        self.p6_up = DepthwiseSeparableConv(channels, channels, **bn_args)
-        self.p5_up = DepthwiseSeparableConv(channels, channels, **bn_args)
-        self.p4_up = DepthwiseSeparableConv(channels, channels, **bn_args)
+        # Top-down pathway, no block for first and last features. P3 and P7 by default
+        self.p_up_convs = nn.ModuleList(
+            [DepthwiseSeparableConv(channels, channels, **bn_args) for _ in range(num_features - 1)]
+        )
 
         # Bottom-up pathway
-        self.p3_out = DepthwiseSeparableConv(channels, channels, **bn_args)
-        self.p4_out = DepthwiseSeparableConv(channels, channels, **bn_args)
-        self.p5_out = DepthwiseSeparableConv(channels, channels, **bn_args)
-        self.p6_out = DepthwiseSeparableConv(channels, channels, **bn_args)
-        self.p7_out = DepthwiseSeparableConv(channels, channels, **bn_args)
+        self.p_out_convs = nn.ModuleList(
+            [DepthwiseSeparableConv(channels, channels, **bn_args) for _ in range(num_features - 1)]
+        )
 
     def forward(self, features):
+        # p7_in, p6_in, p5_in, p4_in, p3_in = features
+        # Top-down pathway (from low res to high res). High res features depend on upsampled low res
+        p_up = [features[0]]  # from p7 to p3
+        for idx in range(self.num_features - 1):
+            p_up.append(
+                self.p_up_convs[idx](
+                    self.fuse_up[idx](  # fuse: input and upsampled previous feature map
+                        features[idx + 1], self.up(p_up[-1])
+                    )
+                )
+            )
 
-        # p7, p6, p5, p4, p3
-        p7_in, p6_in, p5_in, p4_in, p3_in = features
+        # Bottom-Up Pathway (from high res to low res). Low res depends on downscaled high res
+        p_out = [p_up[-1]]  # p3 is final and ready to be returned. from p3 to p7
+        for idx in range(1, self.num_features - 1):
+            p_out.append(
+                self.p_out_convs[idx - 1](  # fuse: input, output from top-bottom path and downscaled high res
+                    self.fuse_out[idx - 1](features[-(idx + 1)], p_up[-(idx + 1)], self.down(p_out[-1]))
+                )
+            )
+        # fuse for p7: input, downscaled high res
+        p_out.append(self.p_out_convs[-1](self.fuse_out[-1](features[0], self.down(p_out[-1]))))
 
-        # Top-down pathway (from low res to high res)
-        p6_up = self.p6_up(self.fuse_p6_up(p6_in, self.up(p7_in)))
-        p5_up = self.p5_up(self.fuse_p5_up(p5_in, self.up(p6_up)))
-        p4_up = self.p4_up(self.fuse_p4_up(p4_in, self.up(p5_up)))
-        p3_out = self.p3_out(self.fuse_p3_out(p3_in, self.up(p4_up)))
-
-        # Bottom-Up Pathway (from high res to low res)
-        p4_out = self.p4_out(self.fuse_p4_out(p4_in, p4_up, self.down(p3_out)))
-        p5_out = self.p5_out(self.fuse_p5_out(p5_in, p5_up, self.down(p4_out)))
-        p6_out = self.p6_out(self.fuse_p6_out(p6_in, p6_up, self.down(p5_out)))
-        p7_out = self.p7_out(self.fuse_p7_out(p7_in, self.down(p6_out)))
-
-        return p7_out, p6_out, p5_out, p4_out, p3_out
+        return p_out[::-1]  # want to return in the same order as input
 
 
-# additionally downsamples the input
 class FirstBiFPNLayer(BiFPNLayer):
     def __init__(self, encoder_channels, channels=64, norm_layer=ABN, norm_act="relu"):
-        super().__init__(channels=channels, norm_layer=norm_layer, norm_act=norm_act)
-
-        # TODO: later remove bias from downsample
-        self.p5_downsample_1 = nn.Sequential(
-            conv1x1(encoder_channels[0], channels, bias=True), norm_layer(channels, activation="identity")
+        """
+        Args:
+            encoder_channels (List[int]): Number of channels for each feature map from low res to high res
+        """
+        super().__init__(
+            num_features=len(encoder_channels), channels=channels, norm_layer=norm_layer, norm_act=norm_act
         )
-        self.p4_downsample_1 = nn.Sequential(
-            conv1x1(encoder_channels[1], channels, bias=True), norm_layer(channels, activation="identity")
-        )
-        self.p3_downsample_1 = nn.Sequential(
-            conv1x1(encoder_channels[2], channels, bias=True), norm_layer(channels, activation="identity")
-        )
-
-        # Devil is in the details. In original repo they use 2 different downsamples from encoder channels
-        # it makes sense to preseve more information, but most of implementations in the internet
-        # use output of the first downsample
-        self.p4_downsample_2 = nn.Sequential(
-            conv1x1(encoder_channels[1], channels, bias=True), norm_layer(channels, activation="identity")
-        )
-        self.p5_downsample_2 = nn.Sequential(
-            conv1x1(encoder_channels[0], channels, bias=True), norm_layer(channels, activation="identity")
-        )
-        # only one downsample for p3
+        # in original repo there is an additional bias in downsample 1x1 convs. because it's followed by
+        # norm layer it becomes redundant, so I've removed it
+        # pretrained weights for them were ~1e-5 which additionally shows that they are not needed
+        self.downsample_1 = nn.ModuleList()
+        self.downsample_2 = []
+        for enc_in_channel in encoder_channels:
+            layer, layer2 = nn.Identity(), nn.Identity()
+            if enc_in_channel != channels:
+                layer = nn.Sequential(
+                    conv1x1(enc_in_channel, channels), norm_layer(channels, activation="identity"),
+                )
+                layer2 = nn.Sequential(
+                    conv1x1(enc_in_channel, channels), norm_layer(channels, activation="identity"),
+                )
+            self.downsample_1.append(layer)
+            self.downsample_2.append(layer2)
+        # no second downsample for last feature map (highest res)
+        self.downsample_2[-1] = nn.Identity()
+        # [::-1] for proper weight order.
+        self.downsample_2 = nn.ModuleList(self.downsample_2[::-1])
 
     def forward(self, features):
+        # type: List[Tensor] -> List[Tensor]
+        """Args:
+            features (List[Tensor]): number of input features should match number of encoder_channels passed during init
+        """
+        features_in_1 = [down(feat) for down, feat in zip(self.downsample_1, features)]
+        features_in_2 = [down(feat) for down, feat in zip(self.downsample_2[::-1], features)]
 
-        # p7, p6, p5, p4, p3
-        p7_in, p6_in, p5_in, p4_in, p3_in = features
+        # below is copy from BiFPNLayer with features changed to features_in_1 / features_in_2
 
-        # downsample input's convs
-        p5_in_down1 = self.p5_downsample_1(p5_in)
-        p5_in_down2 = self.p5_downsample_2(p5_in)
-        p4_in_down1 = self.p4_downsample_1(p4_in)
-        p4_in_down2 = self.p4_downsample_2(p4_in)
-        p3_in_down1 = self.p3_downsample_1(p3_in)
+        # p7_in, p6_in, p5_in, p4_in, p3_in = features
+        # Top-down pathway (from low res to high res). High res features depend on upsampled low res
+        p_up = [features_in_1[0]]  # from p7 to p3
+        for idx in range(self.num_features - 1):
+            p_up.append(
+                self.p_up_convs[idx](
+                    self.fuse_up[idx](  # fuse: input and upsampled previous feature map
+                        features_in_1[idx + 1], self.up(p_up[-1])
+                    )
+                )
+            )
 
-        # Top-down pathway (from low res to high res)
-        p6_up = self.p6_up(self.fuse_p6_up(p6_in, self.up(p7_in)))
-        p5_up = self.p5_up(self.fuse_p5_up(p5_in_down1, self.up(p6_up)))
-        p4_up = self.p4_up(self.fuse_p4_up(p4_in_down1, self.up(p5_up)))
-        p3_out = self.p3_out(self.fuse_p3_out(p3_in_down1, self.up(p4_up)))
+        # Bottom-Up Pathway (from high res to low res). Low res depends on downscaled high res
+        p_out = [p_up[-1]]  # p3 is final and ready to be returned. from p3 to p7
+        for idx in range(1, self.num_features - 1):
+            p_out.append(
+                self.p_out_convs[idx - 1](  # fuse: input, output from top-bottom path and downscaled high res
+                    self.fuse_out[idx - 1](features_in_2[-(idx + 1)], p_up[-(idx + 1)], self.down(p_out[-1]))
+                )
+            )
+        # fuse for p7: input, downscaled high res
+        p_out.append(self.p_out_convs[-1](self.fuse_out[-1](features_in_2[0], self.down(p_out[-1]))))
 
-        # Bottom-Up Pathway (from high res to low res)
-        p4_out = self.p4_out(self.fuse_p4_out(p4_in_down2, p4_up, self.down(p3_out)))
-        p5_out = self.p5_out(self.fuse_p5_out(p5_in_down2, p5_up, self.down(p4_out)))
-        p6_out = self.p6_out(self.fuse_p6_out(p6_in, p6_up, self.down(p5_out)))
-        p7_out = self.p7_out(self.fuse_p7_out(p7_in, self.down(p6_out)))
-
-        return p7_out, p6_out, p5_out, p4_out, p3_out
+        return p_out[::-1]  # want to return in the same order as input
 
 
 class BiFPN(nn.Sequential):
@@ -161,7 +188,7 @@ class BiFPN(nn.Sequential):
     Args:
         encoder_channels (List[int]): Number of channels for each feature map from low res to high res.
         pyramid_channels (int): Number of channels in each feature map after BiFPN. Defaults to 64.
-        num_layers (int): Number or repeats for BiFPN block. Default is 2 
+        num_layers (int): Number or repeats for BiFPN block. Default is 2
     
     Input:
         features (List): 5 feature maps from encoder [low_res, ... , high_res]
@@ -174,5 +201,5 @@ class BiFPN(nn.Sequential):
         bifpns = [FirstBiFPNLayer(encoder_channels, pyramid_channels, **bn_args)]
         # Apply BiFPN block `num_layers` times
         for _ in range(num_layers - 1):
-            bifpns.append(BiFPNLayer(pyramid_channels, **bn_args))
+            bifpns.append(BiFPNLayer(len(encoder_channels), pyramid_channels, **bn_args))
         super().__init__(*bifpns)

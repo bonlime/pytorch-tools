@@ -1,7 +1,9 @@
-"""Various functions to help with bboxes for object detection"""
+"""
+Various functions to help with bboxes for object detection
+Everything is covered with tests to ensure correct output and scriptability (torch.jit.script)
+Written by @bonlime
+"""
 import torch
-import numpy as np
-from functools import wraps
 
 
 def box2delta(boxes, anchors):
@@ -14,7 +16,8 @@ def box2delta(boxes, anchors):
         deltas (torch.Tensor): shape [N, 4] or [BS, N, 4]
             offset_x, offset_y, scale_x, scale_y
     """
-
+    # cast to fp32 to avoid numerical problems with log
+    boxes, anchors = boxes.float(), anchors.float()
     anchors_wh = anchors[..., 2:] - anchors[..., :2]
     anchors_ctr = anchors[..., :2] + 0.5 * anchors_wh
     boxes_wh = boxes[..., 2:] - boxes[..., :2]
@@ -34,6 +37,8 @@ def delta2box(deltas, anchors):
         bboxes (torch.Tensor): bboxes obtained from anchors by regression 
             Output shape is [N, 4] or [BS, N, 4] depending on input
     """
+    # cast to fp32 to avoid numerical problems with exponent
+    deltas, anchors = deltas.float(), anchors.float()
     anchors_wh = anchors[..., 2:] - anchors[..., :2]
     ctr = anchors[..., :2] + 0.5 * anchors_wh
     pred_ctr = deltas[..., :2] * anchors_wh + ctr
@@ -49,6 +54,7 @@ def delta2box(deltas, anchors):
 
 
 def box_area(box):
+    # type: (Tensor) -> Tensor
     """Args:
     box (torch.Tensor): shape [N, 4] or [BS, N, 4] in 'ltrb' format
     """
@@ -56,6 +62,7 @@ def box_area(box):
 
 
 def clip_bboxes(bboxes, size):
+    # type: (Tensor, Tuple[int, int]) -> Tensor
     """Args:
         bboxes (torch.Tensor): in `ltrb` format. Shape [N, 4]
         size (Union[torch.Size, tuple]): (H, W). Shape [2,]"""
@@ -65,8 +72,10 @@ def clip_bboxes(bboxes, size):
 
 
 def clip_bboxes_batch(bboxes, size):
-    # type: (Tensor, Tensor)->Tensor
+    # type: (Tensor, Tensor) -> Tensor
     """Args:
+        This function could also accept not batched bboxes but it works
+        slower than `clip_bboxes` in that case
         bboxes (torch.Tensor): in `ltrb` format. Shape [BS, N, 4]
         size (torch.Tensor): (H, W). Shape [BS, 2] """
     size = size.to(bboxes)
@@ -104,31 +113,59 @@ def box_iou(boxes1, boxes2):
     rb = torch.min(boxes1[:, None, 2:], boxes2[:, 2:])  # [N,M,2]
 
     wh = (rb - lt).clamp(min=0)  # [N,M,2]
-    inter = wh[:, :, 0] * wh[:, :, 1]  # [N,M]
+    inter = wh[..., 0] * wh[..., 1]  # [N,M]
 
     iou = inter / (area1[:, None] + area2 - inter)
+    return iou
+
+
+# copied from https://github.com/etienne87/torch_object_rnn/blob/master/core/utils/box.py
+def batch_box_iou(box1, box2):
+    # type: (Tensor, Tensor) -> Tensor
+    """Compute the intersection over union of two set of boxes.
+    The box order must be (xmin, ymin, xmax, ymax).
+    Args:
+        box1: (tensor) bounding boxes, sized [N,4]. It's supposed to be anchors
+        box2: (tensor) bounding boxes, sized [B,M,4].
+    Return:
+        iou (Tensor[B, N, M]): the BxNxM matrix containing the pairwise
+                IoU values for every element in boxes1 and boxes2
+    Reference:
+      https://github.com/chainer/chainercv/blob/master/chainercv/utils/bbox/bbox_iou.py
+    """
+    # [B,N,M,2] = broadcast_max( (_,N,_,2), (B,_,M,2) )
+    lt = torch.max(box1[None, :, None, :2], box2[:, None, :, :2])
+    rb = torch.min(box1[None, :, None, 2:], box2[:, None, :, 2:])  # [B,N,M,2]
+
+    wh = (rb - lt).clamp(min=0)  # [B,N,M,2]
+    inter = wh[..., 0] * wh[..., 1]  # [B,N,M]
+
+    area1 = box_area(box1)  # [N,]
+    area2 = box_area(box2)  # [B,M,]
+    iou = inter / (area1[None, :, None] + area2[:, None, :] - inter)  # [B,N,M]
     return iou
 
 
 # based on https://github.com/NVIDIA/retinanet-examples/
 # and on https://github.com/google/automl/
 def generate_anchors_boxes(
-    image_size, num_scales=3, aspect_ratios=(1.0, 2.0, 0.5), pyramid_levels=[3, 4, 5, 6, 7], anchor_scale=4,
+    image_size, num_scales=3, aspect_ratios=(1.0, 2.0, 0.5), pyramid_levels=(3, 4, 5, 6, 7), anchor_scale=4,
 ):
+    # type: (Tuple[int, int], int, List[float], List[int], int) -> Tuple[Tensor, int]
     """Generates multiscale anchor boxes
     Minimum object size which could be detected is anchor_scale * 2**pyramid_levels[0]. By default it's 32px
-    Maximum object size which could be detected is anchor_scale * 2**pyramid_levels[-1]. By default it's 512px 
+    Maximum object size which could be detected is anchor_scale * 2**pyramid_levels[-1]. By default it's 512px
     
-    Args: 
+    Args:
         image_size (int or (int, int)): shape of the image
-        num_scales (int): integer number representing intermediate scales added on each level. For instances, 
+        num_scales (int): integer number representing intermediate scales added on each level. For instances,
             num_scales=3 adds three additional anchor scales [2^0, 2^0.33, 2^0.66] on each level.
         aspect_ratios (List[int]): Aspect ratios of anchor boxes
         pyramid_levels (List[int]): Levels from which features are taken. Needed to calculate stride
         anchor_scale (float): scale of size of the base anchor. Lower values allows detection of smaller objects.
 
     Returns:
-        anchor_boxes (torch.Tensor): stacked anchor boxes on all feature levels. shape [N, 4]. 
+        anchor_boxes (torch.Tensor): stacked anchor boxes on all feature levels. shape [N, 4].
             boxes are in 'ltrb' format
         num_anchors (int): number of anchors per location
     """
@@ -140,14 +177,14 @@ def generate_anchors_boxes(
     strides = [2 ** i for i in pyramid_levels]
 
     # get offsets for anchor boxes for one pixel
-    # can rewrite in pure Torch but using np is more convenient. This function usually should only be called once
-    num_anchors = len(scale_vals) * len(aspect_ratios)
-    ratio_vals_sq = np.sqrt(np.tile(aspect_ratios, len(scale_vals)))
-    scale_vals = np.repeat(scale_vals, len(aspect_ratios))[:, np.newaxis]
-    wh = np.stack([np.ones(num_anchors) * ratio_vals_sq, np.ones(num_anchors) / ratio_vals_sq], axis=1)
+    num_anchors = num_scales * len(aspect_ratios)
+    ratio_vals_sq = torch.tensor(aspect_ratios).repeat(num_scales).sqrt()
+    # view -> repeat -> view to simulate numpy.tile
+    scale_vals = torch.tensor(scale_vals).view(-1, 1).repeat(1, len(aspect_ratios)).view(-1, 1)
+    wh = torch.stack([torch.ones(num_anchors) * ratio_vals_sq, torch.ones(num_anchors) / ratio_vals_sq], 1)
     lt = -0.5 * wh * scale_vals
     rb = 0.5 * wh * scale_vals
-    base_offsets = torch.from_numpy(np.hstack([lt, rb])).float()  # [num_anchors, 4]
+    base_offsets = torch.stack([lt, rb], 1).float()  # [num_anchors, 4]
     base_offsets = base_offsets.view(-1, 1, 1, 4)  # [num_anchors, 1, 1, 4]
     # generate anchor boxes for all given strides
     all_anchors = []
@@ -164,6 +201,7 @@ def generate_anchors_boxes(
 
 
 def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unmatched_iou=0.4):
+    # type: (Tensor, Tensor, int, float, float) -> Tuple[Tensor, Tensor, Tensor]
     """Generate targets for regression and classification
     
     Based on IoU between anchor and true bounding box there are three types of anchor boxes
@@ -171,60 +209,56 @@ def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unma
     2) matched_iou > IoU >= unmatched_iou: Medium similarity. Ignored. Mask value is -1
     3) unmatched_iou > IoU: Lowest similarity. Unmatched/Negative. Mask value is 0
 
+    This function works on whole batch of images at once and is very efficient
     Args:
         anchors (torch.Tensor): all anchors on a single image. shape [N, 4]
         batch_gt_boxes (torch.Tensor): all ground truth bounding boxes and classes for the batch. shape [BS, N, 5]
             classes are expected to be in the last column.
             bboxes are in `ltrb` format!
         num_classes (int): number of classes. needed for one-hot encoding labels
-        matched_iou (float):
-        unmatched_iou (float):
+        matched_iou (float): see above
+        unmatched_iou (float): see above
 
     Returns:
         box_target, cls_target, matches_mask
 
     """
-
-    def _generate_single_targets(gt_boxes):
-        gt_boxes, gt_classes = gt_boxes.split(4, dim=1)
-        overlap = box_iou(anchors, gt_boxes)
-
-        # Keep best box per anchor
-        overlap, indices = overlap.max(1)
-        box_target = box2delta(gt_boxes[indices], anchors)
-
-        # There are three types of anchors.
-        # matched (with objects), unmatched (with background), and in between (which should be ignored)
-        IGNORED_VALUE = -1
-        UNMATCHED_VALUE = 0
-        matches_mask = torch.ones_like(overlap) * IGNORED_VALUE
-        matches_mask[overlap < unmatched_iou] = UNMATCHED_VALUE  # background
-        matches_mask[overlap >= matched_iou] = 1
-
-        # Generate one-hot-encoded target classes
-        cls_target = torch.zeros(
-            (anchors.size(0), num_classes + 1), device=gt_classes.device, dtype=gt_classes.dtype
-        )
-        gt_classes = gt_classes[indices].long()
-        gt_classes[overlap < unmatched_iou] = num_classes  # background has no class
-        cls_target.scatter_(1, gt_classes, 1)
-        cls_target = cls_target[:, :num_classes]  # remove background class from one-hot
-
-        return cls_target, box_target, matches_mask
-
     anchors = anchors.to(batch_gt_boxes)  # change device & type if needed
-    batch_results = ([], [], [])
-    for single_gt_boxes in batch_gt_boxes:
-        single_target_results = _generate_single_targets(single_gt_boxes)
-        for batch_res, single_res in zip(batch_results, single_target_results):
-            batch_res.append(single_res)
-    b_cls_target, b_box_target, b_matches_mask = [torch.stack(targets) for targets in batch_results]
-    return b_cls_target, b_box_target, b_matches_mask
+
+    batch_gt_boxes, batch_gt_classes = batch_gt_boxes.split(4, dim=2)
+    overlap = batch_box_iou(anchors, batch_gt_boxes)
+
+    # Keep best box per anchor
+    overlap, indices = overlap.max(-1)
+    gathered_gt_boxes = batch_gt_boxes.gather(1, indices[..., None].expand(-1, -1, 4))
+    box_target = box2delta(gathered_gt_boxes, anchors[None])
+
+    # There are three types of anchors.
+    # matched (with objects), unmatched (with background), and in between (which should be ignored)
+    IGNORED_VALUE = -1
+    matches_mask = torch.ones_like(overlap, dtype=torch.long) * IGNORED_VALUE
+    UNMATCHED_VALUE = torch.tensor(0).to(matches_mask)
+    MATCHED_VALUE = torch.tensor(1).to(matches_mask)
+    matches_mask[overlap < unmatched_iou] = UNMATCHED_VALUE  # background
+    matches_mask[overlap >= matched_iou] = MATCHED_VALUE  # foreground
+
+    # Generate one-hot-encoded target classes
+    bs, num_anchors = batch_gt_boxes.size(0), anchors.size(0)
+    cls_target = torch.zeros(
+        (bs, num_anchors, num_classes + 1), device=batch_gt_classes.device, dtype=batch_gt_classes.dtype
+    )
+    gathered_gt_classes = batch_gt_classes.gather(1, indices[..., None]).long()
+    # set background to last class for scatter
+    gathered_gt_classes[overlap < unmatched_iou] = torch.tensor(num_classes).to(gathered_gt_classes)
+    cls_target.scatter_(2, gathered_gt_classes, 1)
+    cls_target = cls_target[..., :num_classes]  # remove background class from one-hot
+
+    return box_target, cls_target, matches_mask
 
 
 # copied from torchvision
 def batched_nms(boxes, scores, idxs, iou_threshold):
-    # type: (Tensor, Tensor, Tensor, float)->Tensor
+    # type: (Tensor, Tensor, Tensor, float) -> Tensor
     """
     Performs non-maximum suppression in a batched fashion.
     Each index value correspond to a category, and NMS
@@ -261,6 +295,7 @@ def batched_nms(boxes, scores, idxs, iou_threshold):
     return keep
 
 
+# TODO: cover this with tests
 # jit actually makes it slower for fp16 and results are different!
 # FIXME: check it after 1.6 release. maybe they will fix JIT by that time
 # @torch.jit.script
@@ -269,13 +304,12 @@ def decode(
     batch_box_head,
     anchors,
     img_shapes=None,
-    img_scales=None,
-    threshold=0.05,
+    score_threshold=0.0,
     max_detection_points=5000,
     max_detection_per_image=100,
     iou_threshold=0.5,
 ):
-    # type: (Tensor, Tensor, Tensor, Tensor, Tensor, float, int, int, float)->Tensor
+    # type: (Tensor, Tensor, Tensor, Tensor, float, int, int, float)->Tensor
     """
     Decodes raw outputs of a model for easy visualization of bboxes
 
@@ -284,25 +318,20 @@ def decode(
         batch_box_head (torch.Tensor): shape [BS, *, 4]
         anchors (torch.Tensor): shape [*, 4]
         img_shapes (torch.Tensor): if given clips predicted bboxes to img height and width. Shape [BS, 2] or [2,]
-        img_scales (torch.Tensor): if given used to rescale img_shapes. Shape [BS,]
-        threshold (float): minimum score threshold to consider object detected
+        score_threshold (float): minimum score threshold to consider object detected. Large values give slight speedup
+            but decrease mean recall for small objects
         max_detection_points (int): Maximum number of bboxes to consider for NMS for one image
-        max_detection_per_image (int): Maximum number of bboxes to return per image 
+        max_detection_per_image (int): Maximum number of bboxes to return per image
         iou_threshold (float): iou_threshold for Non Maximum Supression
 
     Returns:
         torch.Tensor with bboxes, scores and classes
-            shape [BS, MAX_DETECTION_PER_IMAGE, 6]. 
+            shape [BS, MAX_DETECTION_PER_IMAGE, 6].
             bboxes in 'ltrb' format. If img_shape is not given they are NOT CLIPPED (!)
     """
 
     batch_size = batch_cls_head.size(0)
     num_classes = batch_cls_head.size(-1)
-
-    anchors = anchors.to(batch_cls_head).unsqueeze(0).expand(batch_size, -1, -1)  # [N, 4] -> [BS, N, 4]
-    # it has to be raw logits but check anyway to avoid applying sigmoid twice
-    if batch_cls_head.min() < 0 or batch_cls_head.max() > 1:
-        batch_cls_head = batch_cls_head.sigmoid()
 
     # It's much faster to calculate topk once for full batch here rather than doing it inside loop
     # In TF The same bbox may belong to two different objects
@@ -310,31 +339,40 @@ def decode(
     scores_topk_all, cls_topk_indices_all = torch.topk(
         batch_cls_head.view(batch_size, -1), k=max_detection_points
     )
-    indices_all = cls_topk_indices_all / num_classes
+    indices_all = cls_topk_indices_all // num_classes
     classes_all = cls_topk_indices_all % num_classes
+
+    # it has to be raw logits but check anyway to avoid applying sigmoid twice
+    # applying sigmoid after topk is slightly faster than applying before
+    if scores_topk_all.min() < 0 or scores_topk_all.max() > 1:
+        scores_topk_all = scores_topk_all.sigmoid()
 
     # Gather corresponding bounding boxes & anchors, then regress and clip
     box_topk_all = torch.gather(batch_box_head, 1, indices_all.unsqueeze(2).expand(-1, -1, 4))
+    anchors = anchors.unsqueeze(0).expand(batch_size, -1, -1).to(box_topk_all)  # [N, 4] -> [BS, N, 4]
     anchors_topk_all = torch.gather(anchors, 1, indices_all.unsqueeze(2).expand(-1, -1, 4))
     regressed_boxes_all = delta2box(box_topk_all, anchors_topk_all)
     if img_shapes is not None:
-        if img_scales is not None:
-            img_shapes = img_shapes / img_scales.unsqueeze(1)
         regressed_boxes_all = clip_bboxes_batch(regressed_boxes_all, img_shapes)
 
     # prepare output tensors
-    out_scores = torch.zeros((batch_size, max_detection_per_image)).to(batch_cls_head)
-    out_boxes = torch.zeros((batch_size, max_detection_per_image, 4)).to(batch_cls_head)
-    out_classes = torch.zeros((batch_size, max_detection_per_image)).to(batch_cls_head)
+    device_dtype = {"device": regressed_boxes_all.device, "dtype": regressed_boxes_all.dtype}
+    out_scores = torch.zeros((batch_size, max_detection_per_image), **device_dtype)
+    out_boxes = torch.zeros((batch_size, max_detection_per_image, 4), **device_dtype)
+    out_classes = torch.zeros((batch_size, max_detection_per_image), **device_dtype)
 
     for batch in range(batch_size):
-        scores_topk = scores_topk_all[batch]  #  , cls_topk_indices_all[batch]
-        classes = classes_all[batch]  # cls_topk_indices % num_classes
-        regressed_boxes = regressed_boxes_all[batch]  # delta2box(box_topk, anchor_topk)
+        scores_topk = scores_topk_all[batch]
+        # additionally filter prediction with low confidence
+        valid_mask = scores_topk.ge(score_threshold)
+        scores_topk = scores_topk[valid_mask]
+        classes = classes_all[batch, valid_mask]
+        regressed_boxes = regressed_boxes_all[batch, valid_mask]
 
         # apply NMS
         nms_idx = batched_nms(regressed_boxes, scores_topk, classes, iou_threshold)
         nms_idx = nms_idx[: min(len(nms_idx), max_detection_per_image)]
+
         # select suppressed bboxes
         im_scores = scores_topk[nms_idx]
         im_classes = classes[nms_idx]
@@ -345,29 +383,5 @@ def decode(
         out_classes[batch, : im_classes.size(0)] = im_classes
         out_boxes[batch, : im_bboxes.size(0)] = im_bboxes
         # no need to pad because it's already padded with 0's
-
-        ## old way ##
-        # get regressed bboxes
-        # all_img_bboxes = delta2box(batch_box_head[batch], anchors)
-        # if img_shape: # maybe clip
-        # all_img_bboxes = clip_bboxes(all_img_bboxes, img_shape)
-        # select at most `top_n` bboxes and from them select with score > threshold
-        # max_cls_score, max_cls_idx = batch_cls_head[batch].max(1)
-        # top_cls_score, top_cls_idx = max_cls_score.topk(top_n)
-        # top_cls_idx = top_cls_idx[top_cls_score > threshold]
-
-        # im_scores = max_cls_score[top_cls_idx]
-        # im_classes = max_cls_idx[top_cls_idx]
-        # im_bboxes = all_img_bboxes[top_cls_idx]
-
-        # apply NMS
-        # nms_idx = batched_nms(im_bboxes, im_scores, im_classes, iou_threshold)
-        # im_scores = im_scores[nms_idx]
-        # im_classes = im_classes[nms_idx]
-        # im_bboxes = im_bboxes[nms_idx]
-
-        # out_scores[batch, :im_scores.size(0)] = im_scores
-        # out_classes[batch, :im_classes.size(0)] = im_classes
-        # out_boxes[batch, :im_bboxes.size(0)] = im_bboxes
 
     return torch.cat([out_boxes, out_scores.unsqueeze(-1), out_classes.unsqueeze(-1)], dim=2)

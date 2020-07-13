@@ -3,38 +3,73 @@ import torch
 import torch.nn.functional as F
 from .base import Reduction
 
-# code for focal loss was borrowed from Bloodaxe
+# copy from @rwightman with modifications
+# https://github.com/rwightman/efficientdet-pytorch/blob/master/effdet/loss.py
 def focal_loss_with_logits(
-    y_pred, y_true, gamma=2.0, alpha=0.25, reduction="mean", normalized=False, combine_thr=0,
-    ):
+    y_pred, y_true, gamma=2.0, alpha=0.25, reduction="mean", normalized=False, combine_thr=0
+):
+    # type: (Tensor, Tensor, float, float, str, bool, float) -> Tensor
     """see pytorch_tools.losses.focal.FocalLoss for docstring"""
-    reduction = Reduction(reduction)
-    y_true = y_true.type(y_pred.type())
-
-    logpt = F.binary_cross_entropy_with_logits(y_pred, y_true, reduction="none")
-    pt = torch.exp(-logpt)
+    cross_entropy = F.binary_cross_entropy_with_logits(y_pred, y_true.to(y_pred), reduction="none")
+    # Below are comments/derivations for computing modulator (aka focal_term).
+    # For brevity, let x = logits,  z = targets, r = gamma, and p_t = sigmod(x)
+    # for positive samples and 1 - sigmoid(x) for negative examples.
+    #
+    # The modulator, defined as (1 - P_t)^r, is a critical part in focal loss
+    # computation. For r > 0, it puts more weights on hard examples, and less
+    # weights on easier ones. However if it is directly computed as (1 - P_t)^r,
+    # its back-propagation is not stable when r < 1. The implementation here
+    # resolves the issue.
+    #
+    # For positive samples (labels being 1),
+    #    (1 - p_t)^r
+    #  = (1 - sigmoid(x))^r
+    #  = (1 - (1 / (1 + exp(-x))))^r
+    #  = (exp(-x) / (1 + exp(-x)))^r
+    #  = exp(log((exp(-x) / (1 + exp(-x)))^r))
+    #  = exp(r * log(exp(-x)) - r * log(1 + exp(-x)))
+    #  = exp(- r * x - r * log(1 + exp(-x)))
+    #
+    # For negative samples (labels being 0),
+    #    (1 - p_t)^r
+    #  = (sigmoid(x))^r
+    #  = (1 / (1 + exp(-x)))^r
+    #  = exp(log((1 / (1 + exp(-x)))^r))
+    #  = exp(-r * log(1 + exp(-x)))
+    #
+    # Therefore one unified form for positive (z = 1) and negative (z = 0)
+    # samples is:
+    #      (1 - p_t)^r = exp(-r * z * x - r * log(1 + exp(-x))).
 
     # compute the smooth combination
-    if combine_thr is None or combine_thr == 0:
-        focal_term = (1 - pt).pow(gamma)
-    else:
+    if combine_thr > 0:
+        pt = torch.exp(-cross_entropy)
         focal_term = ((1.0 - pt) / (1 - combine_thr)).pow(gamma)
-        focal_term[pt < combine_thr] = 1
+        focal_term.where(pt > combine_thr, torch.zeros_like(focal_term))
+    else:
+        neg_logits = y_pred.neg()
+        focal_term = torch.exp(gamma * y_true * neg_logits - gamma * torch.log1p(neg_logits.exp()))
 
-    loss = focal_term * logpt
+    loss = focal_term * cross_entropy
 
-    if alpha is not None:
-        loss = loss * (alpha * y_true + (1 - alpha) * (1 - y_true))
+    if alpha != -1:  # in segmentation we don't really want to use alpha
+        weighted_loss = torch.where(y_true == 1.0, alpha * loss, (1.0 - alpha) * loss)
+    else:
+        weighted_loss = loss
 
     if normalized:
+        # helps at the end of training when focal term is small
         norm_factor = focal_term.sum() + 1e-5
-        loss = loss / norm_factor
+        weighted_loss = weighted_loss / norm_factor
 
-    if reduction == Reduction.MEAN:
-        loss = loss.mean()
-    elif reduction == Reduction.SUM:
-        loss = loss.sum()
-    return loss
+    # TODO: maybe remove reduction from function
+    if reduction == "mean":
+        return weighted_loss.mean()
+    elif reduction == "sum":
+        return weighted_loss.sum()
+    else:
+        return weighted_loss
+
 
 def soft_jaccard_score(y_pred, y_true, dims=None, eps=1e-4):
     """
@@ -115,7 +150,7 @@ def wing_loss(y_pred, y_true, width=5, curvature=0.5, reduction="mean"):
     return loss
 
 
-def binary_hinge(y_pred, y_true, margin=1, pos_weight=1.):
+def binary_hinge(y_pred, y_true, margin=1, pos_weight=1.0):
     """
     Implements Hinge loss.
     Args:

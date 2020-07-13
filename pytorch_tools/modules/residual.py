@@ -50,8 +50,8 @@ class SEModule(nn.Module):
 
 class ECAModule(nn.Module):
     """Efficient Channel Attention
-    This implementation is different from the paper. I've removed all hyperparameters and 
-    use fixed kernel size of 3. If you think it may be better to use different k_size - feel free to open an issue. 
+    This implementation is different from the paper. I've removed all hyperparameters and
+    use fixed kernel size of 3. If you think it may be better to use different k_size - feel free to open an issue.
 
     Ref: ECA-Net: Efficient Channel Attention for Deep Convolutional Neural Networks
     https://arxiv.org/abs/1910.03151
@@ -91,7 +91,8 @@ class DepthwiseSeparableConv(nn.Sequential):
     ):
         modules = [
             conv3x3(in_channels, in_channels, stride=stride, groups=in_channels, dilation=dilation),
-            conv1x1(in_channels, out_channels, bias=True),  # in efficient det they for some reason add bias
+            # bias is needed for EffDet because in head conv is separated from normalization
+            conv1x1(in_channels, out_channels, bias=True),
             norm_layer(out_channels, activation=norm_act) if use_norm else nn.Identity(),
         ]
         super().__init__(*modules)
