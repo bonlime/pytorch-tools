@@ -206,7 +206,7 @@ def reduce_meter(meter):
 
 def filter_bn_from_wd(model):
     """
-    Filter out batch norm parameters and remove them from weight decay. Gives
+    Filter out batch norm parameters (and bias for conv) and remove them from weight decay. Gives
     higher accuracy for large batch training.
     Idea from: https://arxiv.org/pdf/1807.11205.pdf
     Code from: https://github.com/cybertronai/imagenet18
@@ -215,16 +215,36 @@ def filter_bn_from_wd(model):
     Returns:
         dict with parameters
     """
+    # import inside function to avoid problems with circular imports
+    import pytorch_tools.modules as pt_modules
 
-    def get_bn_params(module):
-        if isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
+    NORM_CLASSES = (
+        torch.nn.modules.batchnorm._BatchNorm,
+        pt_modules.ABN,
+        pt_modules.SyncABN,
+        pt_modules.AGN,
+        pt_modules.InPlaceABN,
+        pt_modules.InPlaceABNSync,
+    )
+    CONV_CLASSES = (
+        torch.nn.modules.Linear,  # also add linear here
+        torch.nn.modules.conv._ConvNd,
+        pt_modules.weight_standartization.WS_Conv2d,
+    )
+
+    def _get_params(module):
+        # for BN filter both weight and bias
+        if isinstance(module, NORM_CLASSES):
             return module.parameters()
+        # for conv & linear only filter bias
+        elif isinstance(module, CONV_CLASSES) and module.bias is not None:
+            return (module.bias,)  # want to return list
         accum = set()
         for child in module.children():
-            [accum.add(p) for p in get_bn_params(child)]
+            [accum.add(p) for p in _get_params(child)]
         return accum
 
-    bn_params = get_bn_params(model)
+    bn_params = _get_params(model)
     bn_params2 = [p for p in model.parameters() if p in bn_params]
     rem_params = [p for p in model.parameters() if p not in bn_params]
     return [{"params": bn_params2, "weight_decay": 0}, {"params": rem_params}]

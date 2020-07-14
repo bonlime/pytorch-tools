@@ -26,7 +26,7 @@ from .activated_group_norm import AGN
 from .activated_no_norm import NoNormAct
 from inplace_abn import InPlaceABN, InPlaceABNSync
 
-
+# NOTE: after adding new normalization don't forget to also patch `filter_bn_from_wd` function
 def bn_from_name(norm_name):
     norm_name = norm_name.lower()
     if norm_name == "abn":
