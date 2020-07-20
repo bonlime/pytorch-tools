@@ -19,7 +19,8 @@ class FocalLoss(Loss):
                 NOTE: in current implementation it would one-hot target but then use SIGMOID. be aware
             'binary' - expects y_true of shape [N, 1, *] or [N, *]
         gamma (float): Power factor for dampening weight (focal strength).
-        alpha (float): Prior probability of having positive value in target
+        alpha (float): Prior probability of having positive value in target. Passing alpha=-1 would change the behaviour slightly
+            in a manner better suited for segmentation. (this is an awful docstring, check code to undertand what it really means)
         reduction (str): The reduction type to apply to the output. {'none', 'mean', 'sum'}.
             'none' - no reduction will be applied
             'sum' - the output will be summed
