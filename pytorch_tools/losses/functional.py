@@ -45,7 +45,7 @@ def focal_loss_with_logits(
     if combine_thr > 0:
         pt = torch.exp(-cross_entropy)
         focal_term = ((1.0 - pt) / (1 - combine_thr)).pow(gamma)
-        focal_term.where(pt > combine_thr, torch.zeros_like(focal_term))
+        focal_term.masked_fill_(pt < combine_thr, 1)
     else:
         neg_logits = y_pred.neg()
         focal_term = torch.exp(gamma * y_true * neg_logits - gamma * torch.log1p(neg_logits.exp()))
