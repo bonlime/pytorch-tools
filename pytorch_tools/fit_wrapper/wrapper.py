@@ -105,7 +105,7 @@ class Runner:
 
         # update metrics
         self.state.loss_meter.update(to_numpy(loss))
-        with torch.no_grad():
+        with torch.no_grad(), amp.autocast(self.state.use_fp16):
             for metric, meter in zip(self.state.metrics, self.state.metric_meters):
                 meter.update(to_numpy(metric(output, target).squeeze()))
 
