@@ -262,32 +262,29 @@ class ReduceLROnPlateau(Callback):
         factor (float): by how to reduce learning rate
         patience (int): how many epochs to wait until reducing lr
         min_lr (float): minimum learning rate which could be achieved
+        monitor (str): quantity to monitor. Implicitly prefers validation metrics over train. One of:
+            `loss` or name of any metric passed to the runner.
         mode (str): one of "min" of "max". Whether to decide reducing based
             on minimizing or maximizing loss
         vebose (bool): Whether or not to print messages about updating lr to console
     """
 
-    def __init__(self, factor=0.5, patience=5, min_lr=1e-6, mode="min", verbose=True):
+    def __init__(self, factor=0.5, patience=5, min_lr=1e-6, monitor="loss", mode="min", verbose=True):
         super().__init__()
         self.factor = factor
         self.patience = patience
-        self.mode = ReduceMode(mode)
+        self.monitor = monitor
         self.min_lr = min_lr
-        self.best = float("inf") if self.mode == ReduceMode.MIN else -float("inf")
+        mode = ReduceMode(mode)
+        self.best = np.inf if mode == ReduceMode.MIN else -np.inf
+        self.monitor_op = np.less if mode == ReduceMode.MIN else np.greater
         self._steps_since_best = 0
         self.verbose = verbose
 
     def on_epoch_end(self):
-        # TODO: zakirov(19.11.19) Add support for saving based on metric
-        if self.state.val_loss is not None:
-            current = self.state.val_loss.avg
-        else:
-            current = self.state.train_loss.avg
+        current = self.get_monitor_value()
         self._steps_since_best += 1
-
-        if (self.mode == ReduceMode.MIN and current < self.best) or (
-            self.mode == ReduceMode.MAX and current > self.best
-        ):
+        if self.monitor_op(current, self.best):
             self._steps_since_best = 0
         elif self._steps_since_best > self.patience:
             for param_group in self.state.optimizer.param_groups:
@@ -295,6 +292,18 @@ class ReduceLROnPlateau(Callback):
                     param_group["lr"] *= self.factor
             if self.verbose:
                 print(f"ReduceLROnPlateau reducing learning rate to {param_group['lr'] * self.factor}")
+
+    def get_monitor_value(self):
+        value = None
+        if self.monitor == "loss":
+            value = self.state.loss_meter.avg
+        else:
+            for metric_meter in self.state.metric_meters:
+                if metric_meter.name == self.monitor:
+                    value = metric_meter.avg
+        if value is None:
+            raise ValueError(f"ReduceLROnPlateau can't find {self.monitor} value to monitor")
+        return value
 
 
 class CheckpointSaver(Callback):
