@@ -269,11 +269,17 @@ def repeat_channels(conv_weights, new_channels, old_channels=3):
     return new_weights
 
 
-# fmt: off
 # basic CudaLoader more than enough for majority of problems
 class ToCudaLoader:
     """Simple wrapper which moves batches to cuda. Usage: loader = ToCudaLoader(loader)"""
-    def __init__(self, loader): self.loader = loader
-    def __iter__(self): return ([i.cuda(non_blocking=True), t.cuda(non_blocking=True)] for i, t in self.loader)
-    def __len__(self): return len(self.loader)
-# fmt: on
+
+    def __init__(self, loader):
+        self.loader = loader
+        self.batch_size = loader.batch_size
+
+    def __iter__(self):
+        return ([i.cuda(non_blocking=True), t.cuda(non_blocking=True)] for i, t in self.loader)
+
+    def __len__(self):
+        return len(self.loader)
+
