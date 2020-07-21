@@ -233,24 +233,6 @@ class PhasesScheduler(Callback):
             param_group["momentum"] = mom
 
 
-class StateReduce(Callback):
-    """
-    Reduced everything in state (that needs reduction) at the end of loader.
-    Needed for proper saving/logging/metric calculation
-    NOTE: Should be the first callback in the list to work as expected properly
-    """
-
-    def on_epoch_end(self):
-        if self.state.world_size == 1:
-            return
-        meters = self.state.train_metrics + [self.state.train_loss]
-        meters = meters + self.state.metric_meters + [self.state.loss_meter]
-        if self.state.val_loss is not None:
-            meters = meters + self.state.val_metrics + [self.state.val_loss]
-        for meter in meters:
-            meter = utils.reduce_meter(meter)
-
-
 class ReduceMode(Enum):
     MIN = "min"
     MAX = "max"

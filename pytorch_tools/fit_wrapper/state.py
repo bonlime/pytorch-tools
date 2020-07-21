@@ -57,3 +57,12 @@ class RunnerState:
     @property
     def epoch_log(self):
         return self.epoch + 1
+
+    def reduce_meters(self):
+        """aggregate loss and metrics from all processes"""
+        meters = self.train_metrics + [self.train_loss]
+        meters = meters + self.metric_meters + [self.loss_meter]
+        if self.val_loss is not None:
+            meters = meters + self.val_metrics + [self.val_loss]
+        for meter in meters:
+            meter = utils.reduce_meter(meter)  # NoOp if world_size == 1
