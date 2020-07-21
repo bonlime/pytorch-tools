@@ -9,7 +9,7 @@ from pytorch_tools.utils.misc import to_numpy
 
 class Runner:
     """
-    
+
     Args:
         model: model
         optimizer: optimizer
