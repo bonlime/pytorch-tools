@@ -71,6 +71,7 @@ class Runner:
                 self.evaluate(val_loader, steps=val_steps)
                 self.state.val_loss = copy(self.state.loss_meter)
                 self.state.val_metrics = [copy(m) for m in self.state.metric_meters]
+            self.state.reduce_meters()
             self.callbacks.on_epoch_end()
         self.callbacks.on_end()
 
