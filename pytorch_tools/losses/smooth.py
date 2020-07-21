@@ -63,7 +63,7 @@ class CrossEntropyLoss(Loss):
         sample_weights = self.weight * y_true_one_hot
         # multiple labels handling
         nll_loss = -logprobs * y_true_one_hot
-        nll_loss = nll_loss.sum(-1)
-        smooth_loss = -logprobs.mean(dim=-1)
+        nll_loss = nll_loss.sum(1)
+        smooth_loss = -logprobs.mean(dim=1)
         loss = self.confidence * nll_loss + self.smoothing * smooth_loss
         return loss.sum().div(sample_weights.sum())
