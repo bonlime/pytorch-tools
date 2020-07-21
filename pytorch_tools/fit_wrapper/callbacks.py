@@ -132,7 +132,9 @@ class Timer(Callback):
             self.has_printed = True
             d_time = self.timer.data_time.avg_smooth
             b_time = self.timer.batch_time.avg_smooth
-            print(f"\nTimeMeter profiling. Data time: {d_time:.2E}s. Model time: {b_time:.2E}s \n")
+            self.state.logger.info(
+                f"\nTimeMeter profiling. Data time: {d_time:.2E}s. Model time: {b_time:.2E}s \n"
+            )
 
 
 class PhasesScheduler(Callback):
@@ -291,7 +293,9 @@ class ReduceLROnPlateau(Callback):
                 if param_group["lr"] * self.factor > self.min_lr:
                     param_group["lr"] *= self.factor
             if self.verbose:
-                print(f"ReduceLROnPlateau reducing learning rate to {param_group['lr'] * self.factor}")
+                self.state.logger.info(
+                    f"ReduceLROnPlateau reducing learning rate to {param_group['lr'] * self.factor}"
+                )
 
     def get_monitor_value(self):
         value = None
@@ -354,7 +358,9 @@ class CheckpointSaver(Callback):
         if self.monitor_op(current, self.best):
             ep = self.state.epoch_log
             if self.verbose:
-                print(f"Epoch {ep:2d}: best {self.monitor} improved from {self.best:.4f} to {current:.4f}")
+                self.state.logger.info(
+                    f"Epoch {ep:2d}: best {self.monitor} improved from {self.best:.4f} to {current:.4f}"
+                )
             self.best = current
             save_name = os.path.join(self.save_dir, self.save_name.format(ep=ep, metric=current))
             self._save_checkpoint(save_name)
@@ -508,38 +514,18 @@ class ConsoleLogger(Callback):
 
 
 class FileLogger(Callback):
-    """Logs loss and metrics every epoch into file.
-    If launched in distributed mode - reduces metrics before logging
-    Args:
-        log_dir (str): path where to store the logs
-        logger (logging.Logger): external logger. Default None
-    """
-
-    def __init__(self, log_dir, logger=None):
-        # logger - already created instance of logger
-        super().__init__()
-        self.logger = logger or self._get_logger(os.path.join(log_dir, "logs.txt"))
+    """Logs loss and metrics every epoch. 
+    You have to manually configure loguru.logger to enable actual logging to file"""
 
     def on_epoch_begin(self):
-        self.logger.info(f"Epoch {self.state.epoch_log} | lr {self.current_lr:.2e}")
+        self.state.logger.info(f"Epoch {self.state.epoch_log} | lr {self.current_lr:.2e}")
 
     def on_epoch_end(self):
         loss, metrics = self.state.train_loss, self.state.train_metrics
-        self.logger.info("Train " + self._format_meters(loss, metrics))
+        self.state.logger.info("Train " + self._format_meters(loss, metrics))
         if self.state.val_loss is not None:
             loss, metrics = self.state.val_loss, self.state.val_metrics
-            self.logger.info("Val   " + self._format_meters(loss, metrics))
-
-    @staticmethod
-    def _get_logger(log_path):
-        logger = logging.getLogger(log_path)
-        logger.setLevel(logging.DEBUG)
-        fh = logging.FileHandler(log_path)
-        fh.setLevel(logging.INFO)
-        formatter = logging.Formatter("[%(asctime)s] %(message)s")
-        fh.setFormatter(formatter)
-        logger.addHandler(fh)
-        return logger
+            self.state.logger.info("Val   " + self._format_meters(loss, metrics))
 
     @property
     def current_lr(self):
@@ -722,7 +708,7 @@ class ResetOptimizer(Callback):
                 self.state.optimizer.state = defaultdict(dict)
 
             if self.verbose:
-                print("Reseting optimizer")
+                self.state.logger.info("Reseting optimizer")
 
 
 # docstring from https://github.com/rwightman/pytorch-image-models

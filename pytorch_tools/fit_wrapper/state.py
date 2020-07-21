@@ -1,3 +1,4 @@
+from loguru import logger
 from torch.cuda.amp import GradScaler
 from pytorch_tools.utils import misc as utils
 
@@ -18,6 +19,7 @@ class RunnerState:
         self.optimizer = optimizer
         self.criterion = criterion
         self.metrics = utils.listify(metrics)
+        self.logger = logger
 
         # make state aware of fp16 and scale. if use_fp16 is False, grad_scaler is NoOp
         self.use_fp16 = use_fp16
