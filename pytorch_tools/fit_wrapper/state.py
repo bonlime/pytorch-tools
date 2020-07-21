@@ -65,4 +65,4 @@ class RunnerState:
         if self.val_loss is not None:
             meters = meters + self.val_metrics + [self.val_loss]
         for meter in meters:
-            meter = utils.reduce_meter(meter)  # NoOp if world_size == 1
+            utils.reduce_meter(meter)  # NoOp if world_size == 1

@@ -192,8 +192,7 @@ def sum_tensor(tensor):
 
 
 def reduce_meter(meter):
-    """Args:
-        meter (AverageMeter): meter to reduce """
+    """Args: meter (AverageMeter): meter to reduce"""
     if env_world_size() == 1:
         return meter
     # can't reduce AverageMeter so need to reduce every attribute separately
@@ -201,7 +200,6 @@ def reduce_meter(meter):
     for attr in reduce_attributes:
         old_value = to_tensor([getattr(meter, attr)]).float().cuda()
         setattr(meter, attr, reduce_tensor(old_value).cpu().numpy()[0])
-    return meter
 
 
 def filter_bn_from_wd(model):
