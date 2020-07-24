@@ -33,7 +33,7 @@ class SegmentationBiFPN(nn.Module):
         head_channels=256,
         num_classes=1,
         last_upsample=True,
-        encoder_norm_layer="frozenabn",
+        encoder_norm_layer="abn",
         encoder_norm_act="swish",
         decoder_norm_layer="abn",
         decoder_norm_act="swish",
