@@ -27,7 +27,9 @@ class RMSprop(_RMSprop):
                 # State initialization
                 if len(state) == 0:
                     state['step'] = 0
-                    state['square_avg'] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                    # be default PyTorch inits with zeros. it doesn't converge well 
+                    # check https://github.com/pytorch/pytorch/issues/23796 for details
+                    state['square_avg'] = torch.ones_like(p, memory_format=torch.preserve_format)
                     if group['momentum'] > 0:
                         state['momentum_buffer'] = torch.zeros_like(p, memory_format=torch.preserve_format)
                     if group['centered']:
@@ -46,10 +48,9 @@ class RMSprop(_RMSprop):
                 if group['centered']:
                     grad_avg = state['grad_avg']
                     grad_avg.mul_(alpha).add_(grad, alpha=1 - alpha)
-                    avg = square_avg.addcmul(grad_avg, grad_avg, value=-1).sqrt_().add_(group['eps'])
+                    avg = square_avg.addcmul(-1, grad_avg, grad_avg).add(group['eps']).sqrt_()  # eps moved in sqrt
                 else:
-                    # avg = square_avg.sqrt().add_(group['eps'])
-                    avg = square_avg.add_(group['eps']).sqrt()
+                    avg = square_avg.add_(group['eps']).sqrt() # eps moved in sqrt
 
                 if group['momentum'] > 0:
                     buf = state['momentum_buffer']
