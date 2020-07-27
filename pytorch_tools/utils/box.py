@@ -47,9 +47,7 @@ def delta2box(deltas, anchors):
     # such that dw and dh are no larger than what would transform a 16px box into a
     # 1000px box (based on a small anchor, 16px, and a typical image size, 1000px).
     SCALE_CLAMP = 4.135  # ~= np.log(1000. / 16.)
-    deltas[..., 2:] = deltas[..., 2:].clamp(min=-SCALE_CLAMP, max=SCALE_CLAMP)
-
-    pred_wh = deltas[..., 2:].exp() * anchors_wh
+    pred_wh = deltas[..., 2:].clamp(min=-SCALE_CLAMP, max=SCALE_CLAMP).exp() * anchors_wh
     return torch.cat([pred_ctr - 0.5 * pred_wh, pred_ctr + 0.5 * pred_wh], -1)
 
 
@@ -189,7 +187,7 @@ def generate_anchors_boxes(
     # generate anchor boxes for all given strides
     all_anchors = []
     for stride in strides:
-        y, x = torch.meshgrid([torch.arange(stride / 2, image_size[i], stride) for i in range(2)])
+        y, x = torch.meshgrid([torch.arange(stride // 2, image_size[i], stride) for i in range(2)])
         xyxy = torch.stack((x, y, x, y), 2).unsqueeze(0)
         # permute to match TF EffDet anchors order after reshape
         anchors = (xyxy + base_offsets * stride).permute(1, 2, 0, 3).reshape(-1, 4)
@@ -305,7 +303,7 @@ def decode(
     anchors,
     img_shapes=None,
     score_threshold=0.0,
-    max_detection_points=5000,
+    max_detection_points=3000,  # 3840
     max_detection_per_image=100,
     iou_threshold=0.5,
 ):
@@ -320,7 +318,8 @@ def decode(
         img_shapes (torch.Tensor): if given clips predicted bboxes to img height and width. Shape [BS, 2] or [2,]
         score_threshold (float): minimum score threshold to consider object detected. Large values give slight speedup
             but decrease mean recall for small objects
-        max_detection_points (int): Maximum number of bboxes to consider for NMS for one image
+        max_detection_points (int): Maximum number of bboxes to consider for NMS for one image.
+            As of 07.20 in TenorRT 7 there is a hardcoded limit 3840 on this value. Make sure the default is lower than it
         max_detection_per_image (int): Maximum number of bboxes to return per image
         iou_threshold (float): iou_threshold for Non Maximum Supression
 
@@ -340,17 +339,17 @@ def decode(
         batch_cls_head.view(batch_size, -1), k=max_detection_points
     )
     indices_all = cls_topk_indices_all // num_classes
-    classes_all = cls_topk_indices_all % num_classes
+    classes_all = (cls_topk_indices_all % num_classes).float()  # turn to float for onnx export
 
-    # it has to be raw logits but check anyway to avoid applying sigmoid twice
     # applying sigmoid after topk is slightly faster than applying before
-    if scores_topk_all.min() < 0 or scores_topk_all.max() > 1:
-        scores_topk_all = scores_topk_all.sigmoid()
+    scores_topk_all = scores_topk_all.sigmoid()  # logits -> scores
 
     # Gather corresponding bounding boxes & anchors, then regress and clip
-    box_topk_all = torch.gather(batch_box_head, 1, indices_all.unsqueeze(2).expand(-1, -1, 4))
-    anchors = anchors.unsqueeze(0).expand(batch_size, -1, -1).to(box_topk_all)  # [N, 4] -> [BS, N, 4]
-    anchors_topk_all = torch.gather(anchors, 1, indices_all.unsqueeze(2).expand(-1, -1, 4))
+    # offset for indices to match boxes after reshape
+    offset = torch.arange(batch_size, device=indices_all.device).unsqueeze(1) * max_detection_points
+    box_topk_all = batch_box_head.view(-1, 4)[(indices_all + offset).view(-1)].view(batch_size, -1, 4)
+    # index anchors without offset because they are the same for all images in batch
+    anchors_topk_all = anchors.to(box_topk_all)[indices_all.view(-1)].view(batch_size, -1, 4)
     regressed_boxes_all = delta2box(box_topk_all, anchors_topk_all)
     if img_shapes is not None:
         regressed_boxes_all = clip_bboxes_batch(regressed_boxes_all, img_shapes)
