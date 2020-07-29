@@ -62,6 +62,6 @@ class RunnerState:
         meters = list(self.train_metrics.values()) + [self.train_loss]
         meters = meters + list(self.metric_meters.values()) + [self.loss_meter]
         if self.val_loss is not None:
-            meters = meters + list(self.val_metrics.values()) + [qself.val_loss]
+            meters = meters + list(self.val_metrics.values()) + [self.val_loss]
         for meter in meters:
             utils.reduce_meter(meter)  # NoOp if world_size == 1

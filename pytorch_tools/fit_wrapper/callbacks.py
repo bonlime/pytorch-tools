@@ -141,7 +141,7 @@ class LoaderMetrics(Callback):
         recompute_each_batch: Flag to compute metrics after each batch.
             Can be slow.
     """
-    def __init__(self, metrics, recompute_each_batch=False):
+    def __init__(self, metrics):
         super().__init__()
         self.metrics = utils.listify(metrics)
         self.metric_names = [m.name for m in self.metrics]
@@ -157,6 +157,7 @@ class LoaderMetrics(Callback):
         self.target = []
         self.output = []
 
+    @torch.no_grad()
     def on_batch_end(self):
         _, target = self.state.input
         self.target.append(target)
