@@ -141,30 +141,22 @@ class LoaderMetrics(Callback):
         super().__init__()
         self.metrics = utils.listify(metrics)
         self.metric_names = [m.name for m in self.metrics]
-        self.recompute_each_batch = recompute_each_batch
     
         self.target = None
         self.output = None
     
     def on_begin(self):
-        self.target = []
-        self.output = []
-
         for name in self.metric_names:
             self.state.metric_meters[name] = utils.AverageMeter(name=m.name)
+
+    def on_loader_begin(self):
+        self.target = []
+        self.output = []
 
     def on_batch_end(self):
         _, target = self.state.input
         self.target.append(target)
         self.output.append(self.state.output)
-
-        if self.recompute_each_batch:
-            target = torch.cat(self.input)
-            output = torch.cat(self.output)
-
-            with torch.no_grad(), amp.autocast(self.state.use_fp16):
-                for metric, name in zip(self.metrics, self.metric_names):
-                    self.state.metric_meters[name].update(to_numpy(metric(output, target).squeeze()))
 
     def on_loader_end(self):
         target = torch.cat(self.input)
@@ -172,7 +164,7 @@ class LoaderMetrics(Callback):
 
         with torch.no_grad(), amp.autocast(self.state.use_fp16):
             for metric, name in zip(self.metrics, self.metric_names):
-                self.state.metric_meters[name].avg = to_numpy(metric(output, target).squeeze())
+                self.state.metric_meters[name].update(to_numpy(metric(output, target).squeeze()))
 
 
 class Timer(Callback):
@@ -352,8 +344,8 @@ class ReduceLROnPlateau(Callback):
         if self.monitor == "loss":
             value = self.state.loss_meter.avg
         else:
-            for metric_meter in self.state.metric_meters:
-                if metric_meter.name == self.monitor:
+            for name, metric_meter in self.state.metric_meters.items():
+                if name == self.monitor:
                     value = metric_meter.avg
         if value is None:
             raise ValueError(f"ReduceLROnPlateau can't find {self.monitor} value to monitor")
@@ -430,8 +422,8 @@ class CheckpointSaver(Callback):
         if self.monitor == "loss":
             value = self.state.loss_meter.avg
         else:
-            for metric_meter in self.state.metric_meters:
-                if metric_meter.name == self.monitor:
+            for name, metric_meter in self.state.metric_meters.items():
+                if name == self.monitor:
                     value = metric_meter.avg
         if value is None:
             raise ValueError(f"CheckpointSaver can't find {self.monitor} value to monitor")
@@ -551,7 +543,7 @@ class ConsoleLogger(Callback):
     def on_loader_end(self):
         # update to avg
         desc = OrderedDict({"Loss": f"{self.state.loss_meter.avg:.4f}"})
-        desc.update({m.name: f"{m.avg:.3f}" for m in self.state.metric_meters})
+        desc.update({name: f"{m.avg:.3f}" for (name, m) in self.state.metric_meters.items()})
         self.pbar.set_postfix(**desc)
         self.pbar.update()
         self.pbar.close()
