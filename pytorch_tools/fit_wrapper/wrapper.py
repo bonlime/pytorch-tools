@@ -61,12 +61,12 @@ class Runner:
             self.callbacks.on_epoch_begin()
             self.state.model.train()
             self._run_loader(train_loader, steps=steps_per_epoch)
-            self.state.train_loss = copy(self.state.loss_meter)
+            self.state.train_loss = copy.copy(self.state.loss_meter)
             self.state.train_metrics = copy.deepcopy(self.state.metric_meters)
 
             if val_loader is not None:
                 self.evaluate(val_loader, steps=val_steps)
-                self.state.val_loss = copy(self.state.loss_meter)
+                self.state.val_loss = copy.copy(self.state.loss_meter)
                 self.state.val_metrics = copy.deepcopy(self.state.metric_meters)
             self.state.reduce_meters()
             self.callbacks.on_epoch_end()
