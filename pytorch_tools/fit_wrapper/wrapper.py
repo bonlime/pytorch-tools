@@ -1,5 +1,5 @@
+import copy
 import torch
-from copy import copy
 from torch.cuda import amp
 from pytorch_tools.fit_wrapper.state import RunnerState
 from pytorch_tools.fit_wrapper.callbacks import Callbacks
@@ -14,8 +14,6 @@ class Runner:
         model: model
         optimizer: optimizer
         criterion: Loss used for training
-        metrics (List): Optional metrics to measure during training. All metrics
-            must have `name` attribute. Defaults to None.
         callbacks (List): List of Callbacks to use. Defaults to ConsoleLogger().
         gradient_clip_val (float): Gradient clipping value. 0 means no clip. Causes ~5% training slowdown
         accumulate_steps (int): if > 1 uses gradient accumulation across iterations to simulate larger batch size
@@ -27,7 +25,6 @@ class Runner:
         model,
         optimizer,
         criterion,
-        metrics=None,
         callbacks=ConsoleLogger(),
         gradient_clip_val=0,
         accumulate_steps=1,
@@ -35,7 +32,7 @@ class Runner:
     ):
         super().__init__()
         self.state = RunnerState(
-            model=model, optimizer=optimizer, criterion=criterion, metrics=metrics, use_fp16=use_fp16
+            model=model, optimizer=optimizer, criterion=criterion, use_fp16=use_fp16
         )
         self.callbacks = Callbacks(callbacks)
         self.callbacks.set_state(self.state)
@@ -65,12 +62,12 @@ class Runner:
             self.state.model.train()
             self._run_loader(train_loader, steps=steps_per_epoch)
             self.state.train_loss = copy(self.state.loss_meter)
-            self.state.train_metrics = [copy(m) for m in self.state.metric_meters]
+            self.state.train_metrics = copy.deepcopy(self.state.metric_meters)
 
             if val_loader is not None:
                 self.evaluate(val_loader, steps=val_steps)
                 self.state.val_loss = copy(self.state.loss_meter)
-                self.state.val_metrics = [copy(m) for m in self.state.metric_meters]
+                self.state.val_metrics = copy.deepcopy(self.state.metric_meters)
             self.state.reduce_meters()
             self.callbacks.on_epoch_end()
         self.callbacks.on_end()
@@ -79,7 +76,7 @@ class Runner:
         self.state.is_train = False
         self.state.model.eval()
         self._run_loader(loader, steps=steps)
-        return self.state.loss_meter.avg, [m.avg for m in self.state.metric_meters]
+        return self.state.loss_meter.avg, [m.avg for m in self.state.metric_meters.values()]
 
     def _make_step(self):
         data, target = self.state.input
@@ -104,15 +101,13 @@ class Runner:
                 self.state.optimizer.zero_grad()
             torch.cuda.synchronize()
 
-        # update metrics
+        # Update loss
         self.state.loss_meter.update(to_numpy(loss))
-        with torch.no_grad(), amp.autocast(self.state.use_fp16):
-            for metric, meter in zip(self.state.metrics, self.state.metric_meters):
-                meter.update(to_numpy(metric(output, target).squeeze()))
+        # Metrics are now updated inside callbacks
 
     def _run_loader(self, loader, steps=None):
         self.state.loss_meter.reset()
-        for metric in self.state.metric_meters:
+        for metric in self.state.metric_meters.values():
             metric.reset()
         self.state.epoch_size = steps or len(loader)  # steps overwrites len
         self.callbacks.on_loader_begin()

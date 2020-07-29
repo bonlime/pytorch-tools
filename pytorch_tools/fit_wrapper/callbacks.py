@@ -106,6 +106,74 @@ class Callbacks(Callback):
         for callback in self.callbacks:
             callback.on_end()
 
+class BatchMetrics(Callback):
+    """
+    Computes metrics values after each batch
+    Args:
+        metrics (List): Metrics to measure during training. All metrics
+            must have `name` attribute.
+    """
+    def __init__(self, metrics)
+        super().__init__()
+        self.metrics = utils.listify(metrics)
+        self.metric_names = [m.name for m in self.metrics]
+    
+    def on_begin(self):
+        for name in self.metric_names:
+            self.state.metric_meters[name] = utils.AverageMeter(name=m.name)
+
+    def on_batch_end(self):
+        with torch.no_grad(), amp.autocast(self.state.use_fp16):
+            for metric, name in zip(self.metrics, self.metric_names):
+                self.state.metric_meters[name].update(to_numpy(metric(output, target).squeeze()))
+
+    
+class LoaderMetrics(Callback):
+    """
+    Computes metrics values after running full loader
+    Args:
+        metrics (List): Metrics to measure during training. All metrics
+            must have `name` attribute.
+        recompute_each_batch: Flag to compute metrics after each batch.
+            Can be slow.
+    """
+    def __init__(self, metrics, recompute_each_batch=False):
+        super().__init__()
+        self.metrics = utils.listify(metrics)
+        self.metric_names = [m.name for m in self.metrics]
+        self.recompute_each_batch = recompute_each_batch
+    
+        self.target = None
+        self.output = None
+    
+    def on_begin(self):
+        self.target = []
+        self.output = []
+
+        for name in self.metric_names:
+            self.state.metric_meters[name] = utils.AverageMeter(name=m.name)
+
+    def on_batch_end(self):
+        _, target = self.state.input
+        self.target.append(target)
+        self.output.append(self.state.output)
+
+        if self.recompute_each_batch:
+            target = torch.cat(self.input)
+            output = torch.cat(self.output)
+
+            with torch.no_grad(), amp.autocast(self.state.use_fp16):
+                for metric, name in zip(self.metrics, self.metric_names):
+                    self.state.metric_meters[name].update(to_numpy(metric(output, target).squeeze()))
+
+    def on_loader_end(self):
+        target = torch.cat(self.input)
+        output = torch.cat(self.output)
+
+        with torch.no_grad(), amp.autocast(self.state.use_fp16):
+            for metric, name in zip(self.metrics, self.metric_names):
+                self.state.metric_meters[name].avg = to_numpy(metric(output, target).squeeze())
+
 
 class Timer(Callback):
     """
@@ -490,7 +558,7 @@ class ConsoleLogger(Callback):
 
     def on_batch_end(self):
         desc = OrderedDict({"Loss": f"{self.state.loss_meter.avg_smooth:.4f}"})
-        desc.update({m.name: f"{m.avg_smooth:.3f}" for m in self.state.metric_meters})
+        desc.update({name: f"{m.avg_smooth:.3f}" for (name, m) in self.state.metric_meters.items()})
         self.pbar.set_postfix(**desc)
         self.pbar.update()
 

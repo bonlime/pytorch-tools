@@ -12,13 +12,12 @@ class RunnerState:
     __isfrozen = False
 
     def __init__(
-        self, *, model=None, optimizer=None, criterion=None, metrics=None, use_fp16=False,
+        self, *, model=None, optimizer=None, criterion=None, use_fp16=False,
     ):
         # base
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
-        self.metrics = utils.listify(metrics)
         self.logger = logger
 
         # make state aware of fp16 and scale. if use_fp16 is False, grad_scaler is NoOp
@@ -40,7 +39,7 @@ class RunnerState:
         self.epoch_size = None
         self.step = None
         self.batch_size = 0
-        self.metric_meters = [utils.AverageMeter(name=m.name) for m in self.metrics]
+        self.metric_meters = {}
         self.loss_meter = utils.AverageMeter("loss")
 
         # for DDP
