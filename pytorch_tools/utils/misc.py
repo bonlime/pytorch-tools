@@ -82,7 +82,7 @@ def to_numpy(x):
         return x
     elif isinstance(x, torch.Tensor):
         return x.detach().cpu().numpy()
-    elif isinstance(x, list) or isinstance(x, tuple):
+    elif isinstance(x, (list, tuple, int, float)):
         return np.array(x)
     else:
         raise ValueError("Unsupported type")

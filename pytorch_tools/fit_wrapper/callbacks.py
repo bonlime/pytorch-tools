@@ -9,6 +9,7 @@ from collections import OrderedDict
 from collections import defaultdict
 
 import torch
+from torch.cuda import amp
 
 from pytorch_tools.fit_wrapper.state import RunnerState
 import pytorch_tools.utils.misc as utils
@@ -105,6 +106,74 @@ class Callbacks(Callback):
     def on_end(self):
         for callback in self.callbacks:
             callback.on_end()
+
+
+class BatchMetrics(Callback):
+    """
+    Computes metrics values after each batch
+    Args:
+        metrics (List): Metrics to measure during training. All metrics
+            must have `name` attribute.
+    """
+
+    def __init__(self, metrics):
+        super().__init__()
+        self.metrics = utils.listify(metrics)
+        self.metric_names = [m.name for m in self.metrics]
+
+    def on_begin(self):
+        for name in self.metric_names:
+            self.state.metric_meters[name] = utils.AverageMeter(name=name)
+
+    @torch.no_grad()
+    def on_batch_end(self):
+        _, target = self.state.input
+        output = self.state.output
+        with amp.autocast(self.state.use_fp16):
+            for metric, name in zip(self.metrics, self.metric_names):
+                self.state.metric_meters[name].update(utils.to_numpy(metric(output, target).squeeze()))
+
+
+class LoaderMetrics(Callback):
+    """
+    Computes metrics values after running full loader
+    Args:
+        metrics (List): Metrics to measure during training. All metrics
+            must have `name` attribute.
+        update_steps (int): how ofter to recompute
+        recompute_each_batch: Flag to compute metrics after each batch.
+            Can be slow.
+    """
+
+    def __init__(self, metrics):
+        super().__init__()
+        self.metrics = utils.listify(metrics)
+        self.metric_names = [m.name for m in self.metrics]
+
+        self.target = None
+        self.output = None
+
+    def on_begin(self):
+        for name in self.metric_names:
+            self.state.metric_meters[name] = utils.AverageMeter(name=name)
+
+    def on_loader_begin(self):
+        self.target = []
+        self.output = []
+
+    def on_batch_end(self):
+        _, target = self.state.input
+        self.target.append(target.cpu().detach())
+        self.output.append(self.state.output.cpu().detach())
+
+    @torch.no_grad()
+    def on_loader_end(self):
+
+        target = torch.cat(self.target)
+        output = torch.cat(self.output)
+        with amp.autocast(self.state.use_fp16):
+            for metric, name in zip(self.metrics, self.metric_names):
+                self.state.metric_meters[name].update(utils.to_numpy(metric(output, target).squeeze()))
 
 
 class Timer(Callback):
@@ -284,8 +353,8 @@ class ReduceLROnPlateau(Callback):
         if self.monitor == "loss":
             value = self.state.loss_meter.avg
         else:
-            for metric_meter in self.state.metric_meters:
-                if metric_meter.name == self.monitor:
+            for name, metric_meter in self.state.metric_meters.items():
+                if name == self.monitor:
                     value = metric_meter.avg
         if value is None:
             raise ValueError(f"ReduceLROnPlateau can't find {self.monitor} value to monitor")
@@ -362,8 +431,8 @@ class CheckpointSaver(Callback):
         if self.monitor == "loss":
             value = self.state.loss_meter.avg
         else:
-            for metric_meter in self.state.metric_meters:
-                if metric_meter.name == self.monitor:
+            for name, metric_meter in self.state.metric_meters.items():
+                if name == self.monitor:
                     value = metric_meter.avg
         if value is None:
             raise ValueError(f"CheckpointSaver can't find {self.monitor} value to monitor")
@@ -395,13 +464,13 @@ class TensorBoard(Callback):
         if self.state.is_train and (self.current_step % self.log_every == 0):
             # TODO: select better name instead of train_ ?
             self.writer.add_scalar("train_/loss", self.state.loss_meter.val, self.current_step)
-            for m in self.state.metric_meters:
-                self.writer.add_scalar(f"train_/{m.name}", m.val, self.current_step)
+            for name, metric in self.state.metric_meters.items():
+                self.writer.add_scalar(f"train_/{name}", metric.val, self.current_step)
 
     def on_epoch_end(self):
         self.writer.add_scalar("train/loss", self.state.train_loss.avg, self.current_step)
-        for m in self.state.train_metrics:
-            self.writer.add_scalar(f"train/{m.name}", m.avg, self.current_step)
+        for name, metric in self.state.train_metrics.items():
+            self.writer.add_scalar(f"train/{name}", metric.avg, self.current_step)
 
         lr = sorted([pg["lr"] for pg in self.state.optimizer.param_groups])[-1]  # largest lr
         self.writer.add_scalar("train_/lr", lr, self.current_step)
@@ -411,8 +480,8 @@ class TensorBoard(Callback):
             return
 
         self.writer.add_scalar("val/loss", self.state.val_loss.avg, self.current_step)
-        for m in self.state.val_metrics:
-            self.writer.add_scalar(f"val/{m.name}", m.avg, self.current_step)
+        for name, metric in self.state.val_metrics.items():
+            self.writer.add_scalar(f"val/{name}", metric.avg, self.current_step)
 
     def on_end(self):
         self.writer.close()
@@ -483,14 +552,14 @@ class ConsoleLogger(Callback):
     def on_loader_end(self):
         # update to avg
         desc = OrderedDict({"Loss": f"{self.state.loss_meter.avg:.4f}"})
-        desc.update({m.name: f"{m.avg:.3f}" for m in self.state.metric_meters})
+        desc.update({name: f"{m.avg:.3f}" for (name, m) in self.state.metric_meters.items()})
         self.pbar.set_postfix(**desc)
         self.pbar.update()
         self.pbar.close()
 
     def on_batch_end(self):
         desc = OrderedDict({"Loss": f"{self.state.loss_meter.avg_smooth:.4f}"})
-        desc.update({m.name: f"{m.avg_smooth:.3f}" for m in self.state.metric_meters})
+        desc.update({name: f"{m.avg_smooth:.3f}" for (name, m) in self.state.metric_meters.items()})
         self.pbar.set_postfix(**desc)
         self.pbar.update()
 
@@ -515,7 +584,7 @@ class FileLogger(Callback):
 
     @staticmethod
     def _format_meters(loss, metrics):
-        return f"loss: {loss.avg:.4f} | " + " | ".join(f"{m.name}: {m.avg:.4f}" for m in metrics)
+        return f"loss: {loss.avg:.4f} | " + " | ".join(f"{m.name}: {m.avg:.4f}" for m in metrics.values())
 
 
 class Mixup(Callback):

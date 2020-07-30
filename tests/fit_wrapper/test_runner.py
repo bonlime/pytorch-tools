@@ -81,51 +81,31 @@ TEST_METRIC = Accuracy()
 
 
 def test_default():
-    runner = Runner(
-        model=TEST_MODEL,
-        optimizer=TEST_OPTIMIZER,
-        criterion=TEST_CRITERION,
-        metrics=TEST_METRIC,
-        callbacks=None,
-    )
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=None,)
     runner.fit(TEST_LOADER, epochs=2)
 
 
 def test_val_loader():
-    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, metrics=TEST_METRIC)
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION)
     runner.fit(TEST_LOADER, epochs=2, steps_per_epoch=100, val_loader=TEST_LOADER, val_steps=200)
 
 
 def test_grad_clip_loader():
     runner = Runner(
-        model=TEST_MODEL,
-        optimizer=TEST_OPTIMIZER,
-        criterion=TEST_CRITERION,
-        metrics=TEST_METRIC,
-        gradient_clip_val=1.0,
+        model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, gradient_clip_val=1.0,
     )
     runner.fit(TEST_LOADER, epochs=2)
 
 
 def test_accumulate_steps():
     runner = Runner(
-        model=TEST_MODEL,
-        optimizer=TEST_OPTIMIZER,
-        criterion=TEST_CRITERION,
-        metrics=TEST_METRIC,
-        accumulate_steps=10,
+        model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, accumulate_steps=10,
     )
     runner.fit(TEST_LOADER, epochs=2)
 
 
 def test_fp16_training():
-    runner = Runner(
-        model=TEST_MODEL,
-        optimizer=TEST_OPTIMIZER,
-        criterion=TEST_CRITERION,
-        metrics=TEST_METRIC,
-        use_fp16=True,
-    )
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, use_fp16=True,)
     runner.fit(TEST_LOADER, epochs=2)
 
 
@@ -134,7 +114,6 @@ def test_ModelEma_callback():
         model=TEST_MODEL,
         optimizer=TEST_OPTIMIZER,
         criterion=TEST_CRITERION,
-        metrics=TEST_METRIC,
         callbacks=pt_clb.ModelEma(TEST_MODEL),
     )
     runner.fit(TEST_LOADER, epochs=2)
@@ -155,11 +134,12 @@ os.makedirs(TMP_PATH, exist_ok=True)
         pt_clb.TensorBoard(log_dir=TMP_PATH),
         pt_clb.TensorBoardWithCM(log_dir=TMP_PATH),
         pt_clb.ConsoleLogger(),
-        pt_clb.FileLogger(TMP_PATH),
+        pt_clb.FileLogger(),
         pt_clb.Mixup(0.2, NUM_CLASSES),
         pt_clb.Cutmix(1.0, NUM_CLASSES),
         pt_clb.ScheduledDropout(),
-        pt_clb.StateReduce(),
+        pt_clb.BatchMetrics(TEST_METRIC),
+        pt_clb.LoaderMetrics(TEST_METRIC),
     ],
 )
 def test_callback(callback):
@@ -167,8 +147,7 @@ def test_callback(callback):
         model=TEST_MODEL,
         optimizer=TEST_OPTIMIZER,
         criterion=TEST_CRITERION,
-        metrics=TEST_METRIC,
-        callbacks=callback,
+        callbacks=[callback, pt_clb.BatchMetrics(TEST_METRIC)],
     )
     runner.fit(TEST_LOADER, epochs=2)
 
@@ -192,3 +171,14 @@ def test_invalid_phases_scheduler_mode():
     )
     with pytest.raises(ValueError):
         runner.fit(TEST_LOADER, epochs=2)
+
+
+def test_loader_metric():
+    """Check that LoaderMetric doesn't store grads and results are on cpu to avoid memory leak"""
+    clb = pt_clb.LoaderMetrics(TEST_METRIC)
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=clb,)
+    runner.fit(TEST_LOADER, epochs=2)
+    assert clb.target[0].grad_fn is None
+    assert clb.output[0].grad_fn is None
+    assert clb.target[0].device == torch.device("cpu")
+    assert clb.output[0].device == torch.device("cpu")
