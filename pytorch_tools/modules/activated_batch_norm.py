@@ -101,7 +101,7 @@ class ABN(nn.Module):
 
     def extra_repr(self):
         rep = "{num_features}, eps={eps}, momentum={momentum}, affine={affine}, activation={activation}"
-        if self.activation in ["leaky_relu", "elu"]:
+        if self.activation in [ACT.LEAKY_RELU, ACT.ELU]:
             rep += "[{activation_param}]"
         if self.frozen:
             rep += ", frozen=True"

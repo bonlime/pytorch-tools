@@ -34,4 +34,6 @@ class NoNormAct(nn.Module):
 
     def extra_repr(self):
         rep = "activation={activation}"
+        if self.activation in [ACT.LEAKY_RELU, ACT.ELU]:
+            rep += "[{activation_param}]"
         return rep.format(**self.__dict__)

@@ -21,6 +21,12 @@ def test_frozen_abn():
     assert list(l.parameters()) == []
 
 
+def test_abn_repr():
+    """Checks that activation param is present in repr"""
+    l = modules.bn_from_name("frozen_abn")(10)
+    assert repr(l) == "ABN(10, eps=1e-05, momentum=0.1, affine=True, activation=ACT.LEAKY_RELU[0.01])"
+
+
 # need to test and resnet and vgg because in resnet there are no Convs with bias
 # and in VGG there are no Convs without bias
 @pytest.mark.parametrize("norm_layer", ["abn", "agn"])
