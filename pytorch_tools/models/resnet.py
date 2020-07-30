@@ -552,11 +552,21 @@ def _resnet(arch, pretrained=None, **kwargs):
             state_dict["fc.weight"] = model.state_dict()["last_linear.weight"]
             state_dict["fc.bias"] = model.state_dict()["last_linear.bias"]
         # support pretrained for custom input channels
-        # layer0. is needed to support se_resne(x)t weights
         if kwargs.get("in_channels", 3) != 3:
-            old_weights = state_dict.get("conv1.weight")
-            old_weights = state_dict.get("layer0.conv1.weight") if old_weights is None else old_weights
-            state_dict["layer0.conv1.weight"] = repeat_channels(old_weights, kwargs["in_channels"])
+            if "conv1.weight" in state_dict.keys():
+                old_weights = state_dict["conv1.weight"]
+                name = "conv1.weight"
+            elif "layer0.conv1.weight" in state_dict.keys():  # fix for se_resne(x)t
+                old_weights = state_dict["layer0.conv1.weight"]
+                name = "layer0.conv1.weight"
+            elif "conv1.1.weight" in state_dict.keys():  # fix for BResNet
+                old_weights = state_dict["conv1.1.weight"]
+                name = "conv1.1.weight"
+            state_dict[name] = repeat_channels(
+                old_weights,
+                new_channels=int(kwargs["in_channels"] / 3 * old_weights.size(1)),
+                old_channels=old_weights.size(1),
+            )
         model.load_state_dict(state_dict)
         if cfg_settings.get("weight_standardization"):
             # convert to ws implicitly. maybe need a logging warning here?
