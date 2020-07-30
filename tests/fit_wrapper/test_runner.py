@@ -81,12 +81,7 @@ TEST_METRIC = Accuracy()
 
 
 def test_default():
-    runner = Runner(
-        model=TEST_MODEL,
-        optimizer=TEST_OPTIMIZER,
-        criterion=TEST_CRITERION,
-        callbacks=None,
-    )
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=None,)
     runner.fit(TEST_LOADER, epochs=2)
 
 
@@ -97,31 +92,20 @@ def test_val_loader():
 
 def test_grad_clip_loader():
     runner = Runner(
-        model=TEST_MODEL,
-        optimizer=TEST_OPTIMIZER,
-        criterion=TEST_CRITERION,
-        gradient_clip_val=1.0,
+        model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, gradient_clip_val=1.0,
     )
     runner.fit(TEST_LOADER, epochs=2)
 
 
 def test_accumulate_steps():
     runner = Runner(
-        model=TEST_MODEL,
-        optimizer=TEST_OPTIMIZER,
-        criterion=TEST_CRITERION,
-        accumulate_steps=10,
+        model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, accumulate_steps=10,
     )
     runner.fit(TEST_LOADER, epochs=2)
 
 
 def test_fp16_training():
-    runner = Runner(
-        model=TEST_MODEL,
-        optimizer=TEST_OPTIMIZER,
-        criterion=TEST_CRITERION,
-        use_fp16=True,
-    )
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, use_fp16=True,)
     runner.fit(TEST_LOADER, epochs=2)
 
 
@@ -187,3 +171,14 @@ def test_invalid_phases_scheduler_mode():
     )
     with pytest.raises(ValueError):
         runner.fit(TEST_LOADER, epochs=2)
+
+
+def test_loader_metric():
+    """Check that LoaderMetric doesn't store grads and results are on cpu to avoid memory leak"""
+    clb = pt_clb.LoaderMetrics(TEST_METRIC)
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=clb,)
+    runner.fit(TEST_LOADER, epochs=2)
+    assert clb.target[0].grad_fn is None
+    assert clb.output[0].grad_fn is None
+    assert clb.target[0].device == torch.device("cpu")
+    assert clb.output[0].device == torch.device("cpu")

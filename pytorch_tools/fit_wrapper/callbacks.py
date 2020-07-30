@@ -107,6 +107,7 @@ class Callbacks(Callback):
         for callback in self.callbacks:
             callback.on_end()
 
+
 class BatchMetrics(Callback):
     """
     Computes metrics values after each batch
@@ -114,41 +115,44 @@ class BatchMetrics(Callback):
         metrics (List): Metrics to measure during training. All metrics
             must have `name` attribute.
     """
+
     def __init__(self, metrics):
         super().__init__()
         self.metrics = utils.listify(metrics)
         self.metric_names = [m.name for m in self.metrics]
-    
+
     def on_begin(self):
         for name in self.metric_names:
             self.state.metric_meters[name] = utils.AverageMeter(name=name)
 
     @torch.no_grad()
-    @amp.autocast()
     def on_batch_end(self):
         _, target = self.state.input
         output = self.state.output
-        for metric, name in zip(self.metrics, self.metric_names):
-            self.state.metric_meters[name].update(utils.to_numpy(metric(output, target).squeeze()))
+        with amp.autocast(self.state.use_fp16):
+            for metric, name in zip(self.metrics, self.metric_names):
+                self.state.metric_meters[name].update(utils.to_numpy(metric(output, target).squeeze()))
 
-    
+
 class LoaderMetrics(Callback):
     """
     Computes metrics values after running full loader
     Args:
         metrics (List): Metrics to measure during training. All metrics
             must have `name` attribute.
+        update_steps (int): how ofter to recompute
         recompute_each_batch: Flag to compute metrics after each batch.
             Can be slow.
     """
+
     def __init__(self, metrics):
         super().__init__()
         self.metrics = utils.listify(metrics)
         self.metric_names = [m.name for m in self.metrics]
-    
+
         self.target = None
         self.output = None
-    
+
     def on_begin(self):
         for name in self.metric_names:
             self.state.metric_meters[name] = utils.AverageMeter(name=name)
@@ -157,20 +161,19 @@ class LoaderMetrics(Callback):
         self.target = []
         self.output = []
 
-    @torch.no_grad()
     def on_batch_end(self):
         _, target = self.state.input
-        self.target.append(target)
-        self.output.append(self.state.output)
+        self.target.append(target.cpu().detach())
+        self.output.append(self.state.output.cpu().detach())
 
     @torch.no_grad()
-    @amp.autocast()
     def on_loader_end(self):
+
         target = torch.cat(self.target)
         output = torch.cat(self.output)
-
-        for metric, name in zip(self.metrics, self.metric_names):
-            self.state.metric_meters[name].update(utils.to_numpy(metric(output, target).squeeze()))
+        with amp.autocast(self.state.use_fp16):
+            for metric, name in zip(self.metrics, self.metric_names):
+                self.state.metric_meters[name].update(utils.to_numpy(metric(output, target).squeeze()))
 
 
 class Timer(Callback):
