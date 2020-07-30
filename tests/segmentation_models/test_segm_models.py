@@ -30,15 +30,12 @@ def test_forward(encoder_name, model_class):
 @pytest.mark.parametrize("model_class", SEGM_ARCHS)
 def test_inplace_abn(encoder_name, model_class):
     """check than passing `inplaceabn` really changes all norm activations"""
-    kwargs = dict(norm_layer="inplaceabn", norm_act="leaky_relu")
-    if model_class == pt_sm.SegmentationBiFPN:
-        # BiFPN has separate args for encoder and decoder
-        kwargs = dict(
-            encoder_norm_layer="inplaceabn",
-            encoder_norm_act="leaky_relu",
-            decoder_norm_layer="inplaceabn",
-            decoder_norm_act="leaky_relu",
-        )
+    kwargs = dict(
+        encoder_norm_layer="inplaceabn",
+        encoder_norm_act="leaky_relu",
+        decoder_norm_layer="inplaceabn",
+        decoder_norm_act="leaky_relu",
+    )
 
     m = model_class(encoder_name=encoder_name, **kwargs)
     _test_forward(m)
@@ -92,4 +89,12 @@ def test_deeplab_last_upsample(model_class):
 @pytest.mark.parametrize("merge_policy", ["add", "cat"])
 def test_merge_policy(merge_policy):
     m = pt_sm.SegmentationFPN(merge_policy=merge_policy)
+    _test_forward(m)
+
+
+@pytest.mark.parametrize("attn_type", ["se", "scse"])
+@pytest.mark.parametrize("model_class", [pt_sm.Unet, pt_sm.Linknet])
+def test_attention(attn_type, model_class):
+    """check that passing different attention works"""
+    m = model_class(encoder_name="resnet34", decoder_attention_type=attn_type)
     _test_forward(m)

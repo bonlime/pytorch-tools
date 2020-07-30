@@ -3,11 +3,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pytorch_tools.utils.misc import initialize
 from .activated_batch_norm import ABN
-from .residual import conv3x3, conv1x1, DepthwiseSeparableConv
+from .residual import conv3x3, conv1x1, DepthwiseSeparableConv, get_attn
 
 
 class UnetDecoderBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, norm_layer=ABN, norm_act="relu", upsample=True):
+    def __init__(
+        self, in_channels, out_channels, norm_layer=ABN, norm_act="relu", upsample=True, attn_type=None
+    ):
         super(UnetDecoderBlock, self).__init__()
 
         conv1 = conv3x3(in_channels, out_channels)
@@ -15,6 +17,7 @@ class UnetDecoderBlock(nn.Module):
         abn1 = norm_layer(out_channels, activation=norm_act)
         abn2 = norm_layer(out_channels, activation=norm_act)
         self.block = nn.Sequential(conv1, abn1, conv2, abn2)
+        self.attention = get_attn(attn_type)(out_channels, out_channels // 2)  # None == Identity
         self.upsample = nn.Upsample(scale_factor=2, mode="bilinear") if upsample else nn.Identity()
 
     def forward(self, x):
@@ -23,6 +26,7 @@ class UnetDecoderBlock(nn.Module):
         if skip is not None:
             x = torch.cat([x, skip], dim=1)
         x = self.block(x)
+        x = self.attention(x)
         return x
 
 
@@ -38,7 +42,7 @@ class TransposeX2(nn.Module):
 
 
 class LinknetDecoderBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, norm_layer=ABN, norm_act="relu"):
+    def __init__(self, in_channels, out_channels, norm_layer=ABN, norm_act="relu", attn_type=None):
         super().__init__()
         middle_channels = in_channels // 4
         conv1 = conv1x1(in_channels, middle_channels)
@@ -47,10 +51,12 @@ class LinknetDecoderBlock(nn.Module):
         abn1 = norm_layer(middle_channels, activation=norm_act)
         abn2 = norm_layer(out_channels, activation=norm_act)
         self.block = nn.Sequential(conv1, abn1, transpose, conv2, abn2)
+        self.attention = get_attn(attn_type)(out_channels, out_channels // 2)  # None == Identity
 
     def forward(self, x):
         x, skip = x
         x = self.block(x)
+        x = self.attention(x)
         if skip is not None:
             x = x + skip
         return x

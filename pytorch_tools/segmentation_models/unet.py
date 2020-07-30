@@ -22,6 +22,7 @@ class UnetDecoder(nn.Module):
         center=False,
         drop_rate=0,
         output_stride=32,
+        attn_type=None,
         **bn_params,  # norm layer, norm_act
     ):
 
@@ -32,15 +33,15 @@ class UnetDecoder(nn.Module):
         else:
             self.center = None
 
-        in_channels = self.compute_channels(encoder_channels, decoder_channels)
-        out_channels = decoder_channels
-        self.layer1 = UnetDecoderBlock(in_channels[0], out_channels[0], upsample=output_stride == 32, **bn_params)
-        self.layer2 = UnetDecoderBlock(in_channels[1], out_channels[1], upsample=not output_stride == 8, **bn_params)
-        self.layer3 = UnetDecoderBlock(in_channels[2], out_channels[2], **bn_params)
-        self.layer4 = UnetDecoderBlock(in_channels[3], out_channels[3], **bn_params)
-        self.layer5 = UnetDecoderBlock(in_channels[4], out_channels[4], **bn_params)
-        self.dropout = nn.Dropout2d(drop_rate, inplace=False) # inplace=True raises a backprop error
-        self.final_conv = conv1x1(out_channels[4], final_channels, bias=True)
+        in_chs = self.compute_channels(encoder_channels, decoder_channels)
+        kwargs = {**bn_params, "attn_type": attn_type}
+        self.layer1 = UnetDecoderBlock(in_chs[0], decoder_channels[0], upsample=output_stride == 32, **kwargs)
+        self.layer2 = UnetDecoderBlock(in_chs[1], decoder_channels[1], upsample=output_stride != 8, **kwargs)
+        self.layer3 = UnetDecoderBlock(in_chs[2], decoder_channels[2], **kwargs)
+        self.layer4 = UnetDecoderBlock(in_chs[3], decoder_channels[3], **kwargs)
+        self.layer5 = UnetDecoderBlock(in_chs[4], decoder_channels[4], **kwargs)
+        self.dropout = nn.Dropout2d(drop_rate, inplace=False)  # inplace=True raises a backprop error
+        self.final_conv = conv1x1(decoder_channels[4], final_channels, bias=True)
 
     def compute_channels(self, encoder_channels, decoder_channels):
         channels = [
@@ -80,9 +81,14 @@ class Unet(EncoderDecoder):
         num_classes (int): a number of classes for output (output shape - ``(batch, classes, h, w)``).
         center (bool): if ``True`` add ``Conv2dReLU`` block on encoder head (useful for VGG models)
         drop_rate (float): Probability of spatial dropout on last feature map
-        norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory
-            footprint. But increases backward time. Defaults to 'abn'.
-        norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
+        decoder_attention_type (Union[str, None]): Attention to use in decoder layers. Options are:
+            `se`, `sse`, `eca`, `scse`. Check code for reference papers and details about each type of attention.
+        encoder_norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers
+            memory footprint. But increases backward time. Defaults to 'abn'.
+        encoder_norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
+        decoder_norm_layer (str): same as encoder_norm_layer but for decoder
+        decoder_norm_act (str): same as encoder_norm_act but for decoder
+
     Returns:
         ``torch.nn.Module``: **Unet**
     .. _Unet:
@@ -98,16 +104,19 @@ class Unet(EncoderDecoder):
         center=False,  # usefull for VGG models
         output_stride=32,
         drop_rate=0,
-        norm_layer="abn",
-        norm_act="relu",
+        decoder_attention_type=None,
+        encoder_norm_layer="abn",
+        encoder_norm_act="relu",
+        decoder_norm_layer="abn",
+        decoder_norm_act="relu",
         **encoder_params,
-    ):  
+    ):
         if output_stride != 32:
             encoder_params["output_stride"] = output_stride
         encoder = get_encoder(
             encoder_name,
-            norm_layer=norm_layer,
-            norm_act=norm_act,
+            norm_layer=encoder_norm_layer,
+            norm_act=encoder_norm_act,
             encoder_weights=encoder_weights,
             **encoder_params,
         )
@@ -118,12 +127,13 @@ class Unet(EncoderDecoder):
             center=center,
             drop_rate=drop_rate,
             output_stride=output_stride,
-            norm_layer=bn_from_name(norm_layer),
-            norm_act=norm_act,
+            attn_type=decoder_attention_type,
+            norm_layer=bn_from_name(decoder_norm_layer),
+            norm_act=decoder_norm_act,
         )
 
         super().__init__(encoder, decoder)
         self.name = f"u-{encoder_name}"
-        # set last layer bias for better convergence with sigmoid loss 
+        # set last layer bias for better convergence with sigmoid loss
         # -4.59 = -np.log((1 - 0.01) / 0.01)
         nn.init.constant_(self.decoder.final_conv.bias, -4.59)
