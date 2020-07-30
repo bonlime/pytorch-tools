@@ -19,6 +19,7 @@ from pytorch_tools.utils.misc import repeat_channels
 
 from .encoders import get_encoder
 
+
 def patch_bn_mom(module):
     """changes default bn momentum"""
     if isinstance(module, ABN) or isinstance(module, InPlaceABN):
@@ -26,12 +27,14 @@ def patch_bn_mom(module):
     for m in module.children():
         patch_bn_mom(m)
 
+
 def patch_inplace_abn(module):
     """changes weight from InplaceABN to be compatible with usual ABN"""
     if isinstance(module, ABN):
         module.weight = nn.Parameter(module.weight.abs() + 1e-5)
     for m in module.children():
         patch_inplace_abn(m)
+
 
 class HRNet(nn.Module):
     """HRNet model for image segmentation
@@ -60,12 +63,12 @@ class HRNet(nn.Module):
         self,
         encoder_name="hrnet_w18",
         encoder_weights="imagenet",
-        pretrained=None, # not used 
+        pretrained=None,  # not used
         num_classes=1,
         last_upsample=True,
         OCR=False,
         drop_rate=0,
-        norm_layer="inplace_abn", # use memory efficient by default
+        norm_layer="inplace_abn",  # use memory efficient by default
         norm_act="leaky_relu",
         **encoder_params,
     ):
@@ -85,13 +88,13 @@ class HRNet(nn.Module):
         if OCR:
             self.conv3x3 = nn.Sequential(
                 conv3x3(final_channels, 512, bias=True), norm_layer(512, activation=norm_act),
-            )  
+            )
             self.ocr_gather_head = SpatialOCR_Gather()
             self.ocr_distri_head = SpatialOCR(
                 in_channels=512, key_channels=256, out_channels=512, norm_layer=norm_layer, norm_act=norm_act
             )
             self.head = conv1x1(512, num_classes, bias=True)
-            self.aux_head = nn.Sequential( # in OCR first conv is 3x3
+            self.aux_head = nn.Sequential(  # in OCR first conv is 3x3
                 conv3x3(final_channels, final_channels, bias=True),
                 norm_layer(final_channels, activation=norm_act),
                 conv1x1(final_channels, num_classes, bias=True),
@@ -108,9 +111,9 @@ class HRNet(nn.Module):
         self.up_x4 = nn.Upsample(scale_factor=4, **up_kwargs)
         self.up_x8 = nn.Upsample(scale_factor=8, **up_kwargs)
         self.last_upsample = nn.Upsample(scale_factor=4, **up_kwargs) if last_upsample else nn.Identity()
-        self.dropout = nn.Dropout2d(drop_rate) # can't use inplace. it would raise a backprop error
+        self.dropout = nn.Dropout2d(drop_rate)  # can't use inplace. it would raise a backprop error
         self.name = f"segm-{encoder_name}"
-        # use lower momemntum 
+        # use lower momemntum
         patch_bn_mom(self)
         self._init_weights()
 
@@ -139,7 +142,7 @@ class HRNet(nn.Module):
 
     def _init_weights(self):
         # it works better if we only init last bias not whole decoder part
-        # set last layer bias for better convergence with sigmoid loss 
+        # set last layer bias for better convergence with sigmoid loss
         # -4.59 = -np.log((1 - 0.01) / 0.01)
         if self.OCR:
             nn.init.constant_(self.head.bias, -4.59)
@@ -187,11 +190,10 @@ def _hrnet(arch, pretrained=None, **kwargs):
         cfg_settings.update(pretrained_settings)
         cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
-    assert (
-        common_args == set()
-    ), "Args {} are going to be overwritten by default params for {} weights".format(
-        common_args, pretrained
-    )
+    if common_args:
+        logging.warning(
+            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
+        )
     kwargs.update(cfg_params)
     model = HRNet(**kwargs)
     if pretrained:
@@ -217,17 +219,19 @@ def _hrnet(arch, pretrained=None, **kwargs):
             old_weights = state_dict.get("encoder.conv1.weight")
             state_dict["encoder.conv1.weight"] = repeat_channels(old_weights, kwargs["in_channels"])
         model.load_state_dict(state_dict)
-        # models were trained using inplaceabn. need to adjust for it. it works without 
+        # models were trained using inplaceabn. need to adjust for it. it works without
         # this patch but results are slightly worse
         patch_inplace_abn(model)
     setattr(model, "pretrained_settings", cfg_settings)
     return model
+
 
 @wraps(HRNet)
 def hrnet_w48(pretrained="cityscape", **kwargs):
     # set number of classes to 19 if not stated explicitly
     kwargs["num_classes"] = kwargs.get("num_classes", 19)
     return _hrnet("hrnet_w48", pretrained=pretrained, **kwargs)
+
 
 @wraps(HRNet)
 def hrnet_w48_ocr(pretrained="cityscape", **kwargs):
