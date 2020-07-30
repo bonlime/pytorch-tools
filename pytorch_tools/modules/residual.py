@@ -70,13 +70,55 @@ class ECAModule(nn.Module):
         return x * x_s.expand_as(x)
 
 
-def get_attn(attn_type):
-    """Args: attn_type (Uniont[str, None]): Attention type. Supported:
-        `se` - Squeeze and Excitation
-        `eca` - Efficient Channel Attention
-        None - not attention
+class SSEModule(nn.Module):
+    """Spatial Excitation Block (sSE)
+    Attention which excites certain locations in spatial domain instead of channel. Works better for segmentation than SE
+    Ref: Recalibrating Fully Convolutional Networks with Spatial and Channel ‘Squeeze & Excitation’ Blocks
+    https://arxiv.org/abs/1808.08127
     """
-    ATT_TO_MODULE = {"se": SEModule, "eca": ECAModule}
+
+    def __init__(self, in_ch, *args):  # parse additional args for compatability
+        super().__init__()
+        self.conv = conv1x1(in_ch, 1, bias=True)
+
+    def forward(self, x):
+        return x * self.conv(x).sigmoid()
+
+
+class SCSEModule(nn.Module):
+    """Idea from Spatial and Channel ‘Squeeze & Excitation’ (scSE)
+    ECA is proven to work better than (c)SE so i'm using ECA + sSE instead of original cSE + sSE
+
+    NOTE: This modules also performs additional conv to return the same number of channels as before
+
+    Ref: Recalibrating Fully Convolutional Networks with Spatial and Channel ‘Squeeze & Excitation’ Blocks
+    https://arxiv.org/abs/1808.08127
+
+    Ref: ECA-Net: Efficient Channel Attention for Deep Convolutional Neural Networks
+    https://arxiv.org/abs/1910.03151
+    """
+
+    def __init__(self, in_ch, *args):  # parse additional args for compatability
+        super().__init__()
+        self.sse = SSEModule(in_ch)
+        self.cse = ECAModule()
+        self.reduction_conv = conv1x1(in_ch * 2, in_ch, bias=True)  # use bias because there is no BN after
+
+    def forward(self, x):
+        return self.reduction_conv(torch.cat([self.sse(x), self.cse(x)], dim=1))
+
+
+def get_attn(attn_type):
+    """Get attention by name
+    Args:
+        attn_type (Uniont[str, None]): Attention type. Supported:
+            `se` - Squeeze and Excitation
+            `eca` - Efficient Channel Attention
+            `sse` - Spatial Excitation
+            `scse` - Spatial and Channel ‘Squeeze & Excitation’
+            None - no attention
+    """
+    ATT_TO_MODULE = {"se": SEModule, "eca": ECAModule, "sse": SSEModule, "scse": SCSEModule}
     if attn_type is None:
         return nn.Identity
     else:
