@@ -210,12 +210,27 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def _make_stem(self, stem_type, stem_width, in_channels, norm_layer, norm_act):
-        assert stem_type in {"", "deep", "space2depth"}, f"Stem type {stem_type} is not supported"
+        supported_stems = {"", "deep", "space2depth", "space2depth_2"}
+        assert stem_type in supported_stems, f"Stem type {stem_type} is not supported"
         if stem_type == "space2depth":
             # in the paper they use conv1x1 but in code conv3x3 (which seems better)
-            self.conv1 = nn.Sequential(SpaceToDepth(), conv3x3(in_channels * 16, stem_width))
+            self.conv1 = nn.Sequential(SpaceToDepth(block_size=4), conv3x3(in_channels * 16, stem_width))
             self.bn1 = norm_layer(stem_width, activation=norm_act)
             self.maxpool = nn.Identity()  # not used but needed for code compatability
+        elif stem_type == "space2depth_2":
+            # original S2D is ~4% faster than default. this version is 2% faster than default but can be used as encoder
+            self.conv1 = nn.Sequential(
+                SpaceToDepth(block_size=2),
+                conv3x3(in_channels * 4, stem_width // 4),
+                norm_layer(stem_width // 4, activation=norm_act),
+            )
+            self.bn1 = nn.Identity()
+            # name is confusing but it's for compatability
+            self.maxpool = nn.Sequential(
+                SpaceToDepth(block_size=2),
+                conv3x3(stem_width, stem_width),
+                norm_layer(stem_width, activation=norm_act),
+            )
         else:
             if stem_type == "deep":
                 self.conv1 = nn.Sequential(
