@@ -24,7 +24,8 @@ def test_frozen_abn():
 def test_abn_repr():
     """Checks that activation param is present in repr"""
     l = modules.bn_from_name("frozen_abn")(10)
-    assert repr(l) == "ABN(10, eps=1e-05, momentum=0.1, affine=True, activation=ACT.LEAKY_RELU[0.01])"
+    expected = "ABN(10, eps=1e-05, momentum=0.1, affine=True, activation=ACT.LEAKY_RELU[0.01], frozen=True)"
+    assert repr(l) == expected
 
 
 # need to test and resnet and vgg because in resnet there are no Convs with bias
@@ -90,3 +91,17 @@ def test_bifpn_num_layers():
     """Test different number of layers"""
     modules.bifpn.BiFPN([55, 55, 32, 30, 28], pyramid_channels=55, num_layers=2)
     modules.bifpn.BiFPN([1, 2, 3, 4], pyramid_channels=55, num_layers=2)
+
+
+def test_space2depth():
+    """Test that space2depth works as expected."""
+    inp = torch.arange(16).view(1, 1, 4, 4)
+    s2d_4 = modules.SpaceToDepth(block_size=4)
+    out = s2d_4(inp)
+    expected = torch.arange(16).view(1, -1, 1, 1)
+    assert torch.allclose(out, expected)
+    s2d_2 = modules.SpaceToDepth(block_size=2)
+    out2 = s2d_2(inp)
+    expected2 = torch.tensor([[[[0, 2], [8, 10]], [[1, 3], [9, 11]], [[4, 6], [12, 14]], [[5, 7], [13, 15]]]])
+    assert torch.allclose(out2, expected2)
+

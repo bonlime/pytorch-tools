@@ -99,10 +99,15 @@ class BlurPool(nn.Module):
 
 # from https://github.com/mrT23/TResNet/
 class SpaceToDepth(nn.Module):
+    def __init__(self, block_size=4):
+        super().__init__()
+        assert block_size in {2, 4}, "Space2Depth only supports blocks size = 4 or 2"
+        self.block_size = block_size
+
     def forward(self, x):
-        # assuming hard-coded that block_size==4 for acceleration
         N, C, H, W = x.size()
-        x = x.view(N, C, H // 4, 4, W // 4, 4)  # (N, C, H//bs, bs, W//bs, bs)
+        S = self.block_size
+        x = x.view(N, C, H // S, S, W // S, S)  # (N, C, H//bs, bs, W//bs, bs)
         x = x.permute(0, 3, 5, 1, 2, 4).contiguous()  # (N, bs, bs, C, H//bs, W//bs)
-        x = x.view(N, C * 16, H // 4, W // 4)  # (N, C*bs^2, H//bs, W//bs)
+        x = x.view(N, C * S * S, H // S, W // S)  # (N, C*bs^2, H//bs, W//bs)
         return x
