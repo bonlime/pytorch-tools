@@ -267,6 +267,9 @@ class BasicBlock(nn.Module):
         return self.final_act(out)
 
 
+# This class is from torchvision with many (many) modifications
+# it's not very intuitive. Check this article if you want to understand the code more
+# https://medium.com/@erikgaas/resnet-torchvision-bottlenecks-and-layers-not-as-they-seem-145620f93096
 class Bottleneck(nn.Module):
     expansion = 4
 
