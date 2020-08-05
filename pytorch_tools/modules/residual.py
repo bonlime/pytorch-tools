@@ -214,6 +214,9 @@ class DropConnect(nn.Module):
         output = x / self.keep_prob * binary_tensor
         return output
 
+    def extra_repr(self):
+        return f"keep_prob={self.keep_prob:.2f}"
+
 
 class BasicBlock(nn.Module):
     expansion = 1

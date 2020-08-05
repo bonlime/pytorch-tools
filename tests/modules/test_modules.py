@@ -28,6 +28,12 @@ def test_abn_repr():
     assert repr(l) == expected
 
 
+def test_drop_connect_repr():
+    """Check that keep_prob is shown correctly in DropConnect repr"""
+    l = modules.residual.DropConnect(0.123)
+    assert repr(l) == "DropConnect(keep_prob=0.12)"
+
+
 # need to test and resnet and vgg because in resnet there are no Convs with bias
 # and in VGG there are no Convs without bias
 @pytest.mark.parametrize("norm_layer", ["abn", "agn"])
@@ -104,4 +110,3 @@ def test_space2depth():
     out2 = s2d_2(inp)
     expected2 = torch.tensor([[[[0, 2], [8, 10]], [[1, 3], [9, 11]], [[4, 6], [12, 14]], [[5, 7], [13, 15]]]])
     assert torch.allclose(out2, expected2)
-
