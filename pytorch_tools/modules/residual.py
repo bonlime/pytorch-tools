@@ -1,6 +1,7 @@
 import math
 import torch
 import torch.nn as nn
+from functools import partial
 from .activated_batch_norm import ABN
 from .activations import activation_from_name
 
@@ -333,8 +334,6 @@ class Bottleneck(nn.Module):
 
 # TResnet models use slightly modified versions of BasicBlock and Bottleneck
 # need to adjust for it
-
-
 class TBasicBlock(BasicBlock):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -380,3 +379,125 @@ class TBottleneck(Bottleneck):
         # avoid 2 inplace ops by chaining into one long op
         out = self.drop_connect(self.bn3(out)) + residual
         return self.final_act(out)
+
+
+## DarkNet blocks
+class DarkBasicBlock(nn.Module):
+    """Basic Block for DarkNet family models"""
+
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        bottle_ratio=0.5,
+        attn_type=None,
+        norm_layer=ABN,
+        norm_act="leaky_relu",
+        keep_prob=1,
+    ):
+        super().__init__()
+        mid_channels = int(in_channels * bottle_ratio)
+        self.conv1 = conv1x1(in_channels, mid_channels)
+        self.bn1 = norm_layer(mid_channels, activation=norm_act)
+        self.conv2 = conv3x3(mid_channels, out_channels)
+        # In original DarkNet they have activation after second BN but the most recent papers
+        # (Mobilenet v2 for example) show that it is better to use linear here
+        self.bn2 = norm_layer(out_channels, activation="identity")
+        # out_channels // 4 is for SE attention. other attentions don't use second parameter
+        self.attention = get_attn(attn_type)(out_channels, out_channels // 4)
+        self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
+
+    def forward(self, x):
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.conv2(out)
+        # avoid 2 inplace ops by chaining into one long op. Needed for inplaceabn
+        out = self.drop_connect(self.attention(self.bn2(out))) + x
+        return out
+
+
+class DarkStage(nn.Module):
+    """One stage in DarkNet models. It consists of first transition conv (with stride == 2) and
+    DarkBasicBlock repeated num_blocks times
+    Args:
+        in_channels (int): input channels for this stage
+        out_channels (int): output channels for this stage
+        num_blocks (int): number of residual blocks in stage
+        stride (int): stride for first convolution
+        bottle_ratio (float): how much channels are reduced inside blocks
+        antialias (bool): flag to apply gaussiian smoothing before conv with stride 2
+    
+    Ref: TODO: add 
+
+    """
+
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        num_blocks,
+        stride=2,
+        bottle_ratio=0.5,
+        antialias=False,
+        block_fn=DarkBasicBlock,
+        attn_type=None,
+        norm_layer=ABN,
+        norm_act="leaky_relu",
+        keep_prob=1,
+    ):
+        super().__init__()
+        antialias = antialias and stride == 2
+        self.conv_down = conv3x3(in_channels, out_channels, stride=1 if antialias else stride)
+        self.bn_down = norm_layer(out_channels, activation=norm_act)
+        self.blurpool = BlurPool(channels=out_channels) if antialias else nn.Identity()
+
+        block_fn = partial(
+            block_fn,
+            bottle_ratio=bottle_ratio,
+            attn_type=attn_type,
+            norm_layer=norm_layer,
+            norm_act=norm_act,
+            keep_prob=keep_prob,
+        )
+        self.blocks = nn.Sequential(*[block_fn(out_channels, out_channels) for _ in range(num_blocks)])
+
+    def forward(self, x):
+        x = self.blurpool(self.bn_down(self.conv_down(x)))
+        return self.blocks(x)
+
+
+# class CrossStage(nn.Module):
+#     def __init__(
+#         self,
+#         in_channels,
+#         out_channels,
+#         num_blocks,
+#         antialias=False,
+#         expand_ratio=1.0,  # channel multiplication before routing. should be 1 or 2
+#         bottle_ratio=1.0,  # channel reduction inside blocks. expected to be 1 or 0.5
+#         block_ratio=1.0,
+#         # stride,
+#         # dilation,
+#         # groups=1,
+#         # first_dilation=None,
+#         # down_growth=False,
+#         # cross_linear=False,
+#         # block_dpr=None,
+#         # block_fn=ResBottleneck,
+#         # **block_kwargs
+#     ):
+#         antialias = antialias and stride == 2
+#         if stride == 1:  # skip down conv if stride is 1
+#             self.conv_down = nn.Identity()
+#             self.bn_down = nn.Identity()
+#         else:
+#             self.conv_down = conv3x3(in_channels, out_channels, stride=1 if antialias else stride)
+#             self.bn_down = norm_layer(out_channels, activation=norm_act)
+#         self.blurpool = BlurPool(channels=out_channels) if antialias else nn.Identity()
+
+#         # down_growth - when does growth happen. in True - in first downsample if False in second expand (?)
+#         # exp_ratio - expansion before chunk
+#         # inp -> conv3x3 -> down_chs
+#         # if exp_ratio 2 then befor chunk num chs is doubled and next convs are out -> out
+#         # if exp ratio 2 then down chs // 2 in each branch and in first conv -> out_chs
+#         # self.ex
