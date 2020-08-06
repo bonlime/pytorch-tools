@@ -141,6 +141,10 @@ class AverageMeter:
     def __call__(self, val):
         return self.update(val)
 
+    def __repr__(self):
+        return f"AverageMeter(name={self.name}, avg={self.avg:.3f}, count={self.count})"
+        # return f"{self.name}: {self.avg:.3f}" # maybe use this version for easier printing?
+
 
 class TimeMeter:
     def __init__(self):
