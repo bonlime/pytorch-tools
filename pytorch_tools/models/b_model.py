@@ -35,14 +35,14 @@ class DarkNet(nn.Module):
         # base_width=64,
         stem_type="",
         norm_layer="abn",
-        norm_act="relu",
+        norm_act="leaky_relu",
         antialias=False,
         # encoder=False,
         drop_rate=0.0,
         drop_connect_rate=0.0,
     ):
 
-        stem_width = 64
+        stem_width = 96
         norm_layer = bn_from_name(norm_layer)
         self.num_classes = num_classes
         self.norm_act = norm_act
@@ -50,22 +50,14 @@ class DarkNet(nn.Module):
         self.drop_connect_rate = drop_connect_rate
         super().__init__()
 
-        # instead of default stem I'm using 2 Space2Depth followed by conv. it's faster than default and works better
-        self.stem_conv1 = nn.Sequential(
-            SpaceToDepth(block_size=2),
-            conv3x3(in_channels * 4, stem_width // 4),
-            norm_layer(stem_width // 4, activation=norm_act),
-        )
-        self.stem_conv2 = nn.Sequential(
-            SpaceToDepth(block_size=2),
-            conv3x3(stem_width, stem_width),
-            norm_layer(stem_width, activation=norm_act),
-        )
+        # instead of default stem I'm using Space2Depth followed by conv. no norm because there is one at the beginning
+        # of DarkStage
+        self.stem_conv1 = nn.Sequential(SpaceToDepth(block_size=2), conv3x3(in_channels * 4, stem_width))
 
         # blocks
         largs = dict(
             stride=2,
-            bottle_ratio=0.5,
+            bottle_ratio=1,
             block_fn=block,
             attn_type=attn_type,
             norm_layer=norm_layer,
@@ -73,33 +65,40 @@ class DarkNet(nn.Module):
             antialias=antialias,
         )
         # fmt: off
-        self.layer1 = DarkStage(in_channels=stem_width, out_channels=64, num_blocks=1, **largs)
-        self.layer2 = DarkStage(in_channels=64, out_channels=128, num_blocks=2, keep_prob=self.keep_prob, **largs)
-        self.layer3 = DarkStage(in_channels=128, out_channels=256, num_blocks=8, keep_prob=self.keep_prob, **largs)
-        self.layer4 = DarkStage(in_channels=256, out_channels=512, num_blocks=8, keep_prob=self.keep_prob, **largs)
-        self.layer5 = DarkStage(in_channels=512, out_channels=1024, num_blocks=4, keep_prob=self.keep_prob, **largs)
+        self.layer1 = DarkStage(
+            in_channels=stem_width,
+            out_channels=96,
+            num_blocks=2,
+            keep_prob=self.keep_prob,
+            **{**largs, "antialias": False} # antialias in first stage is too expensive
+        )
+        self.layer2 = DarkStage(in_channels=96, out_channels=192, num_blocks=4, keep_prob=self.keep_prob, **largs)
+        self.layer3 = DarkStage(in_channels=192, out_channels=512, num_blocks=14, keep_prob=self.keep_prob, **largs)
+        self.layer4 = DarkStage(in_channels=512, out_channels=1024, num_blocks=2, keep_prob=self.keep_prob, **largs)
         # fmt: on
 
         self.global_pool = FastGlobalAvgPool2d(flatten=True)
         self.dropout = nn.Dropout(p=drop_rate, inplace=True)
-        self.last_linear = nn.Linear(1024, num_classes)
+        self.head = nn.Sequential(
+            norm_layer(1024, activation=norm_act),
+            FastGlobalAvgPool2d(flatten=True),
+            nn.Linear(1024, num_classes),
+        )
         initialize(self)
 
     def features(self, x):
         x = self.stem_conv1(x)
-        x = self.stem_conv2(x)
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        x = self.layer5(x)
         return x
 
     def forward(self, x):
         x = self.features(x)
-        x = self.global_pool(x)
-        x = self.dropout(x)
-        x = self.last_linear(x)
+        # x = self.global_pool(x)
+        # x = self.dropout(x)
+        x = self.head(x)
         return x
 
     @property

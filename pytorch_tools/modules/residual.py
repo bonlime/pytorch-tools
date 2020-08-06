@@ -397,6 +397,38 @@ class DarkBasicBlock(nn.Module):
     ):
         super().__init__()
         mid_channels = int(in_channels * bottle_ratio)
+        self.bn1 = norm_layer(mid_channels, activation=norm_act)
+        self.conv1 = conv1x1(in_channels, mid_channels)
+        self.bn2 = norm_layer(out_channels, activation=norm_act)
+        self.conv2 = conv3x3(mid_channels, out_channels, groups=32)
+        # In original DarkNet they have activation after second BN but the most recent papers
+        # (Mobilenet v2 for example) show that it is better to use linear here
+        # out_channels // 4 is for SE attention. other attentions don't use second parameter
+        self.attention = get_attn(attn_type)(out_channels, out_channels // 4)
+        self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
+
+    def forward(self, x):
+        # preAct
+        out = self.bn1(x)
+        out = self.conv1(x)
+        out = self.bn2(out)
+        out = self.conv2(out)
+        # out = self.bn3(out)
+        # out = self.conv3(out)
+        out = self.drop_connect(self.attention(out)) + x
+        return out
+
+
+class CSPDarkBasicBlock(nn.Module):
+    """Idea from https://github.com/WongKinYiu/CrossStagePartialNetworks
+    But implementaion is different. This block divides input into two passes only one part through bottleneck
+    """
+
+    def __init__(
+        self, in_channels, out_channels, attn_type=None, norm_layer=ABN, norm_act="leaky_relu", keep_prob=1,
+    ):
+        super().__init__()
+        mid_channels = int(in_channels * bottle_ratio)
         self.conv1 = conv1x1(in_channels, mid_channels)
         self.bn1 = norm_layer(mid_channels, activation=norm_act)
         self.conv2 = conv3x3(mid_channels, out_channels)
@@ -408,6 +440,8 @@ class DarkBasicBlock(nn.Module):
         self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
 
     def forward(self, x):
+        x1, x2 = torch.chunk(x, chunks=2, dim=1)
+
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.conv2(out)
@@ -448,7 +482,7 @@ class DarkStage(nn.Module):
         super().__init__()
         antialias = antialias and stride == 2
         self.conv_down = conv3x3(in_channels, out_channels, stride=1 if antialias else stride)
-        self.bn_down = norm_layer(out_channels, activation=norm_act)
+        self.bn_down = norm_layer(in_channels, activation=norm_act)
         self.blurpool = BlurPool(channels=out_channels) if antialias else nn.Identity()
 
         block_fn = partial(
@@ -462,7 +496,9 @@ class DarkStage(nn.Module):
         self.blocks = nn.Sequential(*[block_fn(out_channels, out_channels) for _ in range(num_blocks)])
 
     def forward(self, x):
-        x = self.blurpool(self.bn_down(self.conv_down(x)))
+        x = self.bn_down(x)
+        x = self.conv_down(x)
+        x = self.blurpool(x)
         return self.blocks(x)
 
 
