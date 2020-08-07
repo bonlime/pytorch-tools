@@ -55,4 +55,4 @@ from .bit_resnet import bit_m_101x3
 from .bit_resnet import bit_m_152x2
 from .bit_resnet import bit_m_152x4
 
-from .b_model import darknet53
+from .b_model import simpl_resnet50

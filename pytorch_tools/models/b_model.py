@@ -12,7 +12,6 @@ from torch.hub import load_state_dict_from_url
 # from pytorch_tools.modules import BasicBlock, Bottleneck
 from pytorch_tools.modules import GlobalPool2d, BlurPool
 from pytorch_tools.modules.residual import conv1x1, conv3x3
-from pytorch_tools.modules.residual import DarkStage, DarkBasicBlock
 from pytorch_tools.modules.pooling import FastGlobalAvgPool2d
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules import SpaceToDepth
@@ -23,17 +22,21 @@ from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from pytorch_tools.utils.misc import repeat_channels
 
 
+from pytorch_tools.modules.residual import SimpleStage, SimpleBottleneck
+
+
 class DarkNet(nn.Module):
     def __init__(
         self,
         block=None,
-        layers=None,
+        layers=None,  # num layers in each block
+        strides=None,
         pretrained=None,  # not used. here for proper signature
         num_classes=1000,
         in_channels=3,
         attn_type=None,
         # base_width=64,
-        stem_type="",
+        stem_type="default",
         norm_layer="abn",
         norm_act="leaky_relu",
         antialias=False,
@@ -42,7 +45,7 @@ class DarkNet(nn.Module):
         drop_connect_rate=0.0,
     ):
 
-        stem_width = 96
+        stem_width = 64
         norm_layer = bn_from_name(norm_layer)
         self.num_classes = num_classes
         self.norm_act = norm_act
@@ -50,14 +53,25 @@ class DarkNet(nn.Module):
         self.drop_connect_rate = drop_connect_rate
         super().__init__()
 
-        # instead of default stem I'm using Space2Depth followed by conv. no norm because there is one at the beginning
-        # of DarkStage
-        self.stem_conv1 = nn.Sequential(SpaceToDepth(block_size=2), conv3x3(in_channels * 4, stem_width))
+        if stem_type == "default":
+            self.stem_conv1 = nn.Sequential(
+                nn.Conv2d(3, stem_width, kernel_size=7, stride=2, padding=3, bias=False),
+                norm_layer(stem_width, activation=norm_act),
+                nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+            )
+        elif stem_type == "s2d":
+            # instead of default stem I'm using Space2Depth followed by conv. no norm because there is one at the beginning
+            # of DarkStage
+            self.stem_conv1 = nn.Sequential(
+                SpaceToDepth(block_size=4),
+                conv3x3(in_channels * 16, stem_width),
+                norm_layer(stem_width, activation=norm_act),
+            )
 
         # blocks
         largs = dict(
             stride=2,
-            bottle_ratio=1,
+            bottle_ratio=0.25,
             block_fn=block,
             attn_type=attn_type,
             norm_layer=norm_layer,
@@ -65,26 +79,37 @@ class DarkNet(nn.Module):
             antialias=antialias,
         )
         # fmt: off
-        self.layer1 = DarkStage(
-            in_channels=stem_width,
-            out_channels=96,
-            num_blocks=2,
+        self.layer1 = SimpleStage(
+            in_chs=stem_width,
+            out_chs=256,
+            num_blocks=layers[0],
             keep_prob=self.keep_prob,
-            **{**largs, "antialias": False} # antialias in first stage is too expensive
+            **{**largs, "stride": 1},
         )
-        self.layer2 = DarkStage(in_channels=96, out_channels=192, num_blocks=4, keep_prob=self.keep_prob, **largs)
-        self.layer3 = DarkStage(in_channels=192, out_channels=512, num_blocks=14, keep_prob=self.keep_prob, **largs)
-        self.layer4 = DarkStage(in_channels=512, out_channels=1024, num_blocks=2, keep_prob=self.keep_prob, **largs)
+        # **{**largs, "antialias": False} # antialias in first stage is too expensive
+        self.layer2 = SimpleStage(in_chs=256, out_chs=512, num_blocks=layers[1], keep_prob=self.keep_prob, **largs)
+        self.layer3 = SimpleStage(in_chs=512, out_chs=1024, num_blocks=layers[2], keep_prob=self.keep_prob, **largs)
+        self.layer4 = SimpleStage(in_chs=1024, out_chs=2048, num_blocks=layers[3], keep_prob=self.keep_prob, **largs)
         # fmt: on
 
-        self.global_pool = FastGlobalAvgPool2d(flatten=True)
-        self.dropout = nn.Dropout(p=drop_rate, inplace=True)
+        # self.global_pool = FastGlobalAvgPool2d(flatten=True)
+        # self.dropout = nn.Dropout(p=drop_rate, inplace=True)
         self.head = nn.Sequential(
-            norm_layer(1024, activation=norm_act),
+            # norm_layer(1024, activation=norm_act),
             FastGlobalAvgPool2d(flatten=True),
-            nn.Linear(1024, num_classes),
+            nn.Linear(2048, num_classes),
         )
         initialize(self)
+
+    # def _make_stem(self, stem_type):
+
+    # self.bn1 = norm_layer(stem_width, activation=norm_act)
+    # self.maxpool = nn.Sequential(
+    #     SpaceToDepth(block_size=2),
+    #     conv1x1(stem_width * 4, stem_width),
+    #     norm_layer(stem_width, activation=norm_act),
+    # )
+    # self.maxpool =
 
     def features(self, x):
         x = self.stem_conv1(x)
@@ -111,8 +136,11 @@ class DarkNet(nn.Module):
 
 # fmt: off
 CFGS = {
-    "darknet53": {
-        "default": {"params": {"block": DarkBasicBlock, "layers": [1, 2, 8, 8, 4]}, **DEFAULT_IMAGENET_SETTINGS},
+    # "darknet53": {
+        # "default": {"params": {"block": DarkBasicBlock, "layers": [1, 2, 8, 8, 4]}, **DEFAULT_IMAGENET_SETTINGS},
+    # },
+    "simpl_resnet50": {
+        "default": {"params": {"block": SimpleBottleneck, "layers": [3, 4, 6, 3], "strides": [1, 2, 2, 2]}, **DEFAULT_IMAGENET_SETTINGS},
     },
 }
 # fmt: on
@@ -159,6 +187,6 @@ def _darknet(arch, pretrained=None, **kwargs):
 
 
 @wraps(DarkNet)
-def darknet53(**kwargs):
+def simpl_resnet50(**kwargs):
     r"""Constructs a ResNet-18 model."""
-    return _darknet("darknet53", **kwargs)
+    return _darknet("simpl_resnet50", **kwargs)

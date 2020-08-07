@@ -10,6 +10,7 @@ from .activations import activation_from_name
 from pytorch_tools.modules import BlurPool
 from pytorch_tools.modules import FastGlobalAvgPool2d
 from pytorch_tools.utils.misc import make_divisible
+from pytorch_tools.modules import SpaceToDepth
 
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1, bias=False):
@@ -450,7 +451,52 @@ class CSPDarkBasicBlock(nn.Module):
         return out
 
 
-class DarkStage(nn.Module):
+class SimpleBottleneck(nn.Module):
+    """Simple Bottleneck without downsample support"""
+
+    def __init__(
+        self,
+        in_chs,
+        mid_chs,
+        out_chs,
+        stride=1,
+        # bottle_ratio=0.25,
+        # out_chs, # should be the same as input
+        # groups=1,
+        # base_width=64,
+        # attn_type=None,
+        norm_layer=ABN,
+        norm_act="relu",
+        keep_prob=1,  # for drop connect
+    ):
+        super().__init__()
+        # mid_chs = int(in_chs * bottle_ratio)
+        self.conv1 = conv1x1(in_chs, mid_chs)
+        self.bn1 = norm_layer(mid_chs, activation=norm_act)
+        self.conv2 = conv3x3(mid_chs, mid_chs, stride=stride)  # , groups, dilation)
+        self.bn2 = norm_layer(mid_chs, activation=norm_act)
+        self.conv3 = conv1x1(mid_chs, out_chs)
+        self.bn3 = norm_layer(out_chs, activation="identity")
+        self.final_act = activation_from_name(norm_act)
+        self.has_residual = in_chs == out_chs and stride == 1
+        # self.se_module = get_attn(attn_type)(outplanes, planes // 4)
+        # self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
+
+    def forward(self, x):
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.conv3(out)
+        if self.has_residual:
+            out = self.bn3(out) + x
+        else:
+            out = self.bn3(out)
+        # avoid 2 inplace ops by chaining into one long op
+        return self.final_act(out)
+
+
+class SimpleStage(nn.Module):
     """One stage in DarkNet models. It consists of first transition conv (with stride == 2) and
     DarkBasicBlock repeated num_blocks times
     Args:
@@ -467,8 +513,8 @@ class DarkStage(nn.Module):
 
     def __init__(
         self,
-        in_channels,
-        out_channels,
+        in_chs,
+        out_chs,
         num_blocks,
         stride=2,
         bottle_ratio=0.5,
@@ -480,25 +526,28 @@ class DarkStage(nn.Module):
         keep_prob=1,
     ):
         super().__init__()
-        antialias = antialias and stride == 2
-        self.conv_down = conv3x3(in_channels, out_channels, stride=1 if antialias else stride)
-        self.bn_down = norm_layer(in_channels, activation=norm_act)
-        self.blurpool = BlurPool(channels=out_channels) if antialias else nn.Identity()
-
-        block_fn = partial(
-            block_fn,
-            bottle_ratio=bottle_ratio,
-            attn_type=attn_type,
-            norm_layer=norm_layer,
-            norm_act=norm_act,
-            keep_prob=keep_prob,
-        )
-        self.blocks = nn.Sequential(*[block_fn(out_channels, out_channels) for _ in range(num_blocks)])
+        # antialias = antialias and stride == 2
+        # if stride == 2:
+        #     self.downsample = nn.Sequential(
+        #         conv3x3(in_chs, in_chs, stride=stride), norm_layer(out_chs, activation=norm_act)
+        #     )
+        # else:
+        #     self.downsample = nn.Identity()
+        # nn.Sequential(conv1x1(in_chs, out_chs), norm_layer(out_chs, activation=norm_act))
+        # self.conv_down = nn.Sequential(SpaceToDepth(block_size=2), conv1x1(in_channels * 4, out_channels))
+        # self.blurpool = BlurPool(channels=out_channels) if antialias else nn.Identity()
+        norm_kwarg = dict(norm_layer=norm_layer, norm_act=norm_act)
+        mid_chs = max(in_chs // 2, 64)
+        layers = [block_fn(in_chs=in_chs, mid_chs=mid_chs, out_chs=out_chs, stride=stride, **norm_kwarg)]
+        block_kwargs = dict(in_chs=out_chs, mid_chs=mid_chs, out_chs=out_chs, **norm_kwarg)
+        layers.extend([block_fn(**block_kwargs) for _ in range(num_blocks - 1)])
+        self.blocks = nn.Sequential(*layers)
+        # attn_type=attn_type,
+        # keep_prob=keep_prob,
 
     def forward(self, x):
-        x = self.bn_down(x)
-        x = self.conv_down(x)
-        x = self.blurpool(x)
+        # x = self.downsample(x)
+        # x = self.blurpool(x)
         return self.blocks(x)
 
 
