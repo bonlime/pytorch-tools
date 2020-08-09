@@ -493,6 +493,7 @@ class SimpleBottleneck(nn.Module):
         else:
             out = self.bn3(out)
         # avoid 2 inplace ops by chaining into one long op
+        # return out  # 
         return self.final_act(out)
 
 
@@ -537,7 +538,7 @@ class SimpleStage(nn.Module):
         # self.conv_down = nn.Sequential(SpaceToDepth(block_size=2), conv1x1(in_channels * 4, out_channels))
         # self.blurpool = BlurPool(channels=out_channels) if antialias else nn.Identity()
         norm_kwarg = dict(norm_layer=norm_layer, norm_act=norm_act)
-        mid_chs = max(in_chs // 2, 64)
+        mid_chs = max(int(out_chs * bottle_ratio), 64)
         layers = [block_fn(in_chs=in_chs, mid_chs=mid_chs, out_chs=out_chs, stride=stride, **norm_kwarg)]
         block_kwargs = dict(in_chs=out_chs, mid_chs=mid_chs, out_chs=out_chs, **norm_kwarg)
         layers.extend([block_fn(**block_kwargs) for _ in range(num_blocks - 1)])

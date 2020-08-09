@@ -30,7 +30,8 @@ class DarkNet(nn.Module):
         self,
         block=None,
         layers=None,  # num layers in each block
-        strides=None,
+        channels=None, # it's actually output channels. 256, 512, 1024, 2048 for R50
+        strides=None, 
         pretrained=None,  # not used. here for proper signature
         num_classes=1000,
         in_channels=3,
@@ -41,6 +42,7 @@ class DarkNet(nn.Module):
         norm_act="leaky_relu",
         antialias=False,
         # encoder=False,
+        bottle_ratio=0.25,
         drop_rate=0.0,
         drop_connect_rate=0.0,
     ):
@@ -71,7 +73,7 @@ class DarkNet(nn.Module):
         # blocks
         largs = dict(
             stride=2,
-            bottle_ratio=0.25,
+            bottle_ratio=bottle_ratio,
             block_fn=block,
             attn_type=attn_type,
             norm_layer=norm_layer,
@@ -81,24 +83,31 @@ class DarkNet(nn.Module):
         # fmt: off
         self.layer1 = SimpleStage(
             in_chs=stem_width,
-            out_chs=256,
+            out_chs=channels[0],
             num_blocks=layers[0],
             keep_prob=self.keep_prob,
             **{**largs, "stride": 1},
         )
         # **{**largs, "antialias": False} # antialias in first stage is too expensive
-        self.layer2 = SimpleStage(in_chs=256, out_chs=512, num_blocks=layers[1], keep_prob=self.keep_prob, **largs)
-        self.layer3 = SimpleStage(in_chs=512, out_chs=1024, num_blocks=layers[2], keep_prob=self.keep_prob, **largs)
-        self.layer4 = SimpleStage(in_chs=1024, out_chs=2048, num_blocks=layers[3], keep_prob=self.keep_prob, **largs)
+        self.layer2 = SimpleStage(in_chs=channels[0], out_chs=channels[1], num_blocks=layers[1], keep_prob=self.keep_prob, **largs)
+        self.layer3 = SimpleStage(in_chs=channels[1], out_chs=channels[2], num_blocks=layers[2], keep_prob=self.keep_prob, **largs)
+        self.layer4 = SimpleStage(in_chs=channels[2], out_chs=channels[3], num_blocks=layers[3], keep_prob=self.keep_prob, **largs)
         # fmt: on
 
         # self.global_pool = FastGlobalAvgPool2d(flatten=True)
         # self.dropout = nn.Dropout(p=drop_rate, inplace=True)
-        self.head = nn.Sequential(
-            # norm_layer(1024, activation=norm_act),
-            FastGlobalAvgPool2d(flatten=True),
-            nn.Linear(2048, num_classes),
-        )
+        head_layers = []
+        if channels[3] < 2048:
+            head_layers.extend([conv1x1(channels[3], 2048), norm_layer(2048, activation=norm_act)])
+        head_layers.extend([FastGlobalAvgPool2d(flatten=True), nn.Linear(2048, num_classes)])
+        # self.head = nn.Sequential(
+        #     conv1x1(channels[3], 2048),
+        #     norm_layer(activation=norm_act),
+        #     # norm_layer(1024, activation=norm_act),
+        #     FastGlobalAvgPool2d(flatten=True),
+        #     nn.Linear(2048, num_classes),
+        # )
+        self.head = nn.Sequential(*head_layers)
         initialize(self)
 
     # def _make_stem(self, stem_type):
@@ -140,7 +149,28 @@ CFGS = {
         # "default": {"params": {"block": DarkBasicBlock, "layers": [1, 2, 8, 8, 4]}, **DEFAULT_IMAGENET_SETTINGS},
     # },
     "simpl_resnet50": {
-        "default": {"params": {"block": SimpleBottleneck, "layers": [3, 4, 6, 3], "strides": [1, 2, 2, 2]}, **DEFAULT_IMAGENET_SETTINGS},
+        "default": {
+            "params": {
+                "block": SimpleBottleneck,
+                "layers": [3, 4, 6, 3],
+                "strides": [1, 2, 2, 2],
+                "channels": [256, 512, 1024, 2048],
+                "bottle_ratio": 0.25,
+            },
+            **DEFAULT_IMAGENET_SETTINGS
+        },
+    },
+    "simpl_resnet34": {
+        "default": {
+            "params": {
+                "block": SimpleBottleneck,
+                "layers": [3, 4, 6, 3],
+                "strides": [1, 2, 2, 2],
+                "channels": [64, 128, 256, 512],
+                "bottle_ratio": 1,
+            },
+            **DEFAULT_IMAGENET_SETTINGS
+        },
     },
 }
 # fmt: on
@@ -188,5 +218,8 @@ def _darknet(arch, pretrained=None, **kwargs):
 
 @wraps(DarkNet)
 def simpl_resnet50(**kwargs):
-    r"""Constructs a ResNet-18 model."""
     return _darknet("simpl_resnet50", **kwargs)
+
+@wraps(DarkNet)
+def simpl_resnet34(**kwargs):
+    return _darknet("simpl_resnet34", **kwargs)
