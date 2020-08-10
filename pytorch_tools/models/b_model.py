@@ -22,7 +22,7 @@ from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from pytorch_tools.utils.misc import repeat_channels
 
 
-from pytorch_tools.modules.residual import SimpleStage, SimpleBottleneck
+from pytorch_tools.modules.residual import SimpleStage, SimpleBottleneck, SimplePreActBottleneck
 
 
 class DarkNet(nn.Module):
@@ -63,7 +63,7 @@ class DarkNet(nn.Module):
             )
         elif stem_type == "s2d":
             # instead of default stem I'm using Space2Depth followed by conv. no norm because there is one at the beginning
-            # of DarkStage
+            # of DarkStage. upd. there is norm in not PreAct version
             self.stem_conv1 = nn.Sequential(
                 SpaceToDepth(block_size=4),
                 conv3x3(in_channels * 16, stem_width),
@@ -98,6 +98,8 @@ class DarkNet(nn.Module):
         # self.dropout = nn.Dropout(p=drop_rate, inplace=True)
         head_layers = []
         if channels[3] < 2048:
+            if block == SimplePreActBottleneck: # for PreAct add additional BN here
+                head_layers.append(norm_layer(channels[3], activation=norm_act))
             head_layers.extend([conv1x1(channels[3], 2048), norm_layer(2048, activation=norm_act)])
         head_layers.extend([FastGlobalAvgPool2d(flatten=True), nn.Linear(2048, num_classes)])
         # self.head = nn.Sequential(
@@ -172,6 +174,18 @@ CFGS = {
             **DEFAULT_IMAGENET_SETTINGS
         },
     },
+    "simpl_preactresnet34": {
+        "default": {
+            "params": {
+                "block": SimplePreActBottleneck,
+                "layers": [3, 4, 6, 3],
+                "strides": [1, 2, 2, 2],
+                "channels": [64, 128, 256, 512],
+                "bottle_ratio": 1,
+            },
+            **DEFAULT_IMAGENET_SETTINGS
+        },
+    },
 }
 # fmt: on
 
@@ -223,3 +237,7 @@ def simpl_resnet50(**kwargs):
 @wraps(DarkNet)
 def simpl_resnet34(**kwargs):
     return _darknet("simpl_resnet34", **kwargs)
+
+@wraps(DarkNet)
+def simpl_preactresnet34(**kwargs):
+    return _darknet("simpl_preactresnet34", **kwargs)

@@ -496,6 +496,39 @@ class SimpleBottleneck(nn.Module):
         return out  # 
         # return self.final_act(out)
 
+class SimplePreActBottleneck(nn.Module):
+    """Simple Bottleneck with preactivation"""
+
+    def __init__(
+        self,
+        in_chs,
+        mid_chs,
+        out_chs,
+        stride=1,
+        norm_layer=ABN,
+        norm_act="relu",
+        # keep_prob=1,  # for drop connect
+    ):
+        super().__init__()
+        self.bn1 = norm_layer(in_chs, activation=norm_act)
+        self.conv1 = conv1x1(in_chs, mid_chs)
+        self.bn2 = norm_layer(mid_chs, activation=norm_act)
+        self.conv2 = conv3x3(mid_chs, mid_chs, stride=stride)
+        self.bn3 = norm_layer(mid_chs, activation="identity")
+        self.conv3 = conv1x1(mid_chs, out_chs)
+        self.has_residual = in_chs == out_chs and stride == 1
+
+    def forward(self, x):
+        out = self.bn1(x)
+        out = self.conv1(out)
+        out = self.bn2(out)
+        out = self.conv2(out)
+        out = self.bn3(out)
+        if self.has_residual:
+            out = self.conv3(out) + x
+        else:
+            out = self.conv3(out)
+        return out
 
 class SimpleStage(nn.Module):
     """One stage in DarkNet models. It consists of first transition conv (with stride == 2) and
