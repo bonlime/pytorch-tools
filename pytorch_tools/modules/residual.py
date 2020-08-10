@@ -493,8 +493,8 @@ class SimpleBottleneck(nn.Module):
         else:
             out = self.bn3(out)
         # avoid 2 inplace ops by chaining into one long op
-        # return out  # 
-        return self.final_act(out)
+        return out  # 
+        # return self.final_act(out)
 
 
 class SimpleStage(nn.Module):
