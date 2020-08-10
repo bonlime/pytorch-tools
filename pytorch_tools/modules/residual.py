@@ -493,8 +493,9 @@ class SimpleBottleneck(nn.Module):
         else:
             out = self.bn3(out)
         # avoid 2 inplace ops by chaining into one long op
-        return out  # 
+        return out  #
         # return self.final_act(out)
+
 
 class SimplePreActBottleneck(nn.Module):
     """Simple Bottleneck with preactivation"""
@@ -514,7 +515,7 @@ class SimplePreActBottleneck(nn.Module):
         self.conv1 = conv1x1(in_chs, mid_chs)
         self.bn2 = norm_layer(mid_chs, activation=norm_act)
         self.conv2 = conv3x3(mid_chs, mid_chs, stride=stride)
-        self.bn3 = norm_layer(mid_chs, activation="identity")
+        self.bn3 = norm_layer(mid_chs, activation=norm_act)
         self.conv3 = conv1x1(mid_chs, out_chs)
         self.has_residual = in_chs == out_chs and stride == 1
 
@@ -529,6 +530,7 @@ class SimplePreActBottleneck(nn.Module):
         else:
             out = self.conv3(out)
         return out
+
 
 class SimpleStage(nn.Module):
     """One stage in DarkNet models. It consists of first transition conv (with stride == 2) and
