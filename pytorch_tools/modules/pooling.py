@@ -111,3 +111,6 @@ class SpaceToDepth(nn.Module):
         x = x.permute(0, 3, 5, 1, 2, 4).contiguous()  # (N, bs, bs, C, H//bs, W//bs)
         x = x.view(N, C * S * S, H // S, W // S)  # (N, C*bs^2, H//bs, W//bs)
         return x
+
+    def extra_repr(self):
+        return f"block_size={self.block_size}"
