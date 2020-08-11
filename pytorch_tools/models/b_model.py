@@ -30,8 +30,7 @@ class DarkNet(nn.Module):
         self,
         block=None,
         layers=None,  # num layers in each block
-        channels=None, # it's actually output channels. 256, 512, 1024, 2048 for R50
-        strides=None, 
+        channels=None,  # it's actually output channels. 256, 512, 1024, 2048 for R50
         pretrained=None,  # not used. here for proper signature
         num_classes=1000,
         in_channels=3,
@@ -55,20 +54,27 @@ class DarkNet(nn.Module):
         self.drop_connect_rate = drop_connect_rate
         super().__init__()
 
+        if block != SimplePreActBottleneck:
+            stem_norm = norm_layer(stem_width, activation=norm_act)
+        else:
+            stem_norm = nn.Identity()
         if stem_type == "default":
             self.stem_conv1 = nn.Sequential(
                 nn.Conv2d(3, stem_width, kernel_size=7, stride=2, padding=3, bias=False),
-                norm_layer(stem_width, activation=norm_act),
+                stem_norm,
                 nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
             )
+            first_stride = 1
         elif stem_type == "s2d":
             # instead of default stem I'm using Space2Depth followed by conv. no norm because there is one at the beginning
             # of DarkStage. upd. there is norm in not PreAct version
             self.stem_conv1 = nn.Sequential(
-                SpaceToDepth(block_size=4),
-                conv3x3(in_channels * 16, stem_width),
-                norm_layer(stem_width, activation=norm_act),
+                SpaceToDepth(block_size=2),
+                conv3x3(in_channels * 4, stem_width),
+                stem_norm,
+                # nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
             )
+            first_stride = 2
 
         # blocks
         largs = dict(
@@ -86,7 +92,7 @@ class DarkNet(nn.Module):
             out_chs=channels[0],
             num_blocks=layers[0],
             keep_prob=self.keep_prob,
-            **{**largs, "stride": 1},
+            **{**largs, "stride": first_stride}, # overwrite default stride
         )
         # **{**largs, "antialias": False} # antialias in first stage is too expensive
         self.layer2 = SimpleStage(in_chs=channels[0], out_chs=channels[1], num_blocks=layers[1], keep_prob=self.keep_prob, **largs)
@@ -98,7 +104,7 @@ class DarkNet(nn.Module):
         # self.dropout = nn.Dropout(p=drop_rate, inplace=True)
         head_layers = []
         if channels[3] < 2048:
-            if block == SimplePreActBottleneck: # for PreAct add additional BN here
+            if block == SimplePreActBottleneck:  # for PreAct add additional BN here
                 head_layers.append(norm_layer(channels[3], activation=norm_act))
             head_layers.extend([conv1x1(channels[3], 2048), norm_layer(2048, activation=norm_act)])
         head_layers.extend([FastGlobalAvgPool2d(flatten=True), nn.Linear(2048, num_classes)])
@@ -155,7 +161,6 @@ CFGS = {
             "params": {
                 "block": SimpleBottleneck,
                 "layers": [3, 4, 6, 3],
-                "strides": [1, 2, 2, 2],
                 "channels": [256, 512, 1024, 2048],
                 "bottle_ratio": 0.25,
             },
@@ -167,7 +172,6 @@ CFGS = {
             "params": {
                 "block": SimpleBottleneck,
                 "layers": [3, 4, 6, 3],
-                "strides": [1, 2, 2, 2],
                 "channels": [64, 128, 256, 512],
                 "bottle_ratio": 1,
             },
@@ -179,7 +183,6 @@ CFGS = {
             "params": {
                 "block": SimplePreActBottleneck,
                 "layers": [3, 4, 6, 3],
-                "strides": [1, 2, 2, 2],
                 "channels": [64, 128, 256, 512],
                 "bottle_ratio": 1,
             },
@@ -234,9 +237,11 @@ def _darknet(arch, pretrained=None, **kwargs):
 def simpl_resnet50(**kwargs):
     return _darknet("simpl_resnet50", **kwargs)
 
+
 @wraps(DarkNet)
 def simpl_resnet34(**kwargs):
     return _darknet("simpl_resnet34", **kwargs)
+
 
 @wraps(DarkNet)
 def simpl_preactresnet34(**kwargs):
