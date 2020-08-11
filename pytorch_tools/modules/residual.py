@@ -508,13 +508,16 @@ class SimplePreActBottleneck(nn.Module):
         stride=1,
         norm_layer=ABN,
         norm_act="relu",
+        groups=1,
+        groups_width=None,
         # keep_prob=1,  # for drop connect
     ):
         super().__init__()
+        groups = mid_chs // groups_width if groups_width else groups
         self.bn1 = norm_layer(in_chs, activation=norm_act)
         self.conv1 = conv1x1(in_chs, mid_chs)
         self.bn2 = norm_layer(mid_chs, activation=norm_act)
-        self.conv2 = conv3x3(mid_chs, mid_chs, stride=stride)
+        self.conv2 = conv3x3(mid_chs, mid_chs, stride=stride, groups=groups)
         self.bn3 = norm_layer(mid_chs, activation=norm_act)
         self.conv3 = conv1x1(mid_chs, out_chs)
         self.has_residual = in_chs == out_chs and stride == 1
@@ -560,6 +563,7 @@ class SimpleStage(nn.Module):
         norm_layer=ABN,
         norm_act="leaky_relu",
         keep_prob=1,
+        **block_kwargs,
     ):
         super().__init__()
         # antialias = antialias and stride == 2
@@ -572,7 +576,7 @@ class SimpleStage(nn.Module):
         # nn.Sequential(conv1x1(in_chs, out_chs), norm_layer(out_chs, activation=norm_act))
         # self.conv_down = nn.Sequential(SpaceToDepth(block_size=2), conv1x1(in_channels * 4, out_channels))
         # self.blurpool = BlurPool(channels=out_channels) if antialias else nn.Identity()
-        norm_kwarg = dict(norm_layer=norm_layer, norm_act=norm_act)
+        norm_kwarg = dict(norm_layer=norm_layer, norm_act=norm_act, **block_kwargs)  # this is dirty
         mid_chs = max(int(out_chs * bottle_ratio), 64)
         layers = [block_fn(in_chs=in_chs, mid_chs=mid_chs, out_chs=out_chs, stride=stride, **norm_kwarg)]
         block_kwargs = dict(in_chs=out_chs, mid_chs=mid_chs, out_chs=out_chs, **norm_kwarg)

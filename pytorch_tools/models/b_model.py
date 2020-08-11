@@ -44,6 +44,7 @@ class DarkNet(nn.Module):
         bottle_ratio=0.25,
         drop_rate=0.0,
         drop_connect_rate=0.0,
+        **block_kwargs,
     ):
 
         stem_width = 64
@@ -85,6 +86,7 @@ class DarkNet(nn.Module):
             norm_layer=norm_layer,
             norm_act=norm_act,
             antialias=antialias,
+            **block_kwargs,
         )
         # fmt: off
         self.layer1 = SimpleStage(
