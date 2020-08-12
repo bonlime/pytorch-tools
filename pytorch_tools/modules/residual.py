@@ -519,7 +519,7 @@ class SimplePreActBottleneck(nn.Module):
         self.bn2 = norm_layer(mid_chs, activation=norm_act)
         self.conv2 = conv3x3(mid_chs, mid_chs, stride=stride, groups=groups)
         self.bn3 = norm_layer(mid_chs, activation=norm_act)
-        self.conv3 = conv1x1(mid_chs, out_chs)
+        self.conv3 = conv1x1(mid_chs, out_chs, bias=True) # need bias because not followed by bn
         self.has_residual = in_chs == out_chs and stride == 1
 
     def forward(self, x):
