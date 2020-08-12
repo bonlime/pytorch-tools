@@ -460,24 +460,21 @@ class SimpleBottleneck(nn.Module):
         mid_chs,
         out_chs,
         stride=1,
-        # bottle_ratio=0.25,
-        # out_chs, # should be the same as input
-        # groups=1,
-        # base_width=64,
         # attn_type=None,
+        groups=1,
+        groups_width=None,
         norm_layer=ABN,
         norm_act="relu",
         keep_prob=1,  # for drop connect
     ):
         super().__init__()
-        # mid_chs = int(in_chs * bottle_ratio)
+        groups = mid_chs // groups_width if groups_width else groups
         self.conv1 = conv1x1(in_chs, mid_chs)
         self.bn1 = norm_layer(mid_chs, activation=norm_act)
-        self.conv2 = conv3x3(mid_chs, mid_chs, stride=stride)  # , groups, dilation)
+        self.conv2 = conv3x3(mid_chs, mid_chs, stride=stride, groups=groups)  # dilation)
         self.bn2 = norm_layer(mid_chs, activation=norm_act)
         self.conv3 = conv1x1(mid_chs, out_chs)
         self.bn3 = norm_layer(out_chs, activation="identity")
-        self.final_act = activation_from_name(norm_act)
         self.has_residual = in_chs == out_chs and stride == 1
         # self.se_module = get_attn(attn_type)(outplanes, planes // 4)
         # self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
@@ -488,13 +485,12 @@ class SimpleBottleneck(nn.Module):
         out = self.conv2(out)
         out = self.bn2(out)
         out = self.conv3(out)
+        # avoid 2 inplace ops by chaining into one long op
         if self.has_residual:
             out = self.bn3(out) + x
         else:
             out = self.bn3(out)
-        # avoid 2 inplace ops by chaining into one long op
-        return out  #
-        # return self.final_act(out)
+        return out
 
 
 class SimplePreActBottleneck(nn.Module):
@@ -519,7 +515,7 @@ class SimplePreActBottleneck(nn.Module):
         self.bn2 = norm_layer(mid_chs, activation=norm_act)
         self.conv2 = conv3x3(mid_chs, mid_chs, stride=stride, groups=groups)
         self.bn3 = norm_layer(mid_chs, activation=norm_act)
-        self.conv3 = conv1x1(mid_chs, out_chs, bias=True) # need bias because not followed by bn
+        self.conv3 = conv1x1(mid_chs, out_chs, bias=True)  # need bias because not followed by bn
         self.has_residual = in_chs == out_chs and stride == 1
 
     def forward(self, x):
@@ -566,63 +562,53 @@ class SimpleStage(nn.Module):
         **block_kwargs,
     ):
         super().__init__()
-        # antialias = antialias and stride == 2
-        # if stride == 2:
-        #     self.downsample = nn.Sequential(
-        #         conv3x3(in_chs, in_chs, stride=stride), norm_layer(out_chs, activation=norm_act)
-        #     )
-        # else:
-        #     self.downsample = nn.Identity()
-        # nn.Sequential(conv1x1(in_chs, out_chs), norm_layer(out_chs, activation=norm_act))
-        # self.conv_down = nn.Sequential(SpaceToDepth(block_size=2), conv1x1(in_channels * 4, out_channels))
-        # self.blurpool = BlurPool(channels=out_channels) if antialias else nn.Identity()
         norm_kwarg = dict(norm_layer=norm_layer, norm_act=norm_act, **block_kwargs)  # this is dirty
         mid_chs = max(int(out_chs * bottle_ratio), 64)
         layers = [block_fn(in_chs=in_chs, mid_chs=mid_chs, out_chs=out_chs, stride=stride, **norm_kwarg)]
         block_kwargs = dict(in_chs=out_chs, mid_chs=mid_chs, out_chs=out_chs, **norm_kwarg)
         layers.extend([block_fn(**block_kwargs) for _ in range(num_blocks - 1)])
         self.blocks = nn.Sequential(*layers)
-        # attn_type=attn_type,
-        # keep_prob=keep_prob,
 
     def forward(self, x):
-        # x = self.downsample(x)
-        # x = self.blurpool(x)
         return self.blocks(x)
 
 
-# class CrossStage(nn.Module):
-#     def __init__(
-#         self,
-#         in_channels,
-#         out_channels,
-#         num_blocks,
-#         antialias=False,
-#         expand_ratio=1.0,  # channel multiplication before routing. should be 1 or 2
-#         bottle_ratio=1.0,  # channel reduction inside blocks. expected to be 1 or 0.5
-#         block_ratio=1.0,
-#         # stride,
-#         # dilation,
-#         # groups=1,
-#         # first_dilation=None,
-#         # down_growth=False,
-#         # cross_linear=False,
-#         # block_dpr=None,
-#         # block_fn=ResBottleneck,
-#         # **block_kwargs
-#     ):
-#         antialias = antialias and stride == 2
-#         if stride == 1:  # skip down conv if stride is 1
-#             self.conv_down = nn.Identity()
-#             self.bn_down = nn.Identity()
-#         else:
-#             self.conv_down = conv3x3(in_channels, out_channels, stride=1 if antialias else stride)
-#             self.bn_down = norm_layer(out_channels, activation=norm_act)
-#         self.blurpool = BlurPool(channels=out_channels) if antialias else nn.Identity()
+class CrossStage(nn.Module):
+    def __init__(
+        self,
+        in_chs,
+        out_chs,
+        num_blocks,
+        stride=2,
+        bottle_ratio=0.5,
+        antialias=False,
+        block_fn=SimpleBottleneck,
+        attn_type=None,
+        norm_layer=ABN,
+        norm_act="leaky_relu",
+        keep_prob=1,
+        csp_block_ratio=0.5,  # how many channels go to blocks
+        **block_kwargs,
+    ):
+        super().__init__()
+        extra_kwarg = dict(norm_layer=norm_layer, norm_act=norm_act, **block_kwargs)
+        self.first_layer = block_fn(
+            in_chs=in_chs, mid_chs=out_chs, out_chs=out_chs, stride=stride, **extra_kwarg
+        )
+        block_chs = int(csp_block_ratio * out_chs)  # todo: maybe change to make divizable or hardcode values
+        extra_kwarg.update(in_chs=block_chs, mid_chs=block_chs, out_chs=block_chs)
+        self.blocks = nn.Sequential(*[block_fn(**extra_kwarg) for _ in range(num_blocks - 1)])
+        # using identity activation in transition conv. the idea is the same as in Linear Bottleneck
+        # maybe need to test this design choice later. maybe I can simply remove this transition
+        self.x2_transition = nn.Sequential(
+            conv1x1(block_chs, block_chs), norm_layer(block_chs, activation="identity")
+        )
 
-#         # down_growth - when does growth happen. in True - in first downsample if False in second expand (?)
-#         # exp_ratio - expansion before chunk
-#         # inp -> conv3x3 -> down_chs
-#         # if exp_ratio 2 then befor chunk num chs is doubled and next convs are out -> out
-#         # if exp ratio 2 then down chs // 2 in each branch and in first conv -> out_chs
-#         # self.ex
+    def forward(self, x):
+        x = self.first_layer(x)
+        x1, x2 = torch.chunk(x, chunks=2, dim=1)
+        x2 = self.blocks(x2)
+        x2 = self.x2_transition(x2)
+        out = torch.cat([x1, x2], dim=1)
+        # no explicit transition here. first conv in the next stage would perform transition
+        return out

@@ -57,4 +57,5 @@ from .bit_resnet import bit_m_152x4
 
 from .b_model import simpl_resnet34
 from .b_model import simpl_resnet50
+from .b_model import csp_simpl_resnet34
 from .b_model import simpl_preactresnet34

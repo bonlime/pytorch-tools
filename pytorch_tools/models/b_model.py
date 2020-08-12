@@ -22,13 +22,17 @@ from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from pytorch_tools.utils.misc import repeat_channels
 
 
-from pytorch_tools.modules.residual import SimpleStage, SimpleBottleneck, SimplePreActBottleneck
+from pytorch_tools.modules.residual import CrossStage
+from pytorch_tools.modules.residual import SimpleStage
+from pytorch_tools.modules.residual import SimpleBottleneck
+from pytorch_tools.modules.residual import SimplePreActBottleneck
 
 
 class DarkNet(nn.Module):
     def __init__(
         self,
-        block=None,
+        stage_fn=None,
+        block_fn=None,
         layers=None,  # num layers in each block
         channels=None,  # it's actually output channels. 256, 512, 1024, 2048 for R50
         pretrained=None,  # not used. here for proper signature
@@ -55,7 +59,7 @@ class DarkNet(nn.Module):
         self.drop_connect_rate = drop_connect_rate
         super().__init__()
 
-        if block != SimplePreActBottleneck:
+        if block_fn != SimplePreActBottleneck:
             stem_norm = norm_layer(stem_width, activation=norm_act)
         else:
             stem_norm = nn.Identity()
@@ -81,7 +85,7 @@ class DarkNet(nn.Module):
         largs = dict(
             stride=2,
             bottle_ratio=bottle_ratio,
-            block_fn=block,
+            block_fn=block_fn,
             attn_type=attn_type,
             norm_layer=norm_layer,
             norm_act=norm_act,
@@ -89,7 +93,7 @@ class DarkNet(nn.Module):
             **block_kwargs,
         )
         # fmt: off
-        self.layer1 = SimpleStage(
+        self.layer1 = stage_fn(
             in_chs=stem_width,
             out_chs=channels[0],
             num_blocks=layers[0],
@@ -97,16 +101,16 @@ class DarkNet(nn.Module):
             **{**largs, "stride": first_stride}, # overwrite default stride
         )
         # **{**largs, "antialias": False} # antialias in first stage is too expensive
-        self.layer2 = SimpleStage(in_chs=channels[0], out_chs=channels[1], num_blocks=layers[1], keep_prob=self.keep_prob, **largs)
-        self.layer3 = SimpleStage(in_chs=channels[1], out_chs=channels[2], num_blocks=layers[2], keep_prob=self.keep_prob, **largs)
-        self.layer4 = SimpleStage(in_chs=channels[2], out_chs=channels[3], num_blocks=layers[3], keep_prob=self.keep_prob, **largs)
+        self.layer2 = stage_fn(in_chs=channels[0], out_chs=channels[1], num_blocks=layers[1], keep_prob=self.keep_prob, **largs)
+        self.layer3 = stage_fn(in_chs=channels[1], out_chs=channels[2], num_blocks=layers[2], keep_prob=self.keep_prob, **largs)
+        self.layer4 = stage_fn(in_chs=channels[2], out_chs=channels[3], num_blocks=layers[3], keep_prob=self.keep_prob, **largs)
         # fmt: on
 
         # self.global_pool = FastGlobalAvgPool2d(flatten=True)
         # self.dropout = nn.Dropout(p=drop_rate, inplace=True)
         head_layers = []
         if channels[3] < 2048:
-            if block == SimplePreActBottleneck:  # for PreAct add additional BN here
+            if block_fn == SimplePreActBottleneck:  # for PreAct add additional BN here
                 head_layers.append(norm_layer(channels[3], activation=norm_act))
             head_layers.extend([conv1x1(channels[3], 2048), norm_layer(2048, activation=norm_act)])
         head_layers.extend([FastGlobalAvgPool2d(flatten=True), nn.Linear(2048, num_classes)])
@@ -161,7 +165,8 @@ CFGS = {
     "simpl_resnet50": {
         "default": {
             "params": {
-                "block": SimpleBottleneck,
+                "stage_fn": SimpleStage,
+                "block_fn": SimpleBottleneck,
                 "layers": [3, 4, 6, 3],
                 "channels": [256, 512, 1024, 2048],
                 "bottle_ratio": 0.25,
@@ -172,7 +177,8 @@ CFGS = {
     "simpl_resnet34": {
         "default": {
             "params": {
-                "block": SimpleBottleneck,
+                "stage_fn": SimpleStage,
+                "block_fn": SimpleBottleneck,
                 "layers": [3, 4, 6, 3],
                 "channels": [64, 128, 256, 512],
                 "bottle_ratio": 1,
@@ -183,7 +189,20 @@ CFGS = {
     "simpl_preactresnet34": {
         "default": {
             "params": {
-                "block": SimplePreActBottleneck,
+                "stage_fn": SimpleStage,
+                "block_fn": SimplePreActBottleneck,
+                "layers": [3, 4, 6, 3],
+                "channels": [64, 128, 256, 512],
+                "bottle_ratio": 1,
+            },
+            **DEFAULT_IMAGENET_SETTINGS
+        },
+    },
+    "csp_simpl_resnet34": {
+        "default": {
+            "params": {
+                "stage_fn": CrossStage,
+                "block_fn": SimpleBottleneck,
                 "layers": [3, 4, 6, 3],
                 "channels": [64, 128, 256, 512],
                 "bottle_ratio": 1,
@@ -248,3 +267,9 @@ def simpl_resnet34(**kwargs):
 @wraps(DarkNet)
 def simpl_preactresnet34(**kwargs):
     return _darknet("simpl_preactresnet34", **kwargs)
+
+
+@wraps(DarkNet)
+def csp_simpl_resnet34(**kwargs):
+    return _darknet("csp_simpl_resnet34", **kwargs)
+
