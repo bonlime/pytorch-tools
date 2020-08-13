@@ -38,9 +38,9 @@ class SEModule(nn.Module):
 
         self.pool = FastGlobalAvgPool2d()
         # authors of original paper DO use bias
-        self.fc1 = nn.Conv2d(channels, reduction_channels, kernel_size=1, stride=1, bias=True)
+        self.fc1 = conv1x1(channels, reduction_channels, bias=True)
         self.act1 = activation_from_name(norm_act)
-        self.fc2 = nn.Conv2d(reduction_channels, channels, kernel_size=1, stride=1, bias=True)
+        self.fc2 = conv1x1(reduction_channels, channels, bias=True)
 
     def forward(self, x):
         x_se = self.pool(x)
@@ -515,7 +515,8 @@ class SimplePreActBottleneck(nn.Module):
         self.bn2 = norm_layer(mid_chs, activation=norm_act)
         self.conv2 = conv3x3(mid_chs, mid_chs, stride=stride, groups=groups)
         self.bn3 = norm_layer(mid_chs, activation=norm_act)
-        self.conv3 = conv1x1(mid_chs, out_chs, bias=True)  # need bias because not followed by bn
+        # last conv is not followed by bn, but anyway bias here makes it slightly worse (on Imagenet)
+        self.conv3 = conv1x1(mid_chs, out_chs)
         self.has_residual = in_chs == out_chs and stride == 1
 
     def forward(self, x):
@@ -588,6 +589,7 @@ class CrossStage(nn.Module):
         norm_act="leaky_relu",
         keep_prob=1,
         csp_block_ratio=0.5,  # how many channels go to blocks
+        x2_transition=True,
         **block_kwargs,
     ):
         super().__init__()
@@ -602,11 +604,16 @@ class CrossStage(nn.Module):
         # maybe need to test this design choice later. maybe I can simply remove this transition
         self.x2_transition = nn.Sequential(
             conv1x1(block_chs, block_chs), norm_layer(block_chs, activation="identity")
-        )
+        ) if x2_transition else nn.Identity()
+        self.csp_block_ratio = csp_block_ratio
 
     def forward(self, x):
         x = self.first_layer(x)
-        x1, x2 = torch.chunk(x, chunks=2, dim=1)
+        if self.csp_block_ratio == 0.5:
+            x1, x2 = torch.chunk(x, chunks=2, dim=1)
+        elif self.csp_block_ratio == 0.75:
+            x1, x2, x3, x4 = torch.chunk(x, chunks=4, dim=1)
+            x2 = torch.cat([x2, x3, x4], dim=1)
         x2 = self.blocks(x2)
         x2 = self.x2_transition(x2)
         out = torch.cat([x1, x2], dim=1)
