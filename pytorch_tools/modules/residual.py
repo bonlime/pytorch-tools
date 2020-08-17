@@ -463,15 +463,18 @@ class SimpleBottleneck(nn.Module):
         # attn_type=None,
         groups=1,
         groups_width=None,
+        no_groups_with_stride=False,
         norm_layer=ABN,
         norm_act="relu",
         keep_prob=1,  # for drop connect
     ):
         super().__init__()
         groups = mid_chs // groups_width if groups_width else groups
+        if no_groups_with_stride and stride == 2:
+            groups = 1  # no groups in first block in stage. helps to avoid representational bottleneck
         self.conv1 = conv1x1(in_chs, mid_chs)
         self.bn1 = norm_layer(mid_chs, activation=norm_act)
-        self.conv2 = conv3x3(mid_chs, mid_chs, stride=stride, groups=groups)  # dilation)
+        self.conv2 = conv3x3(mid_chs, mid_chs, stride=stride, groups=groups)
         self.bn2 = norm_layer(mid_chs, activation=norm_act)
         self.conv3 = conv1x1(mid_chs, out_chs)
         self.bn3 = norm_layer(out_chs, activation="identity")
@@ -485,6 +488,42 @@ class SimpleBottleneck(nn.Module):
         out = self.conv2(out)
         out = self.bn2(out)
         out = self.conv3(out)
+        # avoid 2 inplace ops by chaining into one long op
+        if self.has_residual:
+            out = self.bn3(out) + x
+        else:
+            out = self.bn3(out)
+        return out
+
+
+class SimpleBasicBlock(nn.Module):
+    """Simple Bottleneck without downsample support"""
+
+    def __init__(
+        self,
+        in_chs,
+        mid_chs,
+        out_chs,
+        stride=1,
+        # attn_type=None,
+        groups=1,
+        groups_width=None,
+        norm_layer=ABN,
+        norm_act="relu",
+        keep_prob=1,  # for drop connect
+    ):
+        super().__init__()
+        groups = mid_chs // groups_width if groups_width else groups
+        self.conv1 = conv3x3(in_chs, mid_chs)  # if stride == 1 else conv1x1(in_chs, mid_chs)
+        self.bn1 = norm_layer(mid_chs, activation=norm_act)
+        self.conv2 = conv3x3(mid_chs, out_chs, stride=stride, groups=groups)  # dilation)
+        self.bn3 = norm_layer(out_chs, activation="identity")
+        self.has_residual = in_chs == out_chs and stride == 1
+
+    def forward(self, x):
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.conv2(out)
         # avoid 2 inplace ops by chaining into one long op
         if self.has_residual:
             out = self.bn3(out) + x
@@ -560,9 +599,13 @@ class SimpleStage(nn.Module):
         norm_layer=ABN,
         norm_act="leaky_relu",
         keep_prob=1,
+        csp_block_ratio=None,  # for compatability
+        x2_transition=None,  # for compatability
         **block_kwargs,
     ):
         super().__init__()
+        if csp_block_ratio is not None:
+            print("Passing csp block ratio to Simple Stage")
         norm_kwarg = dict(norm_layer=norm_layer, norm_act=norm_act, **block_kwargs)  # this is dirty
         mid_chs = max(int(out_chs * bottle_ratio), 64)
         layers = [block_fn(in_chs=in_chs, mid_chs=mid_chs, out_chs=out_chs, stride=stride, **norm_kwarg)]
@@ -602,9 +645,11 @@ class CrossStage(nn.Module):
         self.blocks = nn.Sequential(*[block_fn(**extra_kwarg) for _ in range(num_blocks - 1)])
         # using identity activation in transition conv. the idea is the same as in Linear Bottleneck
         # maybe need to test this design choice later. maybe I can simply remove this transition
-        self.x2_transition = nn.Sequential(
-            conv1x1(block_chs, block_chs), norm_layer(block_chs, activation="identity")
-        ) if x2_transition else nn.Identity()
+        self.x2_transition = (
+            nn.Sequential(conv1x1(block_chs, block_chs), norm_layer(block_chs, activation="identity"))
+            if x2_transition
+            else nn.Identity()
+        )
         self.csp_block_ratio = csp_block_ratio
 
     def forward(self, x):

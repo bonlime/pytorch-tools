@@ -45,7 +45,8 @@ class DarkNet(nn.Module):
         norm_act="leaky_relu",
         antialias=False,
         # encoder=False,
-        bottle_ratio=0.25,
+        bottle_ratio=0.25,  # how much to shrink channels in bottleneck layer
+        no_first_csp=False,  # make first stage a Simple Stage
         drop_rate=0.0,
         drop_connect_rate=0.0,
         **block_kwargs,
@@ -92,8 +93,9 @@ class DarkNet(nn.Module):
             antialias=antialias,
             **block_kwargs,
         )
+        first_stage_fn = SimpleStage if no_first_csp else stage_fn
         # fmt: off
-        self.layer1 = stage_fn(
+        self.layer1 = first_stage_fn(
             in_chs=stem_width,
             out_chs=channels[0],
             num_blocks=layers[0],
