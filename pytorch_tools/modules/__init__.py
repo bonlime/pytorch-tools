@@ -23,6 +23,7 @@ from .activations import Mish, MishNaive, Swish, SwishNaive
 from .activated_batch_norm import ABN
 from .activated_batch_norm import SyncABN
 from .activated_group_norm import AGN
+from .activated_batch_channel_norm import ABCN
 from .activated_no_norm import NoNormAct
 from inplace_abn import InPlaceABN, InPlaceABNSync
 
@@ -42,10 +43,14 @@ def bn_from_name(norm_name):
     # not sure anyone would ever need this but let's support just in case
     elif norm_name == "frozen_sync_abn":
         return partial(SyncABN, frozen=True)
-    elif norm_name in ("estimated_abn"):
+    elif norm_name == "estimated_abn":
         return partial(ABN, estimated_stats=True)
     elif norm_name in ("agn", "groupnorm", "group_norm"):
         return AGN
+    elif norm_name == "abcn":
+        return partial(ABCN)  # for large batch
+    elif norm_name in ("abcn_micro", "estimated_abcn"):
+        return partial(ABCN, estimated_stats=True)  # for micro batch
     elif norm_name in ("none",):
         return NoNormAct
     else:

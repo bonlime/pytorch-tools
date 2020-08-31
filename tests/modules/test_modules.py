@@ -4,13 +4,13 @@ import pytorch_tools as pt
 import pytorch_tools.modules as modules
 
 activations_name = ["Swish", "Swish_Naive", "Mish", "Mish_naive"]
+INP = torch.ones(1, 10, 16, 16)
 
 
 @pytest.mark.parametrize("activation", activations_name)
 def test_activations_init(activation):
-    inp = torch.ones(10)
     act = modules.activation_from_name(activation)
-    res = act(inp)
+    res = act(INP)
     assert res.mean()
 
 
@@ -21,11 +21,36 @@ def test_frozen_abn():
     assert list(l.parameters()) == []
 
 
+def test_estimated_abn():
+    """Checks that init works and output is the same in eval mode"""
+    est_bn = modules.bn_from_name("estimated_abn")(10).eval()
+    bn = modules.bn_from_name("estimated_abn")(10).eval()
+    est_bn.load_state_dict(bn.state_dict())
+    assert torch.allclose(est_bn(INP), bn(INP))
+
+
 def test_abn_repr():
     """Checks that activation param is present in repr"""
     l = modules.bn_from_name("frozen_abn")(10)
     expected = "ABN(10, eps=1e-05, momentum=0.1, affine=True, activation=ACT.LEAKY_RELU[0.01], frozen=True)"
     assert repr(l) == expected
+
+    l2 = modules.bn_from_name("estimated_abn")(10, activation="relu")
+    expected2 = "ABN(10, eps=1e-05, momentum=0.1, affine=True, activation=ACT.RELU, estimated_stats=True)"
+    assert repr(l2) == expected2
+
+
+def test_agn_repr():
+    """Checks that repr for AGN includes number of groups"""
+    l = modules.bn_from_name("agn")(10, num_groups=2, activation="leaky_relu")
+    expected = "AGN(10, num_groups=2, eps=1e-05, affine=True, activation=ACT.LEAKY_RELU[0.01])"
+    assert repr(l) == expected
+
+def test_abcn():
+    """Check that abcn init and forward works"""
+    l = modules.bn_from_name("abcn")(10, num_groups=2)
+
+# bcn runs
 
 
 def test_drop_connect_repr():

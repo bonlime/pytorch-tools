@@ -55,7 +55,7 @@ class AGN(nn.Module):
             return func(x, inplace=True)
 
     def extra_repr(self):
-        rep = "{num_features}, eps={eps}, affine={affine}, activation={activation}"
+        rep = "{num_features}, num_groups={num_groups}, eps={eps}, affine={affine}, activation={activation}"
         if self.activation in [ACT.LEAKY_RELU, ACT.ELU]:
             rep += "[{activation_param}]"
         return rep.format(**self.__dict__)
