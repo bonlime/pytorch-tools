@@ -11,22 +11,16 @@ from .activations import ACT_FUNC_DICT
 class ABN(nn.Module):
     """Activated Batch Normalization
     This gathers a BatchNorm and an activation function in a single module
-    Parameters
-    ----------
-    num_features : int
-        Number of feature channels in the input and output.
-    eps : float
-        Small constant to prevent numerical issues.
-    momentum : float
-        Momentum factor applied to compute running statistics.
-    affine : bool
-        If `True` apply learned scale and shift transformation after normalization.
-    activation : str
-        Name of the activation functions, one of: `relu`, `leaky_relu`, `elu` or `identity`.
-    activation_param : float
-        Negative slope for the `leaky_relu` activation.
-    frozen (bool): if True turns `weigth` and `bias` into untrainable buffers.
-    estimated_stats (bool): Flag to use running stats for normalization instead of batch stats. Useful for micro-batch training
+    
+    Args:
+        num_features (int): Number of feature channels in the input and output.
+        eps (float): Small constant to prevent numerical issues.
+        momentum (float): Momentum factor applied to compute running statistics.
+        affine (bool): If `True` apply learned scale and shift transformation after normalization.
+        activation (str): Name of the activation functions, one of: `relu`, `leaky_relu`, `elu` or `identity`.
+        activation_param (float): Negative slope for the `leaky_relu` activation.
+        frozen (bool): if True turns `weigth` and `bias` into untrainable buffers.
+        estimated_stats (bool): Flag to use running stats for normalization instead of batch stats. Useful for micro-batch training
     """
 
     def __init__(

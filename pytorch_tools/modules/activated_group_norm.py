@@ -11,20 +11,14 @@ from .activations import ACT_FUNC_DICT
 class AGN(nn.Module):
     """Activated Group Normalization
     This gathers a GroupNorm and an activation function in a single module
-    Parameters
-    ----------
-    num_features : int
-        Number of feature channels in the input and output.
-    num_groups: int
-        Number of groups to separate the channels into
-    eps : float
-        Small constant to prevent numerical issues.
-    affine : bool
-        If `True` apply learned scale and shift transformation after normalization.
-    activation : str
-        Name of the activation functions, one of: `relu`, `leaky_relu`, `elu` or `identity`.
-    activation_param : float
-        Negative slope for the `leaky_relu` activation.
+    
+    Args:
+    num_features (int): Number of feature channels in the input and output.
+    num_groups (int): Number of groups to separate the channels into
+    eps (float): Small constant to prevent numerical issues.
+    affine (bool): If `True` apply learned scale and shift transformation after normalization.
+    activation (str): Name of the activation functions, one of: `relu`, `leaky_relu`, `elu` or `identity`.
+    activation_param (float): Negative slope for the `leaky_relu` activation.
     """
 
     def __init__(
