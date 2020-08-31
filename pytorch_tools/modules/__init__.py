@@ -42,9 +42,11 @@ def bn_from_name(norm_name):
     # not sure anyone would ever need this but let's support just in case
     elif norm_name == "frozen_sync_abn":
         return partial(SyncABN, frozen=True)
+    elif norm_name in ("estimated_abn"):
+        return partial(ABN, estimated_stats=True)
     elif norm_name in ("agn", "groupnorm", "group_norm"):
         return AGN
     elif norm_name in ("none",):
         return NoNormAct
     else:
-        raise ValueError(f"Normalization {norm_name} not supported")
+        raise ValueError(f"Normalization '{norm_name}' not supported")

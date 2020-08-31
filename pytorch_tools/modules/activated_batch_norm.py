@@ -26,6 +26,7 @@ class ABN(nn.Module):
     activation_param : float
         Negative slope for the `leaky_relu` activation.
     frozen (bool): if True turns `weigth` and `bias` into untrainable buffers.
+    estimated_stats (bool): Flag to use running stats for normalization instead of batch stats. Useful for micro-batch training
     """
 
     def __init__(
@@ -37,6 +38,7 @@ class ABN(nn.Module):
         activation="leaky_relu",
         activation_param=0.01,
         frozen=False,
+        estimated_stats=False,
     ):
         super(ABN, self).__init__()
         self.num_features = num_features
@@ -46,6 +48,7 @@ class ABN(nn.Module):
         self.activation = ACT(activation)
         self.activation_param = activation_param
         self.frozen = frozen
+        self.estimated_stats = estimated_stats
 
         if frozen:
             self.register_buffer("weight", torch.ones(num_features))
@@ -69,13 +72,19 @@ class ABN(nn.Module):
             nn.init.constant_(self.bias, 0)
 
     def forward(self, x):
+        if self.training and self.estimated_stats:
+            with torch.no_grad():  # not sure if needed but just in case
+                var, mean = torch.var_mean(x, dim=(0, 2, 3))
+                self.running_mean.mul_(self.momentum).add_(mean, alpha=self.momentum)
+                self.running_var.mul_(self.momentum).add_(var, alpha=self.momentum)
+
         x = F.batch_norm(
             x,
             self.running_mean,
             self.running_var,
             self.weight,
             self.bias,
-            self.training,
+            self.training and not self.estimated_stats,
             self.momentum,
             self.eps,
         )
