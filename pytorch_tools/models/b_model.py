@@ -116,7 +116,7 @@ class DarkNet(nn.Module):
             if block_fn == SimplePreActBottleneck:  # for PreAct add additional BN here
                 head_layers.append(norm_layer(channels[3], activation=norm_act))
             head_layers.extend([conv1x1(channels[3], 2048), norm_layer(2048, activation=norm_act)])
-        head_layers.extend([FastGlobalAvgPool2d(flatten=True), nn.Linear(2048, num_classes)])
+        head_layers.extend([FastGlobalAvgPool2d(flatten=True), nn.Linear(2048 if expand_before_head else channels[3], num_classes)])
         # self.head = nn.Sequential(
         #     conv1x1(channels[3], 2048),
         #     norm_layer(activation=norm_act),
