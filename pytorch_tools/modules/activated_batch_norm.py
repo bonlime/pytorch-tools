@@ -20,7 +20,8 @@ class ABN(nn.Module):
         activation (str): Name of the activation functions, one of: `relu`, `leaky_relu`, `elu` or `identity`.
         activation_param (float): Negative slope for the `leaky_relu` activation.
         frozen (bool): if True turns `weigth` and `bias` into untrainable buffers.
-        estimated_stats (bool): Flag to use running stats for normalization instead of batch stats. Useful for micro-batch training
+        estimated_stats (bool): Flag to use running stats for normalization instead of batch stats. Useful for
+            micro-batch training. See Ref.
     
     Reference:
         https://arxiv.org/abs/1911.09738 - Rethinking Normalization and Elimination Singularity in Neural Networks
