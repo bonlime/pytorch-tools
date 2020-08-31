@@ -49,6 +49,7 @@ class DarkNet(nn.Module):
         no_first_csp=False,  # make first stage a Simple Stage
         drop_rate=0.0,
         drop_connect_rate=0.0,
+        expand_before_head=True, # add addition conv from 512 -> 2048 to avoid representational bottleneck
         **block_kwargs,
     ):
 
@@ -111,7 +112,7 @@ class DarkNet(nn.Module):
         # self.global_pool = FastGlobalAvgPool2d(flatten=True)
         # self.dropout = nn.Dropout(p=drop_rate, inplace=True)
         head_layers = []
-        if channels[3] < 2048:
+        if channels[3] < 2048 and expand_before_head:
             if block_fn == SimplePreActBottleneck:  # for PreAct add additional BN here
                 head_layers.append(norm_layer(channels[3], activation=norm_act))
             head_layers.extend([conv1x1(channels[3], 2048), norm_layer(2048, activation=norm_act)])
