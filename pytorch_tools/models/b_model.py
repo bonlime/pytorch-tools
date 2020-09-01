@@ -10,6 +10,7 @@ import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
 # from pytorch_tools.modules import BasicBlock, Bottleneck
+import pytorch_tools as pt
 from pytorch_tools.modules import GlobalPool2d, BlurPool
 from pytorch_tools.modules.residual import conv1x1, conv3x3
 from pytorch_tools.modules.pooling import FastGlobalAvgPool2d
@@ -50,6 +51,7 @@ class DarkNet(nn.Module):
         drop_rate=0.0,
         drop_connect_rate=0.0,
         expand_before_head=True, # add addition conv from 512 -> 2048 to avoid representational bottleneck
+        mobilenetv3_head=False, # put GAP first, then expand convs
         **block_kwargs,
     ):
 
@@ -112,11 +114,19 @@ class DarkNet(nn.Module):
         # self.global_pool = FastGlobalAvgPool2d(flatten=True)
         # self.dropout = nn.Dropout(p=drop_rate, inplace=True)
         head_layers = []
-        if channels[3] < 2048 and expand_before_head:
-            if block_fn == SimplePreActBottleneck:  # for PreAct add additional BN here
-                head_layers.append(norm_layer(channels[3], activation=norm_act))
-            head_layers.extend([conv1x1(channels[3], 2048), norm_layer(2048, activation=norm_act)])
-        head_layers.extend([FastGlobalAvgPool2d(flatten=True), nn.Linear(2048 if expand_before_head else channels[3], num_classes)])
+        # this is a very dirty if but i don't care for now
+        if mobilenetv3_head:
+            head_layers.append(FastGlobalAvgPool2d(flatten=True))
+            if channels[3] < 2048 and expand_before_head:
+                head_layers.append(nn.Linear(channels[3], 2048)) # no norm here as in original MobilnetV3 from google
+                head_layers.append(pt.modules.activations.activation_from_name(norm_act))
+            head_layers.append(nn.Linear(2048 if expand_before_head else channels[3], num_classes))
+        else:
+            if channels[3] < 2048 and expand_before_head:
+                if block_fn == SimplePreActBottleneck:  # for PreAct add additional BN here
+                    head_layers.append(norm_layer(channels[3], activation=norm_act))
+                head_layers.extend([conv1x1(channels[3], 2048), norm_layer(2048, activation=norm_act)])
+            head_layers.extend([FastGlobalAvgPool2d(flatten=True), nn.Linear(2048 if expand_before_head else channels[3], num_classes)])
         # self.head = nn.Sequential(
         #     conv1x1(channels[3], 2048),
         #     norm_layer(activation=norm_act),
