@@ -25,6 +25,7 @@ from pytorch_tools.utils.misc import repeat_channels
 
 from pytorch_tools.modules.residual import CrossStage
 from pytorch_tools.modules.residual import SimpleStage
+from pytorch_tools.modules.residual import SimpleBasicBlock
 from pytorch_tools.modules.residual import SimpleBottleneck
 from pytorch_tools.modules.residual import SimplePreActBottleneck
 
@@ -223,6 +224,30 @@ CFGS = {
             **DEFAULT_IMAGENET_SETTINGS
         },
     },
+    "simpl_dark": {
+        "default": {
+            "params": {
+                "stage_fn": SimpleStage,
+                "block_fn": SimpleBasicBlock,
+                "layers": [3, 4, 6, 3],
+                "channels": [64, 128, 256, 512],
+                "bottle_ratio": 1,
+            },
+            **DEFAULT_IMAGENET_SETTINGS
+        },
+    },
+    "csp_simpl_dark": {
+        "default": {
+            "params": {
+                "stage_fn": CrossStage,
+                "block_fn": SimpleBasicBlock,
+                "layers": [3, 4, 6, 3],
+                "channels": [64, 128, 256, 512],
+                "bottle_ratio": 1,
+            },
+            **DEFAULT_IMAGENET_SETTINGS
+        },
+    },
 }
 # fmt: on
 
@@ -285,4 +310,12 @@ def simpl_preactresnet34(**kwargs):
 @wraps(DarkNet)
 def csp_simpl_resnet34(**kwargs):
     return _darknet("csp_simpl_resnet34", **kwargs)
+
+@wraps(DarkNet)
+def csp_simpl_dark(**kwargs):
+    return _darknet("csp_simpl_dark", **kwargs)
+
+@wraps(DarkNet)
+def simpl_dark(**kwargs):
+    return _darknet("simpl_dark", **kwargs)
 

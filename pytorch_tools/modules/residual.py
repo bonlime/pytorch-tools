@@ -511,12 +511,27 @@ class SimpleBasicBlock(nn.Module):
         norm_layer=ABN,
         norm_act="relu",
         keep_prob=1,  # for drop connect
+        stride_first=False,
+        dim_reduction="stride -> expand", # "expand -> stride", "stride & expand"
     ):
         super().__init__()
         groups = mid_chs // groups_width if groups_width else groups
-        self.conv1 = conv3x3(in_chs, mid_chs)  # if stride == 1 else conv1x1(in_chs, mid_chs)
-        self.bn1 = norm_layer(mid_chs, activation=norm_act)
-        self.conv2 = conv3x3(mid_chs, out_chs, stride=stride, groups=groups)  # dilation)
+        if dim_reduction == "expand -> stride":
+            self.conv1 = conv3x3(in_chs, mid_chs)
+            self.bn1 = norm_layer(mid_chs, activation=norm_act)
+            self.conv2 = conv3x3(mid_chs, out_chs, stride=stride)
+        elif dim_reduction == "stride -> expand":
+            # it's ~20% faster to have stride first. maybe accuracy drop isn't that big
+            self.conv1 = conv3x3(in_chs, in_chs, stride=stride)
+            self.bn1 = norm_layer(in_chs, activation=norm_act)
+            self.conv2 = conv3x3(in_chs, out_chs)
+        elif dim_reduction == "stride & expand":
+            self.conv1 = conv3x3(in_chs, mid_chs, stride=stride)
+            self.bn1 = norm_layer(mid_chs, activation=norm_act)
+            self.conv2 = conv3x3(out_chs, out_chs)
+        else:
+            raise ValueError(f"{dim_reduction} is not valid dim reduction in BasicBlock")
+
         self.bn3 = norm_layer(out_chs, activation="identity")
         self.has_residual = in_chs == out_chs and stride == 1
 
