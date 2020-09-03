@@ -61,3 +61,4 @@ from .b_model import csp_simpl_resnet34
 from .b_model import simpl_preactresnet34
 from .b_model import simpl_dark
 from .b_model import csp_simpl_dark
+from .b_model import BNet

@@ -135,8 +135,9 @@ class DepthwiseSeparableConv(nn.Sequential):
     ):
         modules = [
             conv3x3(in_channels, in_channels, stride=stride, groups=in_channels, dilation=dilation),
+            # Do we need normalization here? If yes why? If no why?
             # bias is needed for EffDet because in head conv is separated from normalization
-            conv1x1(in_channels, out_channels, bias=True),
+            conv1x1(in_channels, out_channels, bias=not use_norm),
             norm_layer(out_channels, activation=norm_act) if use_norm else nn.Identity(),
         ]
         super().__init__(*modules)
@@ -515,13 +516,15 @@ class SimpleBasicBlock(nn.Module):
         dim_reduction="stride -> expand", # "expand -> stride", "stride & expand"
     ):
         super().__init__()
-        groups = mid_chs // groups_width if groups_width else groups
+        groups = in_chs // groups_width if groups_width else groups
         if dim_reduction == "expand -> stride":
             self.conv1 = conv3x3(in_chs, mid_chs)
             self.bn1 = norm_layer(mid_chs, activation=norm_act)
             self.conv2 = conv3x3(mid_chs, out_chs, stride=stride)
         elif dim_reduction == "stride -> expand":
             # it's ~20% faster to have stride first. maybe accuracy drop isn't that big
+            # TODO: test MixConv type of block here. I expect it to have the same speed and N params
+            # while performance should increase
             self.conv1 = conv3x3(in_chs, in_chs, stride=stride)
             self.bn1 = norm_layer(in_chs, activation=norm_act)
             self.conv2 = conv3x3(in_chs, out_chs)
@@ -585,6 +588,55 @@ class SimplePreActBottleneck(nn.Module):
             out = self.conv3(out)
         return out
 
+class SimpleInvertedResidual(nn.Module):
+    def __init__(
+        self,
+        in_chs,
+        mid_chs,
+        out_chs,
+        dw_kernel_size=3,
+        stride=1,
+        attn_type=None,
+        keep_prob=1,  # drop connect param
+        norm_layer=ABN,
+        norm_act="relu",
+    ):
+        super().__init__()
+        self.has_residual = (in_chs == out_chs and stride == 1)
+        if in_chs != mid_chs:
+            self.expansion = nn.Sequential(
+                conv1x1(in_chs, mid_chs), norm_layer(mid_chs, activation=norm_act)
+            )
+        else:
+            self.expansion = nn.Identity()
+        self.conv_dw = nn.Conv2d(
+            mid_chs,
+            mid_chs,
+            dw_kernel_size,
+            stride=stride,
+            groups=mid_chs,
+            bias=False,
+            padding=dw_kernel_size // 2,
+        )
+        self.bn2 = norm_layer(mid_chs, activation=norm_act)
+        # some models like MobileNet use mid_chs here instead of in_channels. But I don't care for now
+        self.se = get_attn(attn_type)(mid_chs, in_chs // 4, norm_act)
+        self.conv_pw1 = conv1x1(mid_chs, out_chs)
+        self.bn3 = norm_layer(out_chs, activation="identity")
+        self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
+
+    def forward(self, x):
+        residual = x
+        x = self.expansion(x)
+        x = self.conv_dw(x)
+        x = self.bn2(x)
+        x = self.se(x)
+        x = self.conv_pw1(x)
+        x = self.bn3(x)
+
+        if self.has_residual:
+            x = self.drop_connect(x) + residual
+        return x
 
 class SimpleStage(nn.Module):
     """One stage in DarkNet models. It consists of first transition conv (with stride == 2) and
@@ -607,7 +659,7 @@ class SimpleStage(nn.Module):
         out_chs,
         num_blocks,
         stride=2,
-        bottle_ratio=0.5,
+        bottle_ratio=1.,
         antialias=False,
         block_fn=DarkBasicBlock,
         attn_type=None,

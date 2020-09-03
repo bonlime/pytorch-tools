@@ -27,6 +27,7 @@ from pytorch_tools.modules.residual import CrossStage
 from pytorch_tools.modules.residual import SimpleStage
 from pytorch_tools.modules.residual import SimpleBasicBlock
 from pytorch_tools.modules.residual import SimpleBottleneck
+from pytorch_tools.modules.residual import SimpleInvertedResidual
 from pytorch_tools.modules.residual import SimplePreActBottleneck
 
 
@@ -171,6 +172,117 @@ class DarkNet(nn.Module):
         return keep_prob
 
 
+class BNet(nn.Module): # copied from DarkNet not to break backward compatability
+    def __init__(
+        self,
+        stage_fns=None, # list of nn.Module
+        block_fns=None, # list of nn.Module
+        stage_args=None, # list of dicts
+        layers=None,  # num layers in each block
+        channels=None,  # it's actually output channels. 256, 512, 1024, 2048 for R50
+        # pretrained=None,  # not used. here for proper signature
+        num_classes=1000,
+        in_channels=3,
+        norm_layer="abn",
+        norm_act="leaky_relu",
+        # antialias=False,
+        # encoder=False,
+        # drop_rate=0.0,
+        drop_connect_rate=0.0,
+        head_width=2048,
+    ):
+
+        stem_width = 64
+        norm_layer = bn_from_name(norm_layer)
+        self.num_classes = num_classes
+        self.norm_act = norm_act
+        self.block_idx = 0  # for drop connect
+        self.drop_connect_rate = drop_connect_rate
+        super().__init__()
+
+        # instead of default stem I'm using Space2Depth followed by conv. no norm because there is one at the beginning
+        # of DarkStage. upd. there is norm in not PreAct version
+        self.stem_conv1 = nn.Sequential(
+            SpaceToDepth(block_size=2),
+            conv3x3(in_channels * 4, stem_width),
+            norm_layer(stem_width, activation=norm_act),
+        )
+
+        bn_args = dict(norm_layer=norm_layer, norm_act=norm_act)
+        block_name_to_module = {
+            "XX": SimpleBasicBlock,
+            "Btl": SimpleBottleneck,
+            "IR": SimpleInvertedResidual
+        }
+        stage_name_to_module = {
+            "simpl": SimpleStage
+        }
+        # set stride=2 for all blocks
+        self.layer1 = stage_name_to_module[stage_fns[0]](
+            block_fn=block_name_to_module[block_fns[0]],
+            in_chs=stem_width,
+            out_chs=channels[0],
+            num_blocks=layers[0],
+            stride=2,
+            **bn_args,
+            **stage_args[0],
+        )
+        self.layer2 = stage_name_to_module[stage_fns[1]](
+            block_fn=block_name_to_module[block_fns[1]],
+            in_chs=channels[0], 
+            out_chs=channels[1],
+            num_blocks=layers[1],
+            stride=2,
+            **bn_args,
+            **stage_args[1],
+        )
+        self.layer3 = stage_name_to_module[stage_fns[2]](
+            block_fn=block_name_to_module[block_fns[2]],
+            in_chs=channels[1],
+            out_chs=channels[2],
+            num_blocks=layers[2],
+            stride=2,
+            **bn_args,
+            **stage_args[2],
+        )
+        self.layer4 = stage_name_to_module[stage_fns[3]](
+            block_fn=block_name_to_module[block_fns[3]],
+            in_chs=channels[2],
+            out_chs=channels[3],
+            num_blocks=layers[3],
+            stride=2,
+            **bn_args,
+            **stage_args[3],
+        )
+        self.head = nn.Sequential( # Mbln v3 head. GAP first, then expand convs
+            FastGlobalAvgPool2d(flatten=True),
+            nn.Linear(channels[3], head_width), # no norm here as in original MobilnetV3 from google
+            pt.modules.activations.activation_from_name(norm_act),
+            nn.Linear(head_width, num_classes),
+        )
+        initialize(self)
+
+    def features(self, x):
+        x = self.stem_conv1(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        return x
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.head(x)
+        return x
+
+    @property
+    def keep_prob(self):
+        # in ResNet it increases every block but here it increases every stage
+        keep_prob = 1 - self.drop_connect_rate * self.block_idx / 5
+        self.block_idx += 1
+        return keep_prob
+
+
 # fmt: off
 CFGS = {
     # "darknet53": {
@@ -249,23 +361,32 @@ CFGS = {
         },
     },
 }
-# fmt: on
 
+GNET_CFGS = {
+    "gnet_normal_my": {
+        "default": {
+            "params": {
+                "stage_fns": [SimpleStage, SimpleStage, SimpleStage, SimpleStage],
+                "block_fns": ["XX", "XX", "Btl", "IR"], 
+                "stage_args": [
+                    {},
+                    {},
+                    {"bottle_ratio": 0.25},
+                    {"expand_ratio": 3},
+                ],
+                "layers": [1, 2, 6, 5],
+                "channels": [128, 192, 640, 640],
+            },
+            **DEFAULT_IMAGENET_SETTINGS
+        },
+    },
+}
+# fmt: on
 
 def _darknet(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)
     cfg_settings = cfgs[arch]["default"]
     cfg_params = cfg_settings.pop("params")
-    if pretrained:
-        pretrained_settings = cfgs[arch][pretrained]
-        pretrained_params = pretrained_settings.pop("params", {})
-        cfg_settings.update(pretrained_settings)
-        cfg_params.update(pretrained_params)
-    common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
-    if common_args:
-        logging.warning(
-            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
-        )
     kwargs.update(cfg_params)
     model = DarkNet(**kwargs)
     if pretrained:
@@ -291,6 +412,14 @@ def _darknet(arch, pretrained=None, **kwargs):
     setattr(model, "pretrained_settings", cfg_settings)
     return model
 
+
+def _gnet_like(arch, **kwargs):
+    cfgs = deepcopy(GNET_CFGS)
+    cfg_settings = cfgs[arch]["default"]
+    cfg_params = cfg_settings.pop("params")
+    kwargs.update(cfg_params)
+    model = BNet(**kwargs)
+    return model
 
 @wraps(DarkNet)
 def simpl_resnet50(**kwargs):
@@ -319,3 +448,6 @@ def csp_simpl_dark(**kwargs):
 def simpl_dark(**kwargs):
     return _darknet("simpl_dark", **kwargs)
 
+
+def gnet_normal_my(**kwargs):
+    return _gnet_like("gnet_normal_my", **kwargs)
