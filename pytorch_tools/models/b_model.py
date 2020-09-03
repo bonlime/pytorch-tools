@@ -29,6 +29,8 @@ from pytorch_tools.modules.residual import SimpleBasicBlock
 from pytorch_tools.modules.residual import SimpleBottleneck
 from pytorch_tools.modules.residual import SimpleInvertedResidual
 from pytorch_tools.modules.residual import SimplePreActBottleneck
+from pytorch_tools.modules.residual import SimpleSeparable_2
+from pytorch_tools.modules.residual import SimpleSeparable_3
 
 
 class DarkNet(nn.Module):
@@ -212,7 +214,9 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
         block_name_to_module = {
             "XX": SimpleBasicBlock,
             "Btl": SimpleBottleneck,
-            "IR": SimpleInvertedResidual
+            "IR": SimpleInvertedResidual,
+            "Sep2": SimpleSeparable_2,
+            "Sep3": SimpleSeparable_3,
         }
         stage_name_to_module = {
             "simpl": SimpleStage

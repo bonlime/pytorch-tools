@@ -638,6 +638,67 @@ class SimpleInvertedResidual(nn.Module):
             x = self.drop_connect(x) + residual
         return x
 
+class SimpleSeparable_2(nn.Module):
+    def __init__(
+        self,
+        in_chs,
+        mid_chs,
+        out_chs,
+        dw_kernel_size=3,
+        stride=1,
+        attn_type=None,
+        keep_prob=1,  # drop connect param
+        norm_layer=ABN,
+        norm_act="relu",
+    ):
+        super().__init__()
+        # actially we can have parial residual even when in_chs != out_chs
+        self.has_residual = (in_chs == out_chs and stride == 1)
+        self.sep_convs = nn.Sequential(
+            DepthwiseSeparableConv(in_chs, out_chs, stride=stride, norm_layer=norm_layer, norm_act=norm_act),
+            DepthwiseSeparableConv(out_chs, out_chs, norm_layer=norm_layer, norm_act="identity"),
+        )
+        self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
+
+    def forward(self, x):
+        # x = self.se(x) # maybe attention at the beginning would work better?
+        # the idea is: it would allow to accentuate what features to process in this block
+        out = self.sep_convs(x)
+        if self.has_residual:
+            out = self.drop_connect(out) + x
+        return out
+
+class SimpleSeparable_3(nn.Module):
+    def __init__(
+        self,
+        in_chs,
+        mid_chs,
+        out_chs,
+        dw_kernel_size=3,
+        stride=1,
+        attn_type=None,
+        keep_prob=1,  # drop connect param
+        norm_layer=ABN,
+        norm_act="relu",
+    ):
+        super().__init__()
+        # actially we can have parial residual even when in_chs != out_chs
+        self.has_residual = (in_chs == out_chs and stride == 1)
+        self.sep_convs = nn.Sequential(
+            DepthwiseSeparableConv(in_chs, out_chs, stride=stride, norm_layer=norm_layer, norm_act=norm_act),
+            DepthwiseSeparableConv(out_chs, out_chs, stride=stride, norm_layer=norm_layer, norm_act=norm_act),
+            DepthwiseSeparableConv(out_chs, out_chs, norm_layer=norm_layer, norm_act="identity"),
+        )
+        self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
+
+    def forward(self, x):
+        # x = self.se(x) # maybe attention at the beginning would work better?
+        # the idea is: it would allow to accentuate what features to process in this block
+        out = self.sep_convs(x)
+        if self.has_residual:
+            out = self.drop_connect(out) + x
+        return out
+
 class SimpleStage(nn.Module):
     """One stage in DarkNet models. It consists of first transition conv (with stride == 2) and
     DarkBasicBlock repeated num_blocks times
