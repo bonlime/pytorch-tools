@@ -686,7 +686,7 @@ class SimpleSeparable_3(nn.Module):
         self.has_residual = (in_chs == out_chs and stride == 1)
         self.sep_convs = nn.Sequential(
             DepthwiseSeparableConv(in_chs, out_chs, stride=stride, norm_layer=norm_layer, norm_act=norm_act),
-            DepthwiseSeparableConv(out_chs, out_chs, stride=stride, norm_layer=norm_layer, norm_act=norm_act),
+            DepthwiseSeparableConv(out_chs, out_chs, norm_layer=norm_layer, norm_act=norm_act),
             DepthwiseSeparableConv(out_chs, out_chs, norm_layer=norm_layer, norm_act="identity"),
         )
         self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
