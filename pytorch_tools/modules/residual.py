@@ -468,6 +468,7 @@ class SimpleBottleneck(nn.Module):
         norm_layer=ABN,
         norm_act="relu",
         keep_prob=1,  # for drop connect
+        final_act=False, # add activation after summation with residual
     ):
         super().__init__()
         groups = mid_chs // groups_width if groups_width else groups
@@ -480,6 +481,7 @@ class SimpleBottleneck(nn.Module):
         self.conv3 = conv1x1(mid_chs, out_chs)
         self.bn3 = norm_layer(out_chs, activation="identity")
         self.has_residual = in_chs == out_chs and stride == 1
+        self.final_act = activation_from_name(norm_act) if final_act else nn.Identity()
         # self.se_module = get_attn(attn_type)(outplanes, planes // 4)
         # self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
 
@@ -494,6 +496,7 @@ class SimpleBottleneck(nn.Module):
             out = self.bn3(out) + x
         else:
             out = self.bn3(out)
+        out = self.final_act(out) # optional last activation
         return out
 
 
@@ -514,6 +517,7 @@ class SimpleBasicBlock(nn.Module):
         keep_prob=1,  # for drop connect
         stride_first=False,
         dim_reduction="stride -> expand", # "expand -> stride", "stride & expand"
+        final_act=False, # add activation after summation with residual
     ):
         super().__init__()
         groups = in_chs // groups_width if groups_width else groups
@@ -537,6 +541,7 @@ class SimpleBasicBlock(nn.Module):
 
         self.bn3 = norm_layer(out_chs, activation="identity")
         self.has_residual = in_chs == out_chs and stride == 1
+        self.final_act = activation_from_name(norm_act) if final_act else nn.Identity()
 
     def forward(self, x):
         out = self.conv1(x)
@@ -547,6 +552,7 @@ class SimpleBasicBlock(nn.Module):
             out = self.bn3(out) + x
         else:
             out = self.bn3(out)
+        out = self.final_act(out) # optional last activation
         return out
 
 
@@ -600,6 +606,7 @@ class SimpleInvertedResidual(nn.Module):
         keep_prob=1,  # drop connect param
         norm_layer=ABN,
         norm_act="relu",
+        final_act=False, # add activation after summation with residual
     ):
         super().__init__()
         self.has_residual = (in_chs == out_chs and stride == 1)
@@ -624,6 +631,7 @@ class SimpleInvertedResidual(nn.Module):
         self.conv_pw1 = conv1x1(mid_chs, out_chs)
         self.bn3 = norm_layer(out_chs, activation="identity")
         self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
+        self.final_act = activation_from_name(norm_act) if final_act else nn.Identity()
 
     def forward(self, x):
         residual = x
@@ -636,6 +644,7 @@ class SimpleInvertedResidual(nn.Module):
 
         if self.has_residual:
             x = self.drop_connect(x) + residual
+        x = self.final_act(x) # optional last activation
         return x
 
 class SimpleSeparable_2(nn.Module):
