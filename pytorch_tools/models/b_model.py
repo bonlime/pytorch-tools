@@ -187,14 +187,14 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
         in_channels=3,
         norm_layer="abn",
         norm_act="leaky_relu",
+        stem_type="default",
         # antialias=False,
         # encoder=False,
         # drop_rate=0.0,
         drop_connect_rate=0.0,
         head_width=2048,
+        stem_width=64,
     ):
-
-        stem_width = 64
         norm_layer = bn_from_name(norm_layer)
         self.num_classes = num_classes
         self.norm_act = norm_act
@@ -202,13 +202,19 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
         self.drop_connect_rate = drop_connect_rate
         super().__init__()
 
-        # instead of default stem I'm using Space2Depth followed by conv. no norm because there is one at the beginning
-        # of DarkStage. upd. there is norm in not PreAct version
-        self.stem_conv1 = nn.Sequential(
-            SpaceToDepth(block_size=2),
-            conv3x3(in_channels * 4, stem_width),
-            norm_layer(stem_width, activation=norm_act),
-        )
+        if stem_type == "default":
+            self.stem_conv1 = nn.Sequential(
+                conv3x3(in_channels, stem_width, stride=2),
+                norm_layer(stem_width, activation=norm_act),
+            )
+        elif stem_type == "s2d":
+            # instead of default stem I'm using Space2Depth followed by conv. no norm because there is one at the beginning
+            # of DarkStage. upd. there is norm in not PreAct version
+            self.stem_conv1 = nn.Sequential(
+                SpaceToDepth(block_size=2),
+                conv3x3(in_channels * 4, stem_width),
+                stem_norm,
+            )
 
         bn_args = dict(norm_layer=norm_layer, norm_act=norm_act)
         block_name_to_module = {
