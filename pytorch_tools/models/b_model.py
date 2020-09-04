@@ -213,7 +213,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             self.stem_conv1 = nn.Sequential(
                 SpaceToDepth(block_size=2),
                 conv3x3(in_channels * 4, stem_width),
-                stem_norm,
+                norm_layer(stem_width, activation=norm_act),
             )
 
         bn_args = dict(norm_layer=norm_layer, norm_act=norm_act)
