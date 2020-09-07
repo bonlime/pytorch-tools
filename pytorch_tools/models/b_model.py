@@ -194,6 +194,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
         drop_connect_rate=0.0,
         head_width=2048,
         stem_width=64,
+        mobilenetv3_head=True,
     ):
         norm_layer = bn_from_name(norm_layer)
         self.num_classes = num_classes
@@ -264,12 +265,20 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             **bn_args,
             **stage_args[3],
         )
-        self.head = nn.Sequential( # Mbln v3 head. GAP first, then expand convs
-            FastGlobalAvgPool2d(flatten=True),
-            nn.Linear(channels[3], head_width), # no norm here as in original MobilnetV3 from google
-            pt.modules.activations.activation_from_name(norm_act),
-            nn.Linear(head_width, num_classes),
-        )
+        if mobilenetv3_head:
+            self.head = nn.Sequential( # Mbln v3 head. GAP first, then expand convs
+                FastGlobalAvgPool2d(flatten=True),
+                nn.Linear(channels[3], head_width), # no norm here as in original MobilnetV3 from google
+                pt.modules.activations.activation_from_name(norm_act),
+                nn.Linear(head_width, num_classes),
+            )
+        else:
+            self.head = nn.Sequential(
+                conv1x1(channels[3], head_width),
+                norm_layer(head_width, activation=norm_act),
+                FastGlobalAvgPool2d(flatten=True),
+                nn.Linear(head_width, num_classes),
+            )
         initialize(self)
 
     def features(self, x):
