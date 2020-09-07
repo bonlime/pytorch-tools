@@ -775,6 +775,42 @@ class SimpleSeparable_2(nn.Module):
             out = self.drop_connect(out) + x
         return out
 
+class SimplePreActSeparable_2(nn.Module):
+    def __init__(
+        self,
+        in_chs,
+        mid_chs,
+        out_chs,
+        dw_kernel_size=3,
+        stride=1,
+        attn_type=None,
+        keep_prob=1,  # drop connect param
+        norm_layer=ABN,
+        norm_act="relu",
+    ):
+        super().__init__()
+        # actially we can have parial residual even when in_chs != out_chs
+        self.has_residual = (in_chs == out_chs and stride == 1)
+        self.blocks = nn.Sequential(
+            norm_layer(in_chs, activation=norm_act),
+            conv3x3(in_chs, in_chs, stride=stride, groups=in_chs), # DW 1
+            norm_layer(in_chs, activation=norm_act),
+            conv1x1(in_chs, mid_chs), # PW 1
+            norm_layer(mid_chs, activation=norm_act),
+            conv3x3(mid_chs, mid_chs, groups=mid_chs), # DW 2
+            norm_layer(mid_chs, activation=norm_act), 
+            conv1x1(mid_chs, out_chs), # PW 2
+        )
+        self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
+
+    def forward(self, x):
+        # x = self.se(x) # maybe attention at the beginning would work better?
+        # the idea is: it would allow to accentuate what features to process in this block
+        out = self.blocks(x)
+        if self.has_residual:
+            out = self.drop_connect(out) + x
+        return out
+
 class SimpleSeparable_3(nn.Module):
     def __init__(
         self,
