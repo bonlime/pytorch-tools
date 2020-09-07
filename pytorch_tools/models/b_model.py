@@ -28,7 +28,9 @@ from pytorch_tools.modules.residual import SimpleStage
 from pytorch_tools.modules.residual import SimpleBasicBlock
 from pytorch_tools.modules.residual import SimpleBottleneck
 from pytorch_tools.modules.residual import SimpleInvertedResidual
+from pytorch_tools.modules.residual import SimplePreActBasicBlock
 from pytorch_tools.modules.residual import SimplePreActBottleneck
+from pytorch_tools.modules.residual import SimplePreActInvertedResidual
 from pytorch_tools.modules.residual import SimpleSeparable_2
 from pytorch_tools.modules.residual import SimpleSeparable_3
 
@@ -203,10 +205,11 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
         self.drop_connect_rate = drop_connect_rate
         super().__init__()
 
+        first_norm = nn.Identity() if block_fns[0].startswith("Pre") else norm_layer(stem_width, activation=norm_act)
         if stem_type == "default":
             self.stem_conv1 = nn.Sequential(
                 conv3x3(in_channels, stem_width, stride=2),
-                norm_layer(stem_width, activation=norm_act),
+                first_norm
             )
         elif stem_type == "s2d":
             # instead of default stem I'm using Space2Depth followed by conv. no norm because there is one at the beginning
@@ -214,14 +217,17 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             self.stem_conv1 = nn.Sequential(
                 SpaceToDepth(block_size=2),
                 conv3x3(in_channels * 4, stem_width),
-                norm_layer(stem_width, activation=norm_act),
+                first_norm,
             )
 
         bn_args = dict(norm_layer=norm_layer, norm_act=norm_act)
         block_name_to_module = {
             "XX": SimpleBasicBlock,
+            "Pre_XX": SimplePreActBasicBlock,
             "Btl": SimpleBottleneck,
+            "Pre_Btl": SimplePreActBottleneck,
             "IR": SimpleInvertedResidual,
+            "Pre_IR": SimplePreActInvertedResidual,
             "Sep2": SimpleSeparable_2,
             "Sep3": SimpleSeparable_3,
         }
@@ -265,8 +271,10 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             **bn_args,
             **stage_args[3],
         )
+        last_norm = norm_layer(channels[3], activation=norm_act) if block_fns[0].startswith("Pre") else nn.Identity()
         if mobilenetv3_head:
             self.head = nn.Sequential( # Mbln v3 head. GAP first, then expand convs
+                last_norm,
                 FastGlobalAvgPool2d(flatten=True),
                 nn.Linear(channels[3], head_width), # no norm here as in original MobilnetV3 from google
                 pt.modules.activations.activation_from_name(norm_act),
@@ -274,6 +282,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             )
         else:
             self.head = nn.Sequential(
+                last_norm,
                 conv1x1(channels[3], head_width),
                 norm_layer(head_width, activation=norm_act),
                 FastGlobalAvgPool2d(flatten=True),

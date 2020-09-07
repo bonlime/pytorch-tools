@@ -565,10 +565,10 @@ class SimplePreActBottleneck(nn.Module):
         mid_chs,
         out_chs,
         stride=1,
-        norm_layer=ABN,
-        norm_act="relu",
         groups=1,
         groups_width=None,
+        norm_layer=ABN,
+        norm_act="relu",
         # keep_prob=1,  # for drop connect
     ):
         super().__init__()
@@ -592,6 +592,55 @@ class SimplePreActBottleneck(nn.Module):
             out = self.conv3(out) + x
         else:
             out = self.conv3(out)
+        return out
+
+class SimplePreActBasicBlock(nn.Module):
+    """Simple BasicBlock with preactivatoin & without downsample support"""
+
+    def __init__(
+        self,
+        in_chs,
+        mid_chs,
+        out_chs,
+        stride=1,
+        groups=1,
+        groups_width=None,
+        norm_layer=ABN,
+        norm_act="relu",
+        keep_prob=1,  # for drop connect
+        stride_first=False,
+        dim_reduction="stride & expand", # "expand -> stride", "stride & expand"
+    ):
+        super().__init__()
+        self.has_residual = in_chs == out_chs and stride == 1
+        groups = in_chs // groups_width if groups_width else groups
+        # if dim_reduction == "expand -> stride":
+        #     self.conv1 = conv3x3(in_chs, mid_chs)
+        #     self.bn1 = norm_layer(mid_chs, activation=norm_act)
+        #     self.conv2 = conv3x3(mid_chs, out_chs, stride=stride)
+        # elif dim_reduction == "stride -> expand":
+        #     # it's ~20% faster to have stride first. maybe accuracy drop isn't that big
+        #     # TODO: test MixConv type of block here. I expect it to have the same speed and N params
+        #     # while performance should increase
+        #     self.conv1 = conv3x3(in_chs, in_chs, stride=stride)
+        #     self.bn1 = norm_layer(in_chs, activation=norm_act)
+        #     self.conv2 = conv3x3(in_chs, out_chs)
+        if dim_reduction == "stride & expand": # only this one is supported for now
+            self.bn1 = norm_layer(in_chs, activation=norm_act)
+            self.conv1 = conv3x3(in_chs, mid_chs, stride=stride)
+            self.bn2 = norm_layer(mid_chs, activation=norm_act)
+            self.conv2 = conv3x3(mid_chs, out_chs)
+        else:
+            raise ValueError(f"{dim_reduction} is not valid dim reduction in BasicBlock")
+
+    def forward(self, x):
+        out = self.bn1(x)
+        out = self.conv1(out)
+        out = self.bn2(out)
+        out = self.conv2(out)
+        # avoid 2 inplace ops by chaining into one long op
+        if self.has_residual:
+            out += x
         return out
 
 class SimpleInvertedResidual(nn.Module):
@@ -645,6 +694,55 @@ class SimpleInvertedResidual(nn.Module):
         if self.has_residual:
             x = self.drop_connect(x) + residual
         x = self.final_act(x) # optional last activation
+        return x
+
+class SimplePreActInvertedResidual(nn.Module):
+    def __init__(
+        self,
+        in_chs,
+        mid_chs,
+        out_chs,
+        dw_kernel_size=3,
+        stride=1,
+        attn_type=None,
+        keep_prob=1,  # drop connect param
+        norm_layer=ABN,
+        norm_act="relu",
+    ):
+        super().__init__()
+        self.has_residual = (in_chs == out_chs and stride == 1)
+        if in_chs != mid_chs:
+            self.expansion = nn.Sequential(
+                norm_layer(in_chs, activation=norm_act), conv1x1(in_chs, mid_chs) 
+            )
+        else:
+            self.expansion = nn.Identity()
+        self.bn2 = norm_layer(mid_chs, activation=norm_act)
+        self.conv_dw = nn.Conv2d(
+            mid_chs,
+            mid_chs,
+            dw_kernel_size,
+            stride=stride,
+            groups=mid_chs,
+            bias=False,
+            padding=dw_kernel_size // 2,
+        )
+        # some models like MobileNet use mid_chs here instead of in_channels. But I don't care for now
+        self.se = get_attn(attn_type)(mid_chs, in_chs // 4, norm_act)
+        self.bn3 = norm_layer(mid_chs, activation=norm_act) # Note it's NOT identity for PreAct
+        self.conv_pw1 = conv1x1(mid_chs, out_chs)
+        self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
+
+    def forward(self, x):
+        residual = x
+        x = self.expansion(x)
+        x = self.bn2(x)
+        x = self.conv_dw(x)
+        # x = self.se(x)
+        x = self.bn3(x)
+        x = self.conv_pw1(x)
+        if self.has_residual:
+            x = self.drop_connect(x) + residual
         return x
 
 class SimpleSeparable_2(nn.Module):
