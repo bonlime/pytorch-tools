@@ -220,6 +220,8 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
                 conv3x3(in_channels * 4, stem_width),
                 first_norm,
             )
+        else:
+            raise ValueError(f"Stem type `{stem_type}` is not supported")
 
         bn_args = dict(norm_layer=norm_layer, norm_act=norm_act)
         block_name_to_module = {
@@ -237,14 +239,14 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             "simpl": SimpleStage
         }
         # set stride=2 for all blocks
+        # using **{**bn_args, **stage_args} to allow updating norm layer for particular stage
         self.layer1 = stage_name_to_module[stage_fns[0]](
             block_fn=block_name_to_module[block_fns[0]],
             in_chs=stem_width,
             out_chs=channels[0],
             num_blocks=layers[0],
             stride=2,
-            **bn_args,
-            **stage_args[0],
+            **{**bn_args, **stage_args[0]},
         )
         self.layer2 = stage_name_to_module[stage_fns[1]](
             block_fn=block_name_to_module[block_fns[1]],
@@ -252,8 +254,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             out_chs=channels[1],
             num_blocks=layers[1],
             stride=2,
-            **bn_args,
-            **stage_args[1],
+            **{**bn_args, **stage_args[1]},
         )
         self.layer3 = stage_name_to_module[stage_fns[2]](
             block_fn=block_name_to_module[block_fns[2]],
@@ -261,8 +262,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             out_chs=channels[2],
             num_blocks=layers[2],
             stride=2,
-            **bn_args,
-            **stage_args[2],
+            **{**bn_args, **stage_args[2]},
         )
         self.layer4 = stage_name_to_module[stage_fns[3]](
             block_fn=block_name_to_module[block_fns[3]],
@@ -270,8 +270,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             out_chs=channels[3],
             num_blocks=layers[3],
             stride=2,
-            **bn_args,
-            **stage_args[3],
+            **{**bn_args, **stage_args[3]},
         )
         last_norm = norm_layer(channels[3], activation=norm_act) if block_fns[0].startswith("Pre") else nn.Identity()
         if mobilenetv3_head:
