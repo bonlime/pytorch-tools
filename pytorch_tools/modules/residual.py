@@ -614,10 +614,11 @@ class SimplePreActBasicBlock(nn.Module):
         super().__init__()
         self.has_residual = in_chs == out_chs and stride == 1
         groups = in_chs // groups_width if groups_width else groups
-        # if dim_reduction == "expand -> stride":
-        #     self.conv1 = conv3x3(in_chs, mid_chs)
-        #     self.bn1 = norm_layer(mid_chs, activation=norm_act)
-        #     self.conv2 = conv3x3(mid_chs, out_chs, stride=stride)
+        if dim_reduction == "expand -> stride":
+            self.bn1 = norm_layer(in_chs, activation=norm_act)
+            self.conv1 = conv3x3(in_chs, mid_chs)
+            self.bn2 = norm_layer(mid_chs, activation=norm_act)
+            self.conv2 = conv3x3(mid_chs, out_chs, stride=stride)
         # elif dim_reduction == "stride -> expand":
         #     # it's ~20% faster to have stride first. maybe accuracy drop isn't that big
         #     # TODO: test MixConv type of block here. I expect it to have the same speed and N params
@@ -625,13 +626,18 @@ class SimplePreActBasicBlock(nn.Module):
         #     self.conv1 = conv3x3(in_chs, in_chs, stride=stride)
         #     self.bn1 = norm_layer(in_chs, activation=norm_act)
         #     self.conv2 = conv3x3(in_chs, out_chs)
-        if dim_reduction == "stride & expand": # only this one is supported for now
+        elif dim_reduction == "stride & expand": # only this one is supported for now
+            self.bn1 = norm_layer(in_chs, activation=norm_act)
+            self.conv1 = conv3x3(in_chs, mid_chs, stride=stride)
+            self.bn2 = norm_layer(mid_chs, activation=norm_act)
+            self.conv2 = conv3x3(mid_chs, out_chs)
+        elif dim_reduction == "mixconv stride & expand":
             self.bn1 = norm_layer(in_chs, activation=norm_act)
             self.conv1 = conv3x3(in_chs, mid_chs, stride=stride)
             self.bn2 = norm_layer(mid_chs, activation=norm_act)
             self.conv2 = conv3x3(mid_chs, out_chs)
         else:
-            raise ValueError(f"{dim_reduction} is not valid dim reduction in BasicBlock")
+            raise ValueError(f"{dim_reduction} is not valid dim reduction in PreAct BasicBlock")
 
     def forward(self, x):
         out = self.bn1(x)
