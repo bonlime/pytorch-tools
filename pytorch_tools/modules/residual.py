@@ -515,7 +515,6 @@ class SimpleBasicBlock(nn.Module):
         norm_layer=ABN,
         norm_act="relu",
         keep_prob=1,  # for drop connect
-        stride_first=False,
         dim_reduction="stride -> expand", # "expand -> stride", "stride & expand"
         final_act=False, # add activation after summation with residual
     ):
@@ -594,6 +593,19 @@ class SimplePreActBottleneck(nn.Module):
             out = self.conv3(out)
         return out
 
+class MixConv(nn.Module):
+    def __init__(self, in_chs, out_chs):
+        super().__init__()
+        in_chs_4 = in_chs // 4
+        self.conv1x1 = nn.Sequential(pt.modules.BlurPool(in_chs // 4), pt.modules.residual.conv1x1(in_chs // 4, out_chs // 4))
+        self.conv3x3 = nn.Conv2d(in_chs // 4, out_chs // 4, kernel_size=3, stride=2, padding=1, bias=False)
+        self.conv5x5 = nn.Conv2d(in_chs // 4, out_chs // 4, kernel_size=5, stride=2, padding=2, bias=False)
+        self.conv7x7 = nn.Conv2d(in_chs // 4, out_chs // 4, kernel_size=7, stride=2, padding=3, bias=False)
+    
+    def forward(self, x):
+        x_0, x_1, x_2, x_3 = x.chunk(4, dim=1)
+        return torch.cat([self.conv1x1(x_0), self.conv3x3(x_1), self.conv5x5(x_2), self.conv7x7(x_3)], dim=1)
+
 class SimplePreActBasicBlock(nn.Module):
     """Simple BasicBlock with preactivatoin & without downsample support"""
 
@@ -608,7 +620,6 @@ class SimplePreActBasicBlock(nn.Module):
         norm_layer=ABN,
         norm_act="relu",
         keep_prob=1,  # for drop connect
-        stride_first=False,
         dim_reduction="stride & expand", # "expand -> stride", "stride & expand"
     ):
         super().__init__()
@@ -645,6 +656,65 @@ class SimplePreActBasicBlock(nn.Module):
         out = self.bn2(out)
         out = self.conv2(out)
         # avoid 2 inplace ops by chaining into one long op
+        if self.has_residual:
+            out += x
+        return out
+
+class SimplePreActRes2BasicBlock(nn.Module):
+    """Building block based on BasicBlock with:
+    preactivatoin
+    without downsample support
+    with Res2Net inspired chunking
+    """
+
+    def __init__(
+        self,
+        in_chs,
+        mid_chs,
+        out_chs,
+        stride=1,
+        norm_layer=ABN,
+        norm_act="relu",
+        keep_prob=1,  # for drop connect
+        antialias=False,
+    ):
+        super().__init__()
+        self.has_residual = in_chs == out_chs and stride == 1
+        self.stride = stride
+        if self.stride == 2: # only use Res2Net for stride == 1
+            self.blocks = nn.Sequential(
+                norm_layer(in_chs, activation=norm_act),
+                conv3x3(in_chs, mid_chs, stride=1 if antialias else 2),
+                BlurPool(channels=mid_chs) if antialias else nn.Identity(),
+                norm_layer(mid_chs, activation=norm_act),
+                conv3x3(mid_chs, out_chs)
+            )
+        else:
+            self.bn1 = norm_layer(in_chs, activation=norm_act) 
+            self.block_1 = nn.Sequential(
+                conv3x3(in_chs // 4, in_chs // 4),
+                norm_layer(in_chs // 4, activation=norm_act),
+            )
+            self.block_2 = nn.Sequential(
+                conv3x3(in_chs // 4, in_chs // 4),
+                norm_layer(in_chs // 4, activation=norm_act),
+            )
+            self.block_3 = nn.Sequential(
+                conv3x3(in_chs // 4, in_chs // 4),
+                norm_layer(in_chs // 4, activation=norm_act),
+            )
+            self.last_conv = conv3x3(in_chs, out_chs) # expand in last conv in block
+
+    def forward(self, x):
+        if self.stride == 2:
+            return self.blocks(x)
+        # split in 4 
+        x_out0, x_inp1, x_inp2, x_inp3 = self.bn1(x).chunk(4, dim=1)
+        x_out1 = self.block_1(x_inp1)
+        x_out2 = self.block_2(x_inp2 + x_out1)
+        x_out3 = self.block_3(x_inp3 + x_out2)
+        out = torch.cat([x_out0, x_out1, x_out2, x_out3], dim=1)
+        out = self.last_conv(out) # always has residual
         if self.has_residual:
             out += x
         return out
@@ -870,7 +940,7 @@ class SimpleStage(nn.Module):
         num_blocks,
         stride=2,
         bottle_ratio=1.,
-        antialias=False,
+        # antialias=False,
         block_fn=DarkBasicBlock,
         attn_type=None,
         norm_layer=ABN,

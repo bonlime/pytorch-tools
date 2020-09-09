@@ -29,6 +29,7 @@ from pytorch_tools.modules.residual import SimpleBasicBlock
 from pytorch_tools.modules.residual import SimpleBottleneck
 from pytorch_tools.modules.residual import SimpleInvertedResidual
 from pytorch_tools.modules.residual import SimplePreActBasicBlock
+from pytorch_tools.modules.residual import SimplePreActRes2BasicBlock
 from pytorch_tools.modules.residual import SimplePreActBottleneck
 from pytorch_tools.modules.residual import SimplePreActInvertedResidual
 from pytorch_tools.modules.residual import SimpleSeparable_2
@@ -100,7 +101,7 @@ class DarkNet(nn.Module):
             attn_type=attn_type,
             norm_layer=norm_layer,
             norm_act=norm_act,
-            antialias=antialias,
+            # antialias=antialias,
             **block_kwargs,
         )
         first_stage_fn = SimpleStage if no_first_csp else stage_fn
@@ -227,6 +228,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
         block_name_to_module = {
             "XX": SimpleBasicBlock,
             "Pre_XX": SimplePreActBasicBlock,
+            "Pre_XX_Res2": SimplePreActRes2BasicBlock,
             "Btl": SimpleBottleneck,
             "Pre_Btl": SimplePreActBottleneck,
             "IR": SimpleInvertedResidual,
