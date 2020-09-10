@@ -630,6 +630,18 @@ class SimplePreActBasicBlock(nn.Module):
             self.conv1 = conv3x3(in_chs, mid_chs)
             self.bn2 = norm_layer(mid_chs, activation=norm_act)
             self.conv2 = conv3x3(mid_chs, out_chs, stride=stride)
+        elif dim_reduction == "s2d":
+            if stride == 2:
+                # BN before S2D to make sure different pixels from one channel are normalized the same way
+                self.bn1 = nn.Sequential(norm_layer(in_chs, activation=norm_act), SpaceToDepth(block_size=2))
+                self.conv1 = conv3x3(in_chs * 4, mid_chs)
+                self.bn2 = norm_layer(mid_chs, activation=norm_act)
+                self.conv2 = conv3x3(mid_chs, out_chs)
+            else: # same as stride & expand
+                self.bn1 = norm_layer(in_chs, activation=norm_act)
+                self.conv1 = conv3x3(in_chs, mid_chs, stride=stride)
+                self.bn2 = norm_layer(mid_chs, activation=norm_act)
+                self.conv2 = conv3x3(mid_chs, out_chs)
         # elif dim_reduction == "stride -> expand":
         #     # it's ~20% faster to have stride first. maybe accuracy drop isn't that big
         #     # TODO: test MixConv type of block here. I expect it to have the same speed and N params
