@@ -568,6 +568,7 @@ class SimplePreActBottleneck(nn.Module):
         groups_width=None,
         norm_layer=ABN,
         norm_act="relu",
+        force_residual=False, # force residual in stride=2 blocks
         # keep_prob=1,  # for drop connect
     ):
         super().__init__()
@@ -580,6 +581,10 @@ class SimplePreActBottleneck(nn.Module):
         # last conv is not followed by bn, but anyway bias here makes it slightly worse (on Imagenet)
         self.conv3 = conv1x1(mid_chs, out_chs)
         self.has_residual = in_chs == out_chs and stride == 1
+        self.force_residual = force_residual
+        if force_residual:
+            self.blurpool = BlurPool(channels=in_chs)
+            self.in_chs = in_chs
 
     def forward(self, x):
         out = self.bn1(x)
@@ -587,10 +592,11 @@ class SimplePreActBottleneck(nn.Module):
         out = self.bn2(out)
         out = self.conv2(out)
         out = self.bn3(out)
+        out = self.conv3(out)
         if self.has_residual:
-            out = self.conv3(out) + x
-        else:
-            out = self.conv3(out)
+            out += x
+        elif self.force_residual: # forces partial residual for stride=2 block
+            out[:, :self.in_chs] += self.blurpool(x)
         return out
 
 class MixConv(nn.Module):
@@ -621,9 +627,14 @@ class SimplePreActBasicBlock(nn.Module):
         norm_act="relu",
         keep_prob=1,  # for drop connect
         dim_reduction="stride & expand", # "expand -> stride", "stride & expand"
+        force_residual=False, # always have residual
     ):
         super().__init__()
         self.has_residual = in_chs == out_chs and stride == 1
+        self.force_residual = force_residual
+        if force_residual:
+            self.blurpool = BlurPool(channels=in_chs)
+            self.in_chs = in_chs
         groups = in_chs // groups_width if groups_width else groups
         if dim_reduction == "expand -> stride":
             self.bn1 = norm_layer(in_chs, activation=norm_act)
@@ -670,6 +681,8 @@ class SimplePreActBasicBlock(nn.Module):
         # avoid 2 inplace ops by chaining into one long op
         if self.has_residual:
             out += x
+        elif self.force_residual: # forces partial residual for stride=2 block
+            out[:, :self.in_chs] += self.blurpool(x)
         return out
 
 class SimplePreActRes2BasicBlock(nn.Module):
@@ -796,9 +809,14 @@ class SimplePreActInvertedResidual(nn.Module):
         keep_prob=1,  # drop connect param
         norm_layer=ABN,
         norm_act="relu",
+        force_residual=False,
     ):
         super().__init__()
         self.has_residual = (in_chs == out_chs and stride == 1)
+        self.force_residual = force_residual
+        if force_residual:
+            self.blurpool = BlurPool(channels=in_chs)
+            self.in_chs = in_chs
         if in_chs != mid_chs:
             self.expansion = nn.Sequential(
                 norm_layer(in_chs, activation=norm_act), conv1x1(in_chs, mid_chs) 
@@ -822,16 +840,17 @@ class SimplePreActInvertedResidual(nn.Module):
         self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
 
     def forward(self, x):
-        residual = x
-        x = self.expansion(x)
-        x = self.bn2(x)
-        x = self.conv_dw(x)
+        out = self.expansion(x)
+        out = self.bn2(out)
+        out = self.conv_dw(out)
         # x = self.se(x)
-        x = self.bn3(x)
-        x = self.conv_pw1(x)
+        out = self.bn3(out)
+        out = self.conv_pw1(out)
         if self.has_residual:
-            x = self.drop_connect(x) + residual
-        return x
+            out = self.drop_connect(out) + x
+        elif self.force_residual: # forces partial residual for stride=2 block
+            out[:, :self.in_chs] += self.blurpool(x)
+        return out
 
 class SimpleSeparable_2(nn.Module):
     def __init__(
@@ -875,20 +894,48 @@ class SimplePreActSeparable_2(nn.Module):
         keep_prob=1,  # drop connect param
         norm_layer=ABN,
         norm_act="relu",
+        dim_reduction=None,
     ):
         super().__init__()
         # actially we can have parial residual even when in_chs != out_chs
         self.has_residual = (in_chs == out_chs and stride == 1)
-        self.blocks = nn.Sequential(
-            norm_layer(in_chs, activation=norm_act),
-            conv3x3(in_chs, in_chs, stride=stride, groups=in_chs), # DW 1
-            norm_layer(in_chs, activation=norm_act),
-            conv1x1(in_chs, mid_chs), # PW 1
-            norm_layer(mid_chs, activation=norm_act),
-            conv3x3(mid_chs, mid_chs, groups=mid_chs), # DW 2
-            norm_layer(mid_chs, activation=norm_act), 
-            conv1x1(mid_chs, out_chs), # PW 2
-        )
+        if dim_reduction == "s2d_full" and stride == 2: # redesign reduction
+            self.blocks = nn.Sequential(
+                # replace first DW -> PW with s2d -> full conv to lose less information
+                # gives very large increase in number of parameters
+                norm_layer(in_chs, activation=norm_act),
+                SpaceToDepth(block_size=2),
+                conv3x3(in_chs * 4, out_chs),
+                norm_layer(out_chs, activation=norm_act),
+                conv3x3(mid_chs, mid_chs, groups=mid_chs), # DW 2
+                norm_layer(mid_chs, activation=norm_act), 
+                conv1x1(mid_chs, out_chs), # PW 2
+            )
+        elif dim_reduction == "s2d_dw" and stride == 2: # redesign reduction
+            self.blocks = nn.Sequential(
+                # BN before S2D to make sure different pixels from one channel are normalized the same way
+                # expand with s2d -> DW -> PW 
+                norm_layer(in_chs, activation=norm_act),
+                SpaceToDepth(block_size=2),
+                conv3x3(in_chs * 4, in_chs * 4, groups=in_chs * 4), # DW 1
+                norm_layer(in_chs * 4, activation=norm_act),
+                conv1x1(in_chs * 4, out_chs), # PW 1
+                norm_layer(mid_chs, activation=norm_act),
+                conv3x3(mid_chs, mid_chs, groups=mid_chs), # DW 2
+                norm_layer(mid_chs, activation=norm_act), 
+                conv1x1(mid_chs, out_chs), # PW 2
+            )
+        else:
+            self.blocks = nn.Sequential(
+                norm_layer(in_chs, activation=norm_act),
+                conv3x3(in_chs, in_chs, stride=stride, groups=in_chs), # DW 1
+                norm_layer(in_chs, activation=norm_act),
+                conv1x1(in_chs, mid_chs), # PW 1
+                norm_layer(mid_chs, activation=norm_act),
+                conv3x3(mid_chs, mid_chs, groups=mid_chs), # DW 2
+                norm_layer(mid_chs, activation=norm_act), 
+                conv1x1(mid_chs, out_chs), # PW 2
+            )
         self.drop_connect = DropConnect(keep_prob) if keep_prob < 1 else nn.Identity()
 
     def forward(self, x):
