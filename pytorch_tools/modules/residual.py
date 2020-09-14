@@ -804,12 +804,14 @@ class SimplePreActInvertedResidual(nn.Module):
         mid_chs,
         out_chs,
         dw_kernel_size=3,
+        dw_str2_kernel_size=3,
         stride=1,
         attn_type=None,
         keep_prob=1,  # drop connect param
         norm_layer=ABN,
         norm_act="relu",
         force_residual=False,
+        force_expansion=False, # always have expansion
     ):
         super().__init__()
         self.has_residual = (in_chs == out_chs and stride == 1)
@@ -817,13 +819,14 @@ class SimplePreActInvertedResidual(nn.Module):
         if force_residual:
             self.blurpool = BlurPool(channels=in_chs)
             self.in_chs = in_chs
-        if in_chs != mid_chs:
+        if in_chs != mid_chs or force_expansion:
             self.expansion = nn.Sequential(
                 norm_layer(in_chs, activation=norm_act), conv1x1(in_chs, mid_chs) 
             )
         else:
             self.expansion = nn.Identity()
         self.bn2 = norm_layer(mid_chs, activation=norm_act)
+        dw_kernel_size = dw_str2_kernel_size if stride==2 else dw_kernel_size
         self.conv_dw = nn.Conv2d(
             mid_chs,
             mid_chs,
