@@ -1,4 +1,4 @@
-torch>=1.5
-#>=1.6
+torch>=1.6
 loguru>=0.4.1
 inplace-abn>=1.0.12
+tqdm>=4.49
