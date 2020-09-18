@@ -201,7 +201,7 @@ class Timer(Callback):
             d_time = self.timer.data_time.avg_smooth
             b_time = self.timer.batch_time.avg_smooth
             self.state.logger.info(
-                f"\nTimeMeter profiling. Data time: {d_time:.2E}s. Model time: {b_time:.2E}s \n"
+                f"TimeMeter profiling. Data time: {d_time:.2E}s. Model time: {b_time:.2E}s \n"
             )
 
 
