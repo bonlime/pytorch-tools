@@ -1,4 +1,5 @@
 torch>=1.6
+torchvision>=0.7.0
 loguru>=0.4.1
 inplace-abn>=1.0.12
 tqdm>=4.49
