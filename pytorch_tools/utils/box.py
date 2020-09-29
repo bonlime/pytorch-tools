@@ -4,6 +4,7 @@ Everything is covered with tests to ensure correct output and scriptability (tor
 Written by @bonlime
 """
 import torch
+import torchvision
 
 
 def box2delta(boxes, anchors):
