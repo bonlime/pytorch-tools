@@ -817,11 +817,11 @@ class SimplePreActInvertedResidual(nn.Module):
         self.has_residual = (in_chs == out_chs and stride == 1)
         self.force_residual = force_residual
         if force_residual:
-            self.blurpool = BlurPool(channels=in_chs)
+            self.blurpool = BlurPool(channels=in_chs) if stride == 2 else nn.Identity()
             self.in_chs = in_chs
         if in_chs != mid_chs or force_expansion:
             self.expansion = nn.Sequential(
-                norm_layer(in_chs, activation=norm_act), conv1x1(in_chs, mid_chs) 
+                norm_layer(in_chs, activation=norm_act), conv1x1(in_chs, mid_chs)
             )
         else:
             self.expansion = nn.Identity()
@@ -1010,6 +1010,7 @@ class SimpleStage(nn.Module):
         keep_prob=1,
         csp_block_ratio=None,  # for compatability
         x2_transition=None,  # for compatability
+        filter_steps=0,
         **block_kwargs,
     ):
         super().__init__()
@@ -1018,8 +1019,12 @@ class SimpleStage(nn.Module):
         norm_kwarg = dict(norm_layer=norm_layer, norm_act=norm_act, **block_kwargs)  # this is dirty
         mid_chs = max(int(out_chs * bottle_ratio), 64)
         layers = [block_fn(in_chs=in_chs, mid_chs=mid_chs, out_chs=out_chs, stride=stride, **norm_kwarg)]
-        block_kwargs = dict(in_chs=out_chs, mid_chs=mid_chs, out_chs=out_chs, **norm_kwarg)
-        layers.extend([block_fn(**block_kwargs) for _ in range(num_blocks - 1)])
+        block_kwargs = dict(in_chs=out_chs, mid_chs=out_chs + filter_steps, out_chs=out_chs + filter_steps, **norm_kwarg)
+        for _ in range(num_blocks - 1):
+            layers.append(block_fn(**block_kwargs))
+            block_kwargs["in_chs"] += filter_steps
+            block_kwargs["mid_chs"] += filter_steps
+            block_kwargs["out_chs"] += filter_steps
         self.blocks = nn.Sequential(*layers)
 
     def forward(self, x):

@@ -252,7 +252,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
         )
         self.layer2 = stage_name_to_module[stage_fns[1]](
             block_fn=block_name_to_module[block_fns[1]],
-            in_chs=channels[0], 
+            in_chs=channels[0],
             out_chs=channels[1],
             num_blocks=layers[1],
             stride=2,
@@ -266,14 +266,17 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             stride=2,
             **{**bn_args, **stage_args[2]},
         )
+        extra_stage3_filters = stage_args[2].get("filter_steps", 0) * (layers[2] - 1)
         self.layer4 = stage_name_to_module[stage_fns[3]](
             block_fn=block_name_to_module[block_fns[3]],
-            in_chs=channels[2],
+            in_chs=channels[2] + extra_stage3_filters,
             out_chs=channels[3],
             num_blocks=layers[3],
             stride=2,
             **{**bn_args, **stage_args[3]},
         )
+        extra_stage4_filters = stage_args[3].get("filter_steps", 0) * (layers[3] - 1)
+        channels[3] += extra_stage4_filters # TODO rewrite it cleaner instead of doing inplace
         last_norm = norm_layer(channels[3], activation=norm_act) if block_fns[0].startswith("Pre") else nn.Identity()
         if mobilenetv3_head:
             self.head = nn.Sequential( # Mbln v3 head. GAP first, then expand convs
@@ -398,7 +401,7 @@ GNET_CFGS = {
         "default": {
             "params": {
                 "stage_fns": [SimpleStage, SimpleStage, SimpleStage, SimpleStage],
-                "block_fns": ["XX", "XX", "Btl", "IR"], 
+                "block_fns": ["XX", "XX", "Btl", "IR"],
                 "stage_args": [
                     {},
                     {},
