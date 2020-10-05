@@ -191,6 +191,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
         in_channels=3,
         norm_layer="abn",
         norm_act="leaky_relu",
+        head_norm_act="leaky_relu", # activation in head
         stem_type="default",
         # antialias=False,
         # encoder=False,
@@ -199,6 +200,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
         head_width=2048,
         stem_width=64,
         mobilenetv3_head=True,
+        head_type="default", # type of head
     ):
         norm_layer = bn_from_name(norm_layer)
         self.num_classes = num_classes
@@ -278,22 +280,61 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
         extra_stage4_filters = stage_args[3].get("filter_steps", 0) * (layers[3] - 1)
         channels[3] += extra_stage4_filters # TODO rewrite it cleaner instead of doing inplace
         last_norm = norm_layer(channels[3], activation=norm_act) if block_fns[0].startswith("Pre") else nn.Identity()
-        if mobilenetv3_head:
+        if mobilenetv3_head or head_type == "mobilenetv3":
             self.head = nn.Sequential( # Mbln v3 head. GAP first, then expand convs
                 last_norm,
                 FastGlobalAvgPool2d(flatten=True),
-                nn.Linear(channels[3], head_width), # no norm here as in original MobilnetV3 from google
-                pt.modules.activations.activation_from_name(norm_act),
+                nn.Linear(channels[3], head_width),
+                pt.modules.activations.activation_from_name(head_norm_act),
                 nn.Linear(head_width, num_classes),
             )
-        else:
+        if head_type == "mobilenetv3_norm": # mobilenet with last norm
+            self.head = nn.Sequential( # Mbln v3 head. GAP first, then expand convs
+                last_norm,
+                FastGlobalAvgPool2d(flatten=True),
+                nn.Linear(channels[3], head_width),
+                nn.BatchNorm1d(head_width),
+                pt.modules.activations.activation_from_name(head_norm_act),
+                nn.Linear(head_width, num_classes),
+            )
+        elif head_type == "default":
             self.head = nn.Sequential(
                 last_norm,
                 conv1x1(channels[3], head_width),
-                norm_layer(head_width, activation=norm_act),
+                norm_layer(head_width, activation=head_norm_act),
                 FastGlobalAvgPool2d(flatten=True),
                 nn.Linear(head_width, num_classes),
             )
+        elif head_type == "mlp_2":
+            assert isinstance(head_width, (tuple, list)), head_width
+            self.head = nn.Sequential( # like Mbln v3 head. GAP first, then MLP convs
+                last_norm,
+                FastGlobalAvgPool2d(flatten=True),
+                nn.Linear(channels[3], head_width[0]),
+                nn.BatchNorm1d(head_width[0]),
+                pt.modules.activations.activation_from_name(head_norm_act),
+                nn.Linear(head_width[0], head_width[1]),
+                nn.BatchNorm1d(head_width[1]),
+                pt.modules.activations.activation_from_name(head_norm_act),
+                nn.Linear(head_width[1], num_classes),
+            )
+        elif head_type == "mlp_3":
+            assert isinstance(head_width, (tuple, list)), head_width
+            self.head = nn.Sequential( # like Mbln v3 head. GAP first, then MLP convs
+                last_norm,
+                FastGlobalAvgPool2d(flatten=True),
+                nn.Linear(channels[3], head_width[0]),
+                nn.BatchNorm1d(head_width[0]),
+                pt.modules.activations.activation_from_name(head_norm_act),
+                nn.Linear(head_width[0], head_width[1]),
+                nn.BatchNorm1d(head_width[1]),
+                pt.modules.activations.activation_from_name(head_norm_act),
+                nn.Linear(head_width[1], head_width[2]),
+                nn.BatchNorm1d(head_width[2]),
+                pt.modules.activations.activation_from_name(head_norm_act),
+                nn.Linear(head_width[2], num_classes),
+            )
+
         initialize(self)
 
     def features(self, x):
