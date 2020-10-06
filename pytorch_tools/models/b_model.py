@@ -58,8 +58,8 @@ class DarkNet(nn.Module):
         no_first_csp=False,  # make first stage a Simple Stage
         drop_rate=0.0,
         drop_connect_rate=0.0,
-        expand_before_head=True, # add addition conv from 512 -> 2048 to avoid representational bottleneck
-        mobilenetv3_head=False, # put GAP first, then expand convs
+        expand_before_head=True,  # add addition conv from 512 -> 2048 to avoid representational bottleneck
+        mobilenetv3_head=False,  # put GAP first, then expand convs
         **block_kwargs,
     ):
 
@@ -126,7 +126,7 @@ class DarkNet(nn.Module):
         if mobilenetv3_head:
             head_layers.append(FastGlobalAvgPool2d(flatten=True))
             if channels[3] < 2048 and expand_before_head:
-                head_layers.append(nn.Linear(channels[3], 2048)) # no norm here as in original MobilnetV3 from google
+                head_layers.append(nn.Linear(channels[3], 2048))  # no norm here as in original MobilnetV3 from google
                 head_layers.append(pt.modules.activations.activation_from_name(norm_act))
             head_layers.append(nn.Linear(2048 if expand_before_head else channels[3], num_classes))
         else:
@@ -134,7 +134,9 @@ class DarkNet(nn.Module):
                 if block_fn == SimplePreActBottleneck:  # for PreAct add additional BN here
                     head_layers.append(norm_layer(channels[3], activation=norm_act))
                 head_layers.extend([conv1x1(channels[3], 2048), norm_layer(2048, activation=norm_act)])
-            head_layers.extend([FastGlobalAvgPool2d(flatten=True), nn.Linear(2048 if expand_before_head else channels[3], num_classes)])
+            head_layers.extend(
+                [FastGlobalAvgPool2d(flatten=True), nn.Linear(2048 if expand_before_head else channels[3], num_classes)]
+            )
         # self.head = nn.Sequential(
         #     conv1x1(channels[3], 2048),
         #     norm_layer(activation=norm_act),
@@ -178,12 +180,12 @@ class DarkNet(nn.Module):
         return keep_prob
 
 
-class BNet(nn.Module): # copied from DarkNet not to break backward compatability
+class BNet(nn.Module):  # copied from DarkNet not to break backward compatability
     def __init__(
         self,
-        stage_fns=None, # list of nn.Module
-        block_fns=None, # list of nn.Module
-        stage_args=None, # list of dicts
+        stage_fns=None,  # list of nn.Module
+        block_fns=None,  # list of nn.Module
+        stage_args=None,  # list of dicts
         layers=None,  # num layers in each block
         channels=None,  # it's actually output channels. 256, 512, 1024, 2048 for R50
         # pretrained=None,  # not used. here for proper signature
@@ -191,7 +193,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
         in_channels=3,
         norm_layer="abn",
         norm_act="leaky_relu",
-        head_norm_act="leaky_relu", # activation in head
+        head_norm_act="leaky_relu",  # activation in head
         stem_type="default",
         # antialias=False,
         # encoder=False,
@@ -199,8 +201,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
         drop_connect_rate=0.0,
         head_width=2048,
         stem_width=64,
-        mobilenetv3_head=True,
-        head_type="default", # type of head
+        head_type="default",  # type of head
     ):
         norm_layer = bn_from_name(norm_layer)
         self.num_classes = num_classes
@@ -211,17 +212,12 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
 
         first_norm = nn.Identity() if block_fns[0].startswith("Pre") else norm_layer(stem_width, activation=norm_act)
         if stem_type == "default":
-            self.stem_conv1 = nn.Sequential(
-                conv3x3(in_channels, stem_width, stride=2),
-                first_norm
-            )
+            self.stem_conv1 = nn.Sequential(conv3x3(in_channels, stem_width, stride=2), first_norm)
         elif stem_type == "s2d":
             # instead of default stem I'm using Space2Depth followed by conv. no norm because there is one at the beginning
             # of DarkStage. upd. there is norm in not PreAct version
             self.stem_conv1 = nn.Sequential(
-                SpaceToDepth(block_size=2),
-                conv3x3(in_channels * 4, stem_width),
-                first_norm,
+                SpaceToDepth(block_size=2), conv3x3(in_channels * 4, stem_width), first_norm,
             )
         else:
             raise ValueError(f"Stem type `{stem_type}` is not supported")
@@ -239,9 +235,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             "Pre_Sep2": SimplePreActSeparable_2,
             "Sep3": SimpleSeparable_3,
         }
-        stage_name_to_module = {
-            "simpl": SimpleStage
-        }
+        stage_name_to_module = {"simpl": SimpleStage}
         # set stride=2 for all blocks
         # using **{**bn_args, **stage_args} to allow updating norm layer for particular stage
         self.layer1 = stage_name_to_module[stage_fns[0]](
@@ -278,18 +272,18 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             **{**bn_args, **stage_args[3]},
         )
         extra_stage4_filters = stage_args[3].get("filter_steps", 0) * (layers[3] - 1)
-        channels[3] += extra_stage4_filters # TODO rewrite it cleaner instead of doing inplace
+        channels[3] += extra_stage4_filters  # TODO rewrite it cleaner instead of doing inplace
         last_norm = norm_layer(channels[3], activation=norm_act) if block_fns[0].startswith("Pre") else nn.Identity()
-        if mobilenetv3_head or head_type == "mobilenetv3":
-            self.head = nn.Sequential( # Mbln v3 head. GAP first, then expand convs
+        if head_type == "mobilenetv3":
+            self.head = nn.Sequential(  # Mbln v3 head. GAP first, then expand convs
                 last_norm,
                 FastGlobalAvgPool2d(flatten=True),
                 nn.Linear(channels[3], head_width),
                 pt.modules.activations.activation_from_name(head_norm_act),
                 nn.Linear(head_width, num_classes),
             )
-        if head_type == "mobilenetv3_norm": # mobilenet with last norm
-            self.head = nn.Sequential( # Mbln v3 head. GAP first, then expand convs
+        elif head_type == "mobilenetv3_norm":  # mobilenet with last norm
+            self.head = nn.Sequential(  # Mbln v3 head. GAP first, then expand convs
                 last_norm,
                 FastGlobalAvgPool2d(flatten=True),
                 nn.Linear(channels[3], head_width),
@@ -307,7 +301,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             )
         elif head_type == "mlp_2":
             assert isinstance(head_width, (tuple, list)), head_width
-            self.head = nn.Sequential( # like Mbln v3 head. GAP first, then MLP convs
+            self.head = nn.Sequential(  # like Mbln v3 head. GAP first, then MLP convs
                 last_norm,
                 FastGlobalAvgPool2d(flatten=True),
                 nn.Linear(channels[3], head_width[0]),
@@ -320,7 +314,7 @@ class BNet(nn.Module): # copied from DarkNet not to break backward compatability
             )
         elif head_type == "mlp_3":
             assert isinstance(head_width, (tuple, list)), head_width
-            self.head = nn.Sequential( # like Mbln v3 head. GAP first, then MLP convs
+            self.head = nn.Sequential(  # like Mbln v3 head. GAP first, then MLP convs
                 last_norm,
                 FastGlobalAvgPool2d(flatten=True),
                 nn.Linear(channels[3], head_width[0]),
@@ -458,6 +452,7 @@ GNET_CFGS = {
 }
 # fmt: on
 
+
 def _darknet(arch, pretrained=None, **kwargs):
     cfgs = deepcopy(CFGS)
     cfg_settings = cfgs[arch]["default"]
@@ -496,6 +491,7 @@ def _gnet_like(arch, **kwargs):
     model = BNet(**kwargs)
     return model
 
+
 @wraps(DarkNet)
 def simpl_resnet50(**kwargs):
     return _darknet("simpl_resnet50", **kwargs)
@@ -515,9 +511,11 @@ def simpl_preactresnet34(**kwargs):
 def csp_simpl_resnet34(**kwargs):
     return _darknet("csp_simpl_resnet34", **kwargs)
 
+
 @wraps(DarkNet)
 def csp_simpl_dark(**kwargs):
     return _darknet("csp_simpl_dark", **kwargs)
+
 
 @wraps(DarkNet)
 def simpl_dark(**kwargs):
