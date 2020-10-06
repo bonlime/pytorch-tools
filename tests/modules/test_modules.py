@@ -46,9 +46,11 @@ def test_agn_repr():
     expected = "AGN(10, num_groups=2, eps=1e-05, affine=True, activation=ACT.LEAKY_RELU[0.01])"
     assert repr(l) == expected
 
+
 def test_abcn():
     """Check that abcn init and forward works"""
     l = modules.bn_from_name("abcn")(10, num_groups=2)
+
 
 # bcn runs
 
@@ -67,6 +69,13 @@ def test_weight_standardization(norm_layer, arch):
     m = pt.models.__dict__[arch](norm_layer=norm_layer)
     ws_m = modules.weight_standartization.conv_to_ws_conv(m)
     out = ws_m(torch.ones(2, 3, 224, 224))
+
+
+def test_weight_standardization_depthwise():
+    """check that depthwise convs are not converted"""
+    m = pt.models.efficientnet_b0()
+    ws_m = modules.weight_standartization.conv_to_ws_conv(m)
+    assert type(ws_m.blocks[1][0].conv_dw) == torch.nn.Conv2d
 
 
 def test_fpn_block():
