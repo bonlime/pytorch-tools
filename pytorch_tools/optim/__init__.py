@@ -33,6 +33,10 @@ def optimizer_from_name(optim_name):
     elif optim_name == "adamw_gc":
         # in this implementation eps in inside sqrt so it can be smaller
         return partial(AdamW_my, center=True, eps=1e-7)
+    elif optim_name == "adamw_p":
+        from adamp import AdamP
+
+        return partial(AdamP, eps=2e-5)
     elif optim_name == "rmsprop":
         # in this implementation eps in inside sqrt so it can be smaller
         return partial(RMSprop, eps=1e-7)
