@@ -140,7 +140,18 @@ def test_focal_class_is_scribtable():
     assert torch.allclose(loss, loss_jit)
 
 
+def test_binary_focal_3d():
+    """This test validates that it works for 3d by comparing results to 1d reshaped data"""
+    INP_3d = torch.rand(BS, 1, IM_SIZE, IM_SIZE, IM_SIZE)
+    TARGET_3d = torch.randint(0, 2, (BS, 1, IM_SIZE, IM_SIZE, IM_SIZE)).float()
+    my_focal_3d = losses.FocalLoss(mode="binary")(INP_3d, TARGET_3d)
+    my_focal_1d = losses.FocalLoss(mode="binary")(INP_3d.view(BS, 1, -1), TARGET_3d.view(BS, 1, -1))
+
+    assert torch.allclose(my_focal_3d, my_focal_1d)
+
+
 ## Tests for JaccardLoss
+# fmt: off
 @pytest.mark.parametrize(
     ["y_true", "y_pred", "expected"],
     [
@@ -149,6 +160,7 @@ def test_focal_class_is_scribtable():
         [[1, 1, 1, 1], [1, 1, 0, 0], 0.5],
     ],
 )
+# fmt: on
 def test_soft_jaccard_score(y_true, y_pred, expected):
     y_true = torch.tensor(y_true, dtype=torch.float32)
     y_pred = torch.tensor(y_pred, dtype=torch.float32)
@@ -171,7 +183,7 @@ def test_soft_jaccard_score_2(y_true, y_pred, expected):
     actual = actual.mean()
     assert float(actual) == pytest.approx(expected, abs=EPS)
 
-
+# fmt: off
 @pytest.mark.parametrize(
     ["y_true", "y_pred", "expected"],
     [
@@ -180,6 +192,7 @@ def test_soft_jaccard_score_2(y_true, y_pred, expected):
         [[1, 1, 1, 1], [1, 1, 0, 0], 2.0 / 3.0],
     ],
 )
+# fmt: on
 def test_soft_dice_score(y_true, y_pred, expected):
     y_true = torch.tensor(y_true, dtype=torch.float32)
     y_pred = torch.tensor(y_pred, dtype=torch.float32)
@@ -388,6 +401,13 @@ def test_binary_cross_entropy(reduction):
     my_ce = my_ce_loss(INP_IMG_BINARY, TARGET_IMG_BINARY.squeeze())
     assert torch.allclose(torch_ce.squeeze(), my_ce.squeeze())
 
+    # test for 3d volumes
+    INP_3d = torch.rand(BS, 1, IM_SIZE, IM_SIZE, IM_SIZE)
+    TARGET_3d = torch.randint(0, 2, (BS, 1, IM_SIZE, IM_SIZE, IM_SIZE)).float()
+    torch_ce = F.binary_cross_entropy_with_logits(INP_3d, TARGET_3d, reduction=reduction)
+    my_ce = my_ce_loss(INP_3d, TARGET_3d)
+    assert torch.allclose(torch_ce, my_ce)
+
 
 def test_binary_cross_entropy_from_logits():
     """Check that passing from_logits True and taking sigmoid manually gives the same result"""
@@ -407,7 +427,6 @@ def test_cross_entropy_from_logits():
     assert torch.allclose(res_1, res_2)
 
 
-@torch.no_grad()
 def test_cross_entropy_weight():
     weight_1 = torch.randint(1, 100, (N_CLASSES,)).float()
     weight_2 = weight_1.numpy().astype(int)
