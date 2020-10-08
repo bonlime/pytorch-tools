@@ -96,6 +96,9 @@ class BlurPool(nn.Module):
         inp_pad = F.pad(inp, (1, 1, 1, 1), "reflect")
         return F.conv2d(inp_pad, self.filt, stride=2, padding=0, groups=inp.shape[1])
 
+    def extra_repr(self):
+        return f"channels={self.channels}"
+
 
 # from https://github.com/mrT23/TResNet/
 class SpaceToDepth(nn.Module):
