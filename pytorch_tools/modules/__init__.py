@@ -25,7 +25,13 @@ from .activated_batch_norm import SyncABN
 from .activated_group_norm import AGN
 from .activated_batch_channel_norm import ABCN
 from .activated_no_norm import NoNormAct
-from inplace_abn import InPlaceABN, InPlaceABNSync
+
+try:
+    from inplace_abn import InPlaceABN, InPlaceABNSync
+
+    HAS_INPLACE_ABN = True
+except ModuleNotFoundError:
+    HAS_INPLACE_ABN = False
 
 # NOTE: after adding new normalization don't forget to also patch `filter_bn_from_wd` function
 def bn_from_name(norm_name):
@@ -34,9 +40,9 @@ def bn_from_name(norm_name):
         return ABN
     elif norm_name in ("syncabn", "sync_abn", "abn_sync"):
         return SyncABN
-    elif norm_name in ("inplaceabn", "inplace_abn"):
+    elif norm_name in ("inplaceabn", "inplace_abn") and HAS_INPLACE_ABN:
         return InPlaceABN
-    elif norm_name == "inplaceabnsync":
+    elif norm_name == "inplaceabnsync" and HAS_INPLACE_ABN:
         return InPlaceABNSync
     elif norm_name in ("frozen_abn", "frozenabn"):
         return partial(ABN, frozen=True)
@@ -54,4 +60,4 @@ def bn_from_name(norm_name):
     elif norm_name in ("none",):
         return NoNormAct
     else:
-        raise ValueError(f"Normalization '{norm_name}' not supported")
+        raise ValueError(f"Normalization '{norm_name}' not supported or inplaceabn is not installed")
