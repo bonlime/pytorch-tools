@@ -93,8 +93,7 @@ class BlurPool(nn.Module):
         self.register_buffer("filt", filt)
 
     def forward(self, inp):
-        inp_pad = F.pad(inp, (1, 1, 1, 1), "reflect")
-        return F.conv2d(inp_pad, self.filt, stride=2, padding=0, groups=inp.shape[1])
+        return F.conv2d(inp, self.filt, stride=2, padding=1, groups=inp.shape[1])
 
     def extra_repr(self):
         return f"channels={self.channels}"
