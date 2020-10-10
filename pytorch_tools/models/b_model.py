@@ -282,8 +282,8 @@ class BNet(nn.Module):  # copied from DarkNet not to break backward compatabilit
                 FastGlobalAvgPool2d(flatten=True),
                 nn.Linear(channels[3], head_width),
                 pt.modules.activations.activation_from_name(head_norm_act),
-                nn.Linear(head_width, num_classes),
             )
+            self.last_linear = nn.Linear(head_width, num_classes)
         elif head_type == "mobilenetv3_norm":  # mobilenet with last norm
             self.head = nn.Sequential(  # Mbln v3 head. GAP first, then expand convs
                 last_norm,
@@ -291,16 +291,17 @@ class BNet(nn.Module):  # copied from DarkNet not to break backward compatabilit
                 nn.Linear(channels[3], head_width),
                 nn.BatchNorm1d(head_width),
                 pt.modules.activations.activation_from_name(head_norm_act),
-                nn.Linear(head_width, num_classes),
             )
+            self.last_linear = nn.Linear(head_width, num_classes)
         elif head_type == "default":
             self.head = nn.Sequential(
                 last_norm,
                 conv1x1(channels[3], head_width),
                 norm_layer(head_width, activation=head_norm_act),
                 FastGlobalAvgPool2d(flatten=True),
-                nn.Linear(head_width, num_classes),
             )
+            self.last_linear = nn.Linear(head_width, num_classes)
+
         elif head_type == "mlp_2":
             assert isinstance(head_width, (tuple, list)), head_width
             self.head = nn.Sequential(  # like Mbln v3 head. GAP first, then MLP convs
@@ -312,8 +313,9 @@ class BNet(nn.Module):  # copied from DarkNet not to break backward compatabilit
                 nn.Linear(head_width[0], head_width[1]),
                 nn.BatchNorm1d(head_width[1]),
                 pt.modules.activations.activation_from_name(head_norm_act),
-                nn.Linear(head_width[1], num_classes),
             )
+            self.last_linear = nn.Linear(head_width[1], num_classes)
+
         elif head_type == "mlp_3":
             assert isinstance(head_width, (tuple, list)), head_width
             self.head = nn.Sequential(  # like Mbln v3 head. GAP first, then MLP convs
@@ -328,8 +330,8 @@ class BNet(nn.Module):  # copied from DarkNet not to break backward compatabilit
                 nn.Linear(head_width[1], head_width[2]),
                 nn.BatchNorm1d(head_width[2]),
                 pt.modules.activations.activation_from_name(head_norm_act),
-                nn.Linear(head_width[2], num_classes),
             )
+            self.last_linear = nn.Linear(head_width[2], num_classes)
 
         initialize(self)
 
@@ -344,6 +346,7 @@ class BNet(nn.Module):  # copied from DarkNet not to break backward compatabilit
     def forward(self, x):
         x = self.features(x)
         x = self.head(x)
+        x = self.last_linear(x)
         return x
 
     @property
