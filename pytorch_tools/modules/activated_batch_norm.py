@@ -73,9 +73,8 @@ class ABN(nn.Module):
         if self.training and self.estimated_stats:
             with torch.no_grad():  # not sure if needed but just in case
                 var, mean = torch.var_mean(x, dim=(0, 2, 3))
-                self.running_mean.mul_(self.momentum).add_(mean, alpha=self.momentum)
-                self.running_var.mul_(self.momentum).add_(var, alpha=self.momentum)
-
+                self.running_mean.mul_(self.momentum).add_(mean, alpha=1 - self.momentum)
+                self.running_var.mul_(self.momentum).add_(var, alpha=1 - self.momentum)
         x = F.batch_norm(
             x,
             self.running_mean,
