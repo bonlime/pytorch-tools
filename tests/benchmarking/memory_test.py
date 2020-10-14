@@ -18,7 +18,6 @@ sys.path.append("/home/zakirov/repoz/GPU-Efficient-Networks/")
 import GENet
 
 
-
 class AverageMeter:
     def __init__(self):
         self.avg = 0
@@ -119,13 +118,11 @@ class DetectionTrainWrapper(nn.Module):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Model Benchmarking")
-    parser.add_argument(
-        "--forward", "-f", action="store_true", help="Flag to only run forward. Disables grads"
-    )
+    parser.add_argument("--forward", "-f", action="store_true", help="Flag to only run forward. Disables grads")
     parser.add_argument("--amp", action="store_true", help="Measure speed using apex mixed precision")
-    parser.add_argument(
-        "--torch_amp", action="store_true", help="Measure speed using torch native mixed precision"
-    )
+    parser.add_argument("--print", action="store_true", help="Print model")
+    parser.add_argument("--torch_amp", action="store_true", help="Measure speed using torch native mixed precision")
+    parser.add_argument("--channels_last", action="store_true", help="Use channels last memory format")
     parser.add_argument(
         "--bs", default=64, type=int, help="BS for benchmarking",
     )
@@ -134,15 +131,16 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     # all models are first init to cpu memory to find errors earlier
+    # fmt: off
     models_dict = {
         # "EffDet0 My": pt.detection_models.efficientdet_d0(match_tf_same_padding=False, pretrained=None),
         # "EffDet0 My Wrapped": DetectionTrainWrapper(
         #     modell=pt.detection_models.efficientdet_d0(match_tf_same_padding=False, pretrained=None),
         #     size=args.sz,
         # )
-        # "R50": pt.models.resnet50(),
+        "R50": pt.models.resnet50(),
         # "Simp_R50": pt.models.simpl_resnet50(),
-        # "R34": pt.models.resnet34(),
+        "R34": pt.models.resnet34(),
         # "R34 est": pt.models.resnet34(norm_layer="estimated_abn"),
         # "R34 abcn": pt.models.resnet34(norm_layer="abcn"),
         # "R34 est abcn": pt.models.resnet34(norm_layer="abcn_micro"),
@@ -203,22 +201,36 @@ if __name__ == "__main__":
         #     x2_transition=False,
         #     csp_block_ratio=0.75
         # ),
-        "GENet": GENet.genet_normal(pretrained=False),
+        # "GENet": GENet.genet_normal(pretrained=False),
         # My BNet is almost 10% faster than GENet
-        "Bnet (almost GENet)": pt.models.BNet( 
-            **{
-                "stage_fns": ["simpl", "simpl", "simpl", "simpl"],
-                "block_fns": ["XX", "XX", "Btl", "IR"],
-                "stage_args": [
-                    {"dim_reduction": "stride & expand", "bottle_ratio": 1},
-                    {"dim_reduction": "stride & expand", "bottle_ratio": 1},
-                    {"bottle_ratio": 0.25},
-                    {"bottle_ratio": 3},
-                ],
-                "layers": [1, 2, 6, 5],
-                "channels": [128, 192, 640, 640],
-            }
-        )
+        # "Bnet (almost GENet)": pt.models.BNet(
+        #     **{
+        #         "stage_fns": ["simpl", "simpl", "simpl", "simpl"],
+        #         "block_fns": ["Pre_XX", "Pre_XX", "Pre_Custom_2", "Pre_Custom_2"],
+        #         "stage_args": [
+        #             {"dim_reduction": "stride & expand", "bottle_ratio": 1, "force_residual": True},
+        #             {"dim_reduction": "stride & expand", "bottle_ratio": 1, "force_residual": True},
+        #             {"bottle_ratio": 1, "dw_str2_kernel_size": 9, "filter_steps": 32},
+        #             {"bottle_ratio": 1, "dw_str2_kernel_size": 9, "filter_steps": 128},
+        #         ],
+        #         # "layers": [1, 2, 6, 5],
+        #         # "channels": [128, 192, 640, 1024],
+        #         "layers": [2, 4, 8, 2],
+        #         "channels": [64, 128, 256, 512],
+        #         "stem_width": 32,
+        #         "stem_type": "s2d",
+        #         "norm_act": "leaky_relu",
+
+        #         # "mobilenetv3_head": False,
+        #         "head_width": 2560,
+        #         "head_type": "default",
+        #         # "head_width": [1536, 2560],
+        #         # "head_type": "mlp_2",
+        #         # "head_width": [1024, 1536, 2560],
+        #         # "head_type": "mlp_3",
+        #         "head_norm_act": "swish_hard",
+        #     }
+        # )
         # "Eff B0": pt.models.efficientnet_b0(),
         # "TR50": pt.models.tresnetm(norm_layer="abn"),
         # "D53 timm": timm.models.darknet53(),
@@ -230,6 +242,7 @@ if __name__ == "__main__":
         # "R50": pt.models.resnet50(),
         # "ResNet50": pt.models.resnet50(),
     }
+    # fmt: on
     segm_models_dict = {
         # "Unet Resnet34": pt_sm.Unet("resnet34"),
     }
@@ -250,10 +263,16 @@ if __name__ == "__main__":
             model = amp.initialize(model, verbosity=0, opt_level="O1")
             INP = INP.half()
         if args.torch_amp:
+            INP = INP.half()
+            model = model.half()
             model.forward = torch.cuda.amp.autocast()(model.forward)
         if args.forward:
             model.eval()
-
+        if args.print:
+            print(model)
+        if args.channels_last:
+            model = model.to(memory_format=torch.channels_last)
+            INP = INP.to(memory_format=torch.channels_last)
         # with torch.cuda.amp.autocast(enabled=args.torch_amp):
         test_model(model, forward_only=args.forward)
 
