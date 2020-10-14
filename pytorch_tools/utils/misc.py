@@ -125,7 +125,6 @@ class AverageMeter:
         self.val = 0
         self.avg = 0
         self.avg_smooth = 0
-        self.sum = 0
         self.count = 0
 
     def update(self, val):
@@ -133,10 +132,11 @@ class AverageMeter:
         if self.count == 0:
             self.avg_smooth = val
         else:
-            self.avg_smooth = self.avg_smooth * self.avg_mom + val * (1 - self.avg_mom)
-        self.sum += val
+            self.avg_smooth *= self.avg_mom
+            self.avg_smooth += val * (1 - self.avg_mom)
         self.count += 1
-        self.avg = self.sum / self.count
+        self.avg *= (self.count - 1) / self.count
+        self.avg += val / self.count
 
     def __call__(self, val):
         return self.update(val)
