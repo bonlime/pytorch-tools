@@ -461,8 +461,10 @@ def test_multiclass_multilabel_lovasz():
 
 
 def test_binary_hinge():
-    assert losses.BinaryHinge()(INP_IMG_BINARY, TARGET_IMG_BINARY)
-
+    from sklearn.metrics import hinge_loss
+    my_l = losses.BinaryHinge()(INP_IMG_BINARY, TARGET_IMG_BINARY)
+    sk_l = hinge_loss(TARGET_IMG_BINARY.flatten() * 2 - 1, INP_IMG_BINARY.flatten())
+    assert torch.allclose(my_l, torch.tensor(sk_l, dtype=torch.float32))
 
 @pytest.mark.parametrize("reduction", ["sum", "mean", "none"])
 def test_smoothl1(reduction):

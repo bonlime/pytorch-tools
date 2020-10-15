@@ -159,9 +159,7 @@ def binary_hinge(y_pred, y_true, margin=1, pos_weight=1.0):
         pos_weight (float): weighting factor for positive class examples. Useful in case
             of class imbalance.
     """
-    y_pred = y_pred.view(y_pred.size(0), -1)
-    y_true = y_true.view(y_true.size(0), -1)
-    y_true_shifted = 2 * y_true - 1  # [target == 0] = -1
+    y_true_shifted = 2 * y_true - 1  # [0, 1] -> [-1, 1]
     hinge = (margin - y_pred * y_true_shifted).relu()
     hinge *= y_true * pos_weight + (1 - y_true)
     return hinge.mean()  # reduction == mean
