@@ -31,9 +31,7 @@ class Runner:
         use_fp16=False,
     ):
         super().__init__()
-        self.state = RunnerState(
-            model=model, optimizer=optimizer, criterion=criterion, use_fp16=use_fp16
-        )
+        self.state = RunnerState(model=model, optimizer=optimizer, criterion=criterion, use_fp16=use_fp16)
         self.callbacks = Callbacks(callbacks)
         self.callbacks.set_state(self.state)
         self.gradient_clip_val = gradient_clip_val
@@ -79,6 +77,7 @@ class Runner:
         self.state.is_train = False
         self.state.model.eval()
         self._run_loader(loader, steps=steps)
+        self.state.reduce_meters()
         return self.state.loss_meter.avg, [m.avg for m in self.state.metric_meters.values()]
 
     def _make_step(self):
