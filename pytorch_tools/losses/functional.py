@@ -5,9 +5,7 @@ from .base import Reduction
 
 # copy from @rwightman with modifications
 # https://github.com/rwightman/efficientdet-pytorch/blob/master/effdet/loss.py
-def focal_loss_with_logits(
-    y_pred, y_true, gamma=2.0, alpha=0.25, reduction="mean", normalized=False, combine_thr=0
-):
+def focal_loss_with_logits(y_pred, y_true, gamma=2.0, alpha=0.25, reduction="mean", normalized=False, combine_thr=0):
     # type: (Tensor, Tensor, float, float, str, bool, float) -> Tensor
     """see pytorch_tools.losses.focal.FocalLoss for docstring"""
     cross_entropy = F.binary_cross_entropy_with_logits(y_pred, y_true.to(y_pred), reduction="none")
@@ -164,6 +162,6 @@ def binary_hinge(y_pred, y_true, margin=1, pos_weight=1.0):
     y_pred = y_pred.view(y_pred.size(0), -1)
     y_true = y_true.view(y_true.size(0), -1)
     y_true_shifted = 2 * y_true - 1  # [target == 0] = -1
-    hinge = torch.nn.functional.relu(margin - y_pred * y_true_shifted)
+    hinge = (margin - y_pred * y_true_shifted).relu()
     hinge *= y_true * pos_weight + (1 - y_true)
     return hinge.mean()  # reduction == mean
