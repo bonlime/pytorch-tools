@@ -200,9 +200,7 @@ class Timer(Callback):
             self.has_printed = True
             d_time = self.timer.data_time.avg_smooth
             b_time = self.timer.batch_time.avg_smooth
-            self.state.logger.info(
-                f"\nTimeMeter profiling. Data time: {d_time:.2E}s. Model time: {b_time:.2E}s \n"
-            )
+            self.state.logger.info(f"\nTimeMeter profiling. Data time: {d_time:.2E}s. Model time: {b_time:.2E}s \n")
 
 
 class PhasesScheduler(Callback):
@@ -343,9 +341,7 @@ class ReduceLROnPlateau(Callback):
                 if param_group["lr"] * self.factor > self.min_lr:
                     param_group["lr"] *= self.factor
             if self.verbose:
-                self.state.logger.info(
-                    f"ReduceLROnPlateau reducing learning rate to {param_group['lr'] * self.factor}"
-                )
+                self.state.logger.info(f"ReduceLROnPlateau reducing learning rate to {param_group['lr'] * self.factor}")
 
     def get_monitor_value(self):
         value = None
@@ -614,9 +610,7 @@ class Mixup(Callback):
     @torch.no_grad()
     def mixup(self, data, target):
         if len(target.shape) == 1:  # if not one hot
-            target_one_hot = torch.zeros(
-                target.size(0), self.num_classes, dtype=torch.float, device=data.device
-            )
+            target_one_hot = torch.zeros(target.size(0), self.num_classes, dtype=torch.float, device=data.device)
             target_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
         else:
             target_one_hot = target
@@ -658,9 +652,7 @@ class Cutmix(Callback):
     @torch.no_grad()
     def cutmix(self, data, target):
         if len(target.shape) == 1:  # if not one hot
-            target_one_hot = torch.zeros(
-                target.size(0), self.num_classes, dtype=torch.float, device=data.device
-            )
+            target_one_hot = torch.zeros(target.size(0), self.num_classes, dtype=torch.float, device=data.device)
             target_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
         else:
             target_one_hot = target
