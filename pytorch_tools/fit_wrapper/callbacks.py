@@ -636,7 +636,7 @@ class Cutmix(Callback):
         alpha (float): hyperparameter from paper. Suggested default is 1.0 for Imagenet.
         num_classes (int): number of classes. CutMix implicitly turns
             labels into one hot encoding and needs number of classes to do that
-        prob (float): probability of applying mixup
+        prob (float): probability of applying cutmix
     """
 
     def __init__(self, alpha, num_classes, prob=0.5):
@@ -651,7 +651,7 @@ class Cutmix(Callback):
 
     @torch.no_grad()
     def cutmix(self, data, target):
-        if len(target.shape) == 1:  # if not one hot
+        if target.dim() == 1:  # if not one hot
             target_one_hot = torch.zeros(target.size(0), self.num_classes, dtype=torch.float, device=data.device)
             target_one_hot.scatter_(1, target.unsqueeze(1), 1.0)
         else:
