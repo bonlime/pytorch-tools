@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 import pytorch_tools as pt
@@ -513,3 +514,51 @@ def test_detection_loss_is_scriptabble():
     res_jit = loss_jit((cls_out, box_out), target)
     assert torch.allclose(res, res_jit)
     assert torch.allclose(res, torch.tensor(5e-07))
+
+# tests for KLD are from @alexeykarnachev
+# https://gist.github.com/alexeykarnachev/6829d8b208585582bc9c79ad1ed8bb45
+def test_binary_kld_loss():
+    # ==================================================================================================================
+    # [1] Test an ordinal KLD loss:
+    x_logits = torch.tensor([[2.28, 4.20]])
+    x_softmax = torch.softmax(x_logits, 1)  # => [[0.1279, 0.8721]]
+    x_log_softmax = torch.log_softmax(x_logits, 1)
+
+    y_p_0 = torch.tensor([[0.1279, 0.8721]])
+    kld_loss_0 = nn.KLDivLoss(reduction='batchmean')(x_log_softmax, y_p_0)
+    assert torch.allclose(kld_loss_0, torch.tensor([0.0]), atol=1e-3)
+
+    y_p_1 = torch.tensor([[0.0, 1.0]])
+    kld_loss_1 = nn.KLDivLoss(reduction='batchmean')(x_log_softmax, y_p_1)
+    assert torch.allclose(kld_loss_1, torch.tensor([0.1368]), atol=1e-3)
+
+    y_p_2 = torch.tensor([[0.1, 0.9]])
+    kld_loss_2 = nn.KLDivLoss(reduction='batchmean')(x_log_softmax, y_p_2)
+    assert torch.allclose(kld_loss_2, torch.tensor([0.0037]), atol=1e-3)
+
+    # ==================================================================================================================
+    # [2] Compare with BCESoftLoss (with Bernoulli inputs):
+    x_p_bernoulli = x_softmax[:, 1:]
+    y_p_0_bernoulli = y_p_0[:, 1:]
+    bce_soft_loss_0 = losses.BinaryKLDivLoss(from_logits=False)(x_p_bernoulli, y_p_0_bernoulli)
+    assert torch.allclose(bce_soft_loss_0, torch.tensor([0.0]), atol=1e-3)
+
+    y_p_1_bernoulli = y_p_1[:, 1:]
+    bce_soft_loss_1 = losses.BinaryKLDivLoss(from_logits=False)(x_p_bernoulli, y_p_1_bernoulli)
+    assert torch.allclose(kld_loss_1, bce_soft_loss_1, atol=1e-3)
+
+    y_p_2_bernoulli = y_p_2[:, 1:]
+    bce_soft_loss_2 = losses.BinaryKLDivLoss(from_logits=False)(x_p_bernoulli, y_p_2_bernoulli)
+    assert torch.allclose(kld_loss_2, bce_soft_loss_2, atol=1e-3)
+
+    # ==================================================================================================================
+    # [3] Compare with BCELoss (with Bernoulli inputs in case of y in {0, 1}):
+    y_p_1_bernoulli = y_p_1[:, 1:]
+    bce_soft_loss_1 = losses.BinaryKLDivLoss(from_logits=False)(x_p_bernoulli, y_p_1_bernoulli)
+    bce_loss_1 = nn.BCELoss()(x_p_bernoulli, y_p_1_bernoulli)
+    assert torch.allclose(bce_soft_loss_1, bce_loss_1, atol=1e-3)
+
+    # ==================================================================================================================
+    # [4] Check, that torch KLDivLoss for log-bernoulli input is the WRONG approach:
+    kld_loss_2_bernoulli = nn.KLDivLoss(reduction='batchmean')(torch.log(x_p_bernoulli), y_p_2_bernoulli)
+    assert not torch.allclose(kld_loss_2, kld_loss_2_bernoulli, atol=1e-3)
