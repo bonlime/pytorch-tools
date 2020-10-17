@@ -23,21 +23,30 @@ class BinaryKLDivLoss(Loss):
             'sum' - the output will be summed
             'mean' - the sum of the output will be divided by the number of elements in the output
         from_logits (bool): If False assumes sigmoid has already been applied to model output
+        smoothing (float): if not None, clamps prediction and target to avoid too large values of loss
+            should be in [0, 1]
     """
 
-    def __init__(self, reduction="mean", from_logits=True):
+    def __init__(self, reduction="mean", from_logits=True, smoothing=1e-6):
         super().__init__()
         self.reduction = Reduction(reduction)
         self.from_logits = from_logits
+        assert 0 < smoothing < 1, "Smoothing should be in [0, 1]"
+        self.prob_clamp = smoothing
+        # get value for clamping logits by inverse of sigmoid
+        self.logit_clamp = torch.tensor(smoothing / (1 - smoothing)).log().item()
 
     def forward(self, y_pred, y_true):
+        # clamp to avoid nan's and to achieve smoothign effect
+        y_true = torch.clamp(y_true, self.prob_clamp, 1 - self.prob_clamp)
+        y_pred = torch.clamp(y_pred, self.logit_clamp, 1 - self.logit_clamp)
+
         # squeeze to allow different shapes like BSx1xHxW vs BSxHxW
         if self.from_logits:
             bce_loss = F.binary_cross_entropy_with_logits(y_pred, y_true, reduction="none")
         else:
             bce_loss = F.binary_cross_entropy(y_pred, y_true, reduction="none")
-        y_true_clamped = torch.clamp(y_true, 1e-6, 1 - 1e-6)
-        bce_min = y_true_clamped * y_true_clamped.log() + (1 - y_true_clamped) * (1 - y_true_clamped).log()
+        bce_min = y_true * y_true.log() + (1 - y_true) * (1 - y_true).log()
         kld_loss = bce_loss + bce_min  # bce is negative so need to sum
         if self.reduction == Reduction.MEAN:
             kld_loss = kld_loss.mean()
