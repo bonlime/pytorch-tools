@@ -9,9 +9,8 @@ from .base import Reduction
 class BinaryKLDivLoss(Loss):
     """
     Original KLDivLoss is not suited for bernulliy distribution and can't be used
-    for binary classification with soft labels. 
-    If y - is binary target and x - is predicted target
-    NOTE: The key difference is that it may NOT be a valid distibution over classes
+    for binary classification with soft labels.
+    If y - is target (it may be non-binary) and x - is predicted target
 
     Then KLD is defined as:
     KLD = -y log (y/x) + (1 - y) * log( (1-y) / (1-x))

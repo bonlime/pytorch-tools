@@ -46,7 +46,10 @@ def test_model(model, forward_only=False):
 
         def run_once():
             start.record()
-            output = model(INP, TARGET) if TARGET is not None else model(INP)
+            if TARGET is not None and hasattr(model, "is_detection_model"):
+                output = model(INP, TARGET)
+            else:
+                output = model(INP)
             if isinstance(output, (list, tuple)):
                 output = output[0]
             f_end.record()
@@ -107,6 +110,7 @@ class DetectionTrainWrapper(nn.Module):
         anchors = pt.utils.box.generate_anchors_boxes(size)[0]
         # self.loss = pt.losses.DetectionLoss(anchors)
         self.loss = torch.jit.script(pt.losses.DetectionLoss(anchors))
+        self.is_detection_model = True
 
     def forward(self, inp, target):
         # cls_out, box_out = self.model(inp)
@@ -133,11 +137,11 @@ if __name__ == "__main__":
     # all models are first init to cpu memory to find errors earlier
     # fmt: off
     models_dict = {
-        # "EffDet0 My": pt.detection_models.efficientdet_d0(match_tf_same_padding=False, pretrained=None),
-        # "EffDet0 My Wrapped": DetectionTrainWrapper(
-        #     modell=pt.detection_models.efficientdet_d0(match_tf_same_padding=False, pretrained=None),
-        #     size=args.sz,
-        # )
+        "EffDet0 My": pt.detection_models.efficientdet_d0(match_tf_same_padding=False, pretrained=None),
+        "EffDet0 My Wrapped": DetectionTrainWrapper(
+            modell=pt.detection_models.efficientdet_d0(match_tf_same_padding=False, pretrained=None),
+            size=args.sz,
+        ),
         "R50": pt.models.resnet50(),
         # "Simp_R50": pt.models.simpl_resnet50(),
         "R34": pt.models.resnet34(),
@@ -253,8 +257,8 @@ if __name__ == "__main__":
     N_RUNS = 5
     RUN_ITERS = 10
     INP = torch.ones((BS, 3, SZ, SZ), requires_grad=not args.forward).cuda(0)
-    TARGET = None
-    # TARGET = torch.randint(0, 50, (BS, 20, 5)).cuda().float()
+    # TARGET = None
+    TARGET = torch.randint(0, 50, (BS, 20, 5)).cuda().float()
 
     for name, model in models_dict.items():
         print(f"{name} {count_parameters(model) / 1e6:.2f}M params")
