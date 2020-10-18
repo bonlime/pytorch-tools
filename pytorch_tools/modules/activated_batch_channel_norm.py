@@ -69,22 +69,18 @@ class ABCN(nn.Module):
         nn.init.constant_(self.bias_gn, 0)
 
     def forward(self, x):
+        # in F.batch_norm `training` regulates whether to use batch stats of buffer stats
+        # if `training` is True and buffers are given, they always would be updated!
+        use_batch_stats = self.training and not self.estimated_stats
+        x = F.batch_norm(
+            x, self.running_mean, self.running_var, self.weight, self.bias, use_batch_stats, self.momentum, self.eps,
+        )
         if self.training and self.estimated_stats:
             with torch.no_grad():  # not sure if needed but just in case
-                var, mean = torch.var_mean(x, dim=(0, 2, 3))
-                self.running_mean.mul_(self.momentum).add_(mean, alpha=1 - self.momentum)
-                self.running_var.mul_(self.momentum).add_(var, alpha=1 - self.momentum)
-
-        x = F.batch_norm(
-            x,
-            self.running_mean,
-            self.running_var,
-            self.weight,
-            self.bias,
-            self.training and not self.estimated_stats,
-            self.momentum,
-            self.eps,
-        )
+                # PyTorch BN uses biased var by default
+                var, mean = torch.var_mean(x, dim=(0, 2, 3), unbiased=False)
+                self.running_mean = self.running_mean.mul(1 - self.momentum).add(mean, alpha=self.momentum)
+                self.running_var = self.running_var.mul(1 - self.momentum).add(var, alpha=self.momentum)
         x = F.group_norm(x, self.num_groups, self.weight_gn, self.bias_gn, self.eps)
         func = ACT_FUNC_DICT[self.activation]
         if self.activation == ACT.LEAKY_RELU:

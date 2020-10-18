@@ -11,7 +11,7 @@ from .activations import ACT_FUNC_DICT
 class ABN(nn.Module):
     """Activated Batch Normalization
     This gathers a BatchNorm and an activation function in a single module
-    
+
     Args:
         num_features (int): Number of feature channels in the input and output.
         eps (float): Small constant to prevent numerical issues.
@@ -19,7 +19,7 @@ class ABN(nn.Module):
         affine (bool): If `True` apply learned scale and shift transformation after normalization.
         activation (str): Name of the activation functions, one of: `relu`, `leaky_relu`, `elu` or `identity`.
         activation_param (float): Negative slope for the `leaky_relu` activation.
-        frozen (bool): if True turns `weigth` and `bias` into untrainable buffers.
+        frozen (bool): if True turns `weight` and `bias` into untrainable buffers.
         estimated_stats (bool): Flag to use running stats for normalization instead of batch stats. Useful for
             micro-batch training. See Ref.
     
@@ -70,21 +70,18 @@ class ABN(nn.Module):
             nn.init.constant_(self.bias, 0)
 
     def forward(self, x):
+        # in F.batch_norm `training` regulates whether to use batch stats of buffer stats
+        # if `training` is True and buffers are given, they always would be updated!
+        use_batch_stats = self.training and not self.estimated_stats and not self.frozen
+        x = F.batch_norm(
+            x, self.running_mean, self.running_var, self.weight, self.bias, use_batch_stats, self.momentum, self.eps,
+        )
         if self.training and self.estimated_stats:
             with torch.no_grad():  # not sure if needed but just in case
-                var, mean = torch.var_mean(x, dim=(0, 2, 3))
-                self.running_mean.mul_(self.momentum).add_(mean, alpha=1 - self.momentum)
-                self.running_var.mul_(self.momentum).add_(var, alpha=1 - self.momentum)
-        x = F.batch_norm(
-            x,
-            self.running_mean,
-            self.running_var,
-            self.weight,
-            self.bias,
-            self.training and not self.estimated_stats,
-            self.momentum,
-            self.eps,
-        )
+                # PyTorch BN uses biased var by default
+                var, mean = torch.var_mean(x, dim=(0, 2, 3), unbiased=False)
+                self.running_mean = self.running_mean.mul(1 - self.momentum).add(mean, alpha=self.momentum)
+                self.running_var = self.running_var.mul(1 - self.momentum).add(var, alpha=self.momentum)
         func = ACT_FUNC_DICT[self.activation]
         if self.activation == ACT.LEAKY_RELU:
             return func(x, inplace=True, negative_slope=self.activation_param)

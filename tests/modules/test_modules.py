@@ -19,6 +19,12 @@ def test_frozen_abn():
     assert list(l.parameters()) == []
     l = modules.ABN(10, frozen=True)
     assert list(l.parameters()) == []
+    # check that passing tensor through frozen ABN won't update stats
+    running_mean_original = l.running_mean.clone()
+    running_var_original = l.running_var.clone()
+    l(INP)
+    assert torch.allclose(running_mean_original, l.running_mean)
+    assert torch.allclose(running_var_original, l.running_var)
 
 
 def test_estimated_abn():
