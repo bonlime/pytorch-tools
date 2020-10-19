@@ -1,4 +1,5 @@
 from functools import partial
+from loguru import logger
 
 from .pooling import FastGlobalAvgPool2d
 from .pooling import SpaceToDepth
@@ -30,8 +31,11 @@ try:
     from inplace_abn import InPlaceABN, InPlaceABNSync
 
     HAS_INPLACE_ABN = True
-except ModuleNotFoundError:
+except (ModuleNotFoundError, ImportError):
+    logger.warning("Inplace ABN is not installed. Using ABN by default")
     HAS_INPLACE_ABN = False
+    InPlaceABN = ABN
+    InPlaceABNSync = ABN
 
 # NOTE: after adding new normalization don't forget to also patch `filter_bn_from_wd` function
 def bn_from_name(norm_name):
