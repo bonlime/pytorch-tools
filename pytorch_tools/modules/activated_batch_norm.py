@@ -31,7 +31,7 @@ class ABN(nn.Module):
         self,
         num_features,
         eps=1e-5,
-        momentum=0.1,
+        momentum=0.01,
         affine=True,
         activation="leaky_relu",
         activation_param=0.01,
