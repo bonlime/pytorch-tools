@@ -22,6 +22,7 @@ class BinaryKLDivLoss(Loss):
             'none' - no reduction will be applied
             'sum' - the output will be summed
             'mean' - the sum of the output will be divided by the number of elements in the output
+            'sample_sum' - take mean by sample dimension, then sum by batch dimension
         from_logits (bool): If False assumes sigmoid has already been applied to model output
         smoothing (float): if not None, clamps prediction and target to avoid too large values of loss
             should be in [0, 1]
@@ -52,4 +53,7 @@ class BinaryKLDivLoss(Loss):
             kld_loss = kld_loss.mean()
         elif self.reduction == Reduction.SUM:
             kld_loss = kld_loss.sum()
+        elif self.reduction == Reduction.SAMPLE_SUM:
+            # this reduction is the same as 'sum' in default nn.SoftMarginLoss
+            kld_loss = kld_loss.view(kld_loss.size(0), -1).mean(1).sum()
         return kld_loss
