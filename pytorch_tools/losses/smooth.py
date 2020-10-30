@@ -24,19 +24,29 @@ class CrossEntropyLoss(Loss):
             'sum' - the output will be summed
             'mean' - the sum of the output will be divided by the number of elements in the output
         from_logits (bool): If False assumes sigmoid has already been applied to model output
+        temperature (float): Additional scale for logits. Helps to avoid over confident predictions by the model
+            see Ref.[1] for paper. For Imagenet 0.1 is a good value which could be finetuned if needed
+
+    Reference:
+        [1] On Calibration of Modern Neural Networks (2017) https://arxiv.org/pdf/1706.04599.pdf
     """
 
-    def __init__(self, mode="multiclass", smoothing=0.0, weight=None, reduction="mean", from_logits=True):
+    def __init__(
+        self, mode="multiclass", smoothing=0.0, weight=1.0, reduction="mean", from_logits=True, temperature=1.0
+    ):
         super().__init__()
         self.mode = Mode(mode)
         self.reduction = Reduction(reduction)
         self.confidence = 1.0 - smoothing
         self.smoothing = smoothing
         self.from_logits = from_logits
-        weight = torch.Tensor([1.0]) if weight is None else torch.tensor(weight)
-        self.register_buffer("weight", weight)
+        self.register_buffer("weight", torch.tensor(weight))
+        self.temperature = temperature
 
     def forward(self, y_pred, y_true):
+        if self.from_logits:  # only scale logits
+            y_pred /= self.temperature
+
         if self.mode == Mode.BINARY:
             # squeeze to allow different shapes like BSx1xHxW vs BSxHxW
             if self.from_logits:
