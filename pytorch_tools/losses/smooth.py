@@ -26,13 +26,22 @@ class CrossEntropyLoss(Loss):
         from_logits (bool): If False assumes sigmoid has already been applied to model output
         temperature (float): Additional scale for logits. Helps to avoid over confident predictions by the model
             see Ref.[1] for paper. For Imagenet 0.1 is a good value which could be finetuned if needed
+        normalize (bool): if True normalizes logits on unit sphere. see Ref.[2] for paper. Not supported for `binary` mode
 
     Reference:
         [1] On Calibration of Modern Neural Networks (2017) https://arxiv.org/pdf/1706.04599.pdf
+        [2] Understanding Contrastive Representation Learning through Alignment and Uniformity on the Hypersphere https://arxiv.org/pdf/2005.10242.pdf
     """
 
     def __init__(
-        self, mode="multiclass", smoothing=0.0, weight=1.0, reduction="mean", from_logits=True, temperature=1.0
+        self,
+        mode="multiclass",
+        smoothing=0.0,
+        weight=1.0,
+        reduction="mean",
+        from_logits=True,
+        temperature=1.0,
+        normalize=False,
     ):
         super().__init__()
         self.mode = Mode(mode)
@@ -42,10 +51,15 @@ class CrossEntropyLoss(Loss):
         self.from_logits = from_logits
         self.register_buffer("weight", torch.tensor(weight))
         self.temperature = temperature
+        assert not (normalize and temperature != 1), "Normalize and temperature are meaningless together"
+        assert not (normalize and mode == "binary"), "Normalize not supported for binary case"
+        self.normalize = normalize
 
     def forward(self, y_pred, y_true):
         if self.from_logits:  # only scale logits
             y_pred /= self.temperature
+        if self.normalize:
+            y_pred = F.normalize(y_pred, dim=1)
 
         if self.mode == Mode.BINARY:
             # squeeze to allow different shapes like BSx1xHxW vs BSxHxW
