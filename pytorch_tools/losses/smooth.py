@@ -51,15 +51,14 @@ class CrossEntropyLoss(Loss):
         self.from_logits = from_logits
         self.register_buffer("weight", torch.tensor(weight))
         self.temperature = temperature
-        assert not (normalize and temperature != 1), "Normalize and temperature are meaningless together"
         assert not (normalize and mode == "binary"), "Normalize not supported for binary case"
         self.normalize = normalize
 
     def forward(self, y_pred, y_true):
-        if self.from_logits:  # only scale logits
-            y_pred /= self.temperature
         if self.normalize:
             y_pred = F.normalize(y_pred, dim=1)
+        if self.from_logits:  # only scale logits
+            y_pred /= self.temperature
 
         if self.mode == Mode.BINARY:
             # squeeze to allow different shapes like BSx1xHxW vs BSxHxW
@@ -74,7 +73,7 @@ class CrossEntropyLoss(Loss):
             if self.reduction == Reduction.NONE:
                 loss = loss.view(*y_pred.shape)  # restore true shape
             return loss
-        if len(y_true.shape) != 1:
+        if y_true.dim() != 1:
             y_true_one_hot = y_true.float()
         else:
             y_true_one_hot = torch.zeros_like(y_pred)
