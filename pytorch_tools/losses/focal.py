@@ -53,6 +53,7 @@ class FocalLoss(Loss):
         normalized=False,
         combine_thr=0.0,
         ignore_label=-1,
+        temperature=1.0,
     ):
         super().__init__()
         # use Enum to validate that values are valid
@@ -65,8 +66,10 @@ class FocalLoss(Loss):
         self.normalized = normalized
         self.combine_thr = combine_thr
         self.ignore_label = ignore_label
+        self.temperature = temperature
 
     def forward(self, y_pred, y_true):
+        y_pred /= self.temperature
         not_ignored = y_true.ne(self.ignore_label)
         if self.mode == "multiclass":
             # to hangle ignore label we set it to 0, then scatter and set it to ignore index back
