@@ -25,7 +25,8 @@ def initialize_fn(m):
     # No check for BN because in PyTorch it is initialized with 1 & 0 by default
     elif isinstance(m, nn.Linear):
         nn.init.kaiming_uniform_(m.weight, mode="fan_out", nonlinearity="linear")
-        nn.init.constant_(m.bias, 0)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
 
 
 def initialize(module):
