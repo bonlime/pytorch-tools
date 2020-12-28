@@ -301,7 +301,13 @@ class BNet(nn.Module):  # copied from DarkNet not to break backward compatabilit
                 FastGlobalAvgPool2d(flatten=True),
             )
             self.last_linear = nn.Linear(head_width, num_classes)
-
+        elif head_type == "default_nonorm": # if used in angular losses don't want norm
+            self.head = nn.Sequential(
+                last_norm,
+                conv1x1(channels[3], head_width),
+                FastGlobalAvgPool2d(flatten=True),
+            )
+            self.last_linear = nn.Linear(head_width, num_classes)
         elif head_type == "mlp_2":
             assert isinstance(head_width, (tuple, list)), head_width
             self.head = nn.Sequential(  # like Mbln v3 head. GAP first, then MLP convs
@@ -315,7 +321,6 @@ class BNet(nn.Module):  # copied from DarkNet not to break backward compatabilit
                 pt.modules.activations.activation_from_name(head_norm_act),
             )
             self.last_linear = nn.Linear(head_width[1], num_classes)
-
         elif head_type == "mlp_3":
             assert isinstance(head_width, (tuple, list)), head_width
             self.head = nn.Sequential(  # like Mbln v3 head. GAP first, then MLP convs
@@ -332,7 +337,8 @@ class BNet(nn.Module):  # copied from DarkNet not to break backward compatabilit
                 pt.modules.activations.activation_from_name(head_norm_act),
             )
             self.last_linear = nn.Linear(head_width[2], num_classes)
-
+        else:
+            raise ValueError(f"Head type: {head_type} is not supported!")
         initialize(self)
 
     def features(self, x):
