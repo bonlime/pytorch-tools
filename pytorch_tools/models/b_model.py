@@ -308,6 +308,27 @@ class BNet(nn.Module):  # copied from DarkNet not to break backward compatabilit
                 FastGlobalAvgPool2d(flatten=True),
             )
             self.last_linear = nn.Linear(head_width, num_classes)
+        elif head_type == "mlp_bn_fc_bn":
+            self.head = nn.Sequential(
+                last_norm,
+                conv1x1(channels[3], channels[3]),
+                FastGlobalAvgPool2d(flatten=True),
+                nn.BatchNorm1d(channels[3]),
+                pt.modules.activations.activation_from_name(head_norm_act),
+                nn.Linear(channels[3], head_width, bias=False),
+                nn.BatchNorm1d(head_width, affine=False),
+            )
+            self.last_linear = nn.Linear(head_width, num_classes)
+        elif head_type == "mlp_bn_fc": # same as above but without last BN
+            self.head = nn.Sequential(
+                last_norm,
+                conv1x1(channels[3], channels[3]),
+                FastGlobalAvgPool2d(flatten=True),
+                nn.BatchNorm1d(channels[3]),
+                pt.modules.activations.activation_from_name(head_norm_act),
+                nn.Linear(channels[3], head_width, bias=False),
+            )
+            self.last_linear = nn.Linear(head_width, num_classes)
         elif head_type == "mlp_2":
             assert isinstance(head_width, (tuple, list)), head_width
             self.head = nn.Sequential(  # like Mbln v3 head. GAP first, then MLP convs
