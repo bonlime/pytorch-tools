@@ -304,7 +304,7 @@ class BNet(nn.Module):  # copied from DarkNet not to break backward compatabilit
         elif head_type == "default_nonorm": # if used in angular losses don't want norm
             self.head = nn.Sequential(
                 last_norm,
-                conv1x1(channels[3], head_width),
+                conv1x1(channels[3], head_width, bias=True), # need bias because not followed by norm
                 FastGlobalAvgPool2d(flatten=True),
             )
             self.last_linear = nn.Linear(head_width, num_classes)
