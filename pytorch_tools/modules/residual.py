@@ -49,6 +49,17 @@ class SEModule(nn.Module):
         x_se = self.fc2(x_se)
         return x * x_se.sigmoid()
 
+class SEVar3(nn.Module):
+    """Variant of SE module from ECA paper (see above) which doesn't have dimensionality reduction"""
+    def __init__(self, channels, *args):
+        super().__init__()
+
+        self.pool = FastGlobalAvgPool2d()
+        # authors of original paper DO use bias
+        self.fc1 = conv1x1(channels, channels, bias=True)
+
+    def forward(self, x):
+        return x * self.fc1(self.pool(x))
 
 class ECAModule(nn.Module):
     """Efficient Channel Attention
@@ -120,7 +131,7 @@ def get_attn(attn_type):
             `scse` - Spatial and Channel ‘Squeeze & Excitation’
             None - no attention
     """
-    ATT_TO_MODULE = {"se": SEModule, "eca": ECAModule, "sse": SSEModule, "scse": SCSEModule}
+    ATT_TO_MODULE = {"se": SEModule, "eca": ECAModule, "sse": SSEModule, "scse": SCSEModule, "se-var3": SEVar3}
     if attn_type is None:
         return nn.Identity
     else:
