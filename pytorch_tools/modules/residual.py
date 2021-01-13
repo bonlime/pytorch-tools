@@ -65,16 +65,17 @@ class ECAModule(nn.Module):
     """Efficient Channel Attention
     This implementation is different from the paper. I've removed all hyperparameters and
     use fixed kernel size of 3. If you think it may be better to use different k_size - feel free to open an issue.
+    upd. 12.01.2020 increase kernel size
 
     Ref: ECA-Net: Efficient Channel Attention for Deep Convolutional Neural Networks
     https://arxiv.org/abs/1910.03151
 
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, kernel_size=3, **kwargs):
         super().__init__()
         self.pool = FastGlobalAvgPool2d()
-        self.conv = nn.Conv1d(1, 1, kernel_size=3, padding=1, bias=False)
+        self.conv = nn.Conv1d(1, 1, kernel_size=kernel_size, padding=kernel_size // 2, bias=False)
 
     def forward(self, x):
         x_s = self.pool(x)
@@ -120,6 +121,60 @@ class SCSEModule(nn.Module):
     def forward(self, x):
         return self.reduction_conv(torch.cat([self.sse(x), self.cse(x)], dim=1))
 
+class MSCAMModule(nn.Module):
+    """Idea from Attentional Feature Fusion (MS-CAM)
+    Combines global and local attention in a better manner than scSE
+    """
+
+    def __init__(self, in_ch, reduced_ch, norm_layer=ABN, norm_act="relu"): # parse additional args for compatability
+        super().__init__()
+        self.global_attn = nn.Sequential(
+            FastGlobalAvgPool2d(),
+            conv1x1(in_ch, reduced_ch),
+            norm_layer(reduced_ch, activation=norm_act),
+            conv1x1(reduced_ch, in_ch),
+            norm_layer(in_ch, activation="identity"), # no last activation
+        )
+        # this 
+        self.local_attn = nn.Sequential(
+            conv1x1(in_ch, reduced_ch),
+            norm_layer(reduced_ch, activation=norm_act),
+            conv1x1(reduced_ch, in_ch),
+            norm_layer(in_ch, activation="identity"), # no last activation
+        )
+        
+    def forward(self, x):
+        xl = self.local_attn(x)
+        xg = self.global_attn(x)
+        return x * (xl + xg).sigmoid()
+
+class MyAttn(nn.Module):
+    """Idea from Attentional Feature Fusion (MS-CAM)
+    Combines global and local attention in a better manner than scSE
+    """
+
+    def __init__(self, in_ch, reduced_ch, norm_layer=ABN, norm_act="relu"): # parse additional args for compatability
+        super().__init__()
+        self.global_attn = nn.Sequential(
+            FastGlobalAvgPool2d(),
+            conv1x1(in_ch, reduced_ch),
+            norm_layer(reduced_ch, activation=norm_act),
+            conv1x1(reduced_ch, in_ch),
+            norm_layer(in_ch, activation="identity"), # no last activation
+        )
+        # this 
+        self.local_attn = nn.Sequential(
+            conv1x1(in_ch, reduced_ch),
+            norm_layer(reduced_ch, activation=norm_act),
+            conv1x1(reduced_ch, in_ch),
+            norm_layer(in_ch, activation="identity"), # no last activation
+        )
+        
+    def forward(self, x):
+        xl = self.local_attn(x)
+        xg = self.global_attn(x)
+        return x * (xl + xg).sigmoid()
+
 
 def get_attn(attn_type):
     """Get attention by name
@@ -131,7 +186,17 @@ def get_attn(attn_type):
             `scse` - Spatial and Channel ‘Squeeze & Excitation’
             None - no attention
     """
-    ATT_TO_MODULE = {"se": SEModule, "eca": ECAModule, "sse": SSEModule, "scse": SCSEModule, "se-var3": SEVar3}
+    ATT_TO_MODULE = {
+        "se": SEModule,
+        "eca": ECAModule,
+        "eca": ECAModule,
+        "eca9": partial(ECAModule, kernel_size=9),
+        "sse": SSEModule,
+        "scse": SCSEModule,
+        "se-var3": SEVar3,
+        "ms-cam": MSCAMModule
+    }
+        
     if attn_type is None:
         return nn.Identity
     else:
