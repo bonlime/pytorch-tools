@@ -148,6 +148,43 @@ class MSCAMModule(nn.Module):
         xg = self.global_attn(x)
         return x * (xl + xg).sigmoid()
 
+class FCAAttn(nn.Module):
+    """Inspired by FcaNet: Frequency Channel Attention Networks (https://arxiv.org/pdf/2012.11879.pdf)
+    
+    But I view it as positional encoding and multiply be a predefined set of filters
+    """
+    def __init__(self, channels, reduction_channels, norm_act="relu"):
+
+        super(SEModule, self).__init__()
+
+        self.pool = FastGlobalAvgPool2d()
+        # authors of original paper DO use bias
+        self.fc1 = conv1x1(channels, reduction_channels, bias=True)
+        self.act1 = activation_from_name(norm_act)
+        self.fc2 = conv1x1(reduction_channels, channels, bias=True)
+
+    def _get_pos_encoding(self, inp):
+        """Want this to be generated for each input size separately"""
+        self.pos_encoding = torch.ones_like(inp)
+        c_part = inp.size(1) // 4
+        xx = torch.linspace(0, np.pi, inp.size(3)).cos()[None].repeat(inp.size(2), 1)
+        yy = torch.linspace(0, np.pi, inp.size(2)).cos()[None].repeat(inp.size(3), 1).T
+        xy = torch.linspace(-np.pi, np.pi, inp.size(3)).cos().neg().repeat(inp.size(2), 1)
+        self.pos_encoding[:, c_part * 1:c_part * 2] = xx
+        self.pos_encoding[:, c_part * 2:c_part * 3] = yy
+        self.pos_encoding[:, c_part * 3:c_part * 4] = xy
+        return self.pos_encoding
+
+    def forward(self, x):
+        if x.shape != self.pos_encoding.shape:
+            self._get_pos_encoding(x)
+        x = x * self.pos_encoding
+        x_se = self.pool(x)
+        x_se = self.fc1(x_se)
+        x_se = self.act1(x_se)
+        x_se = self.fc2(x_se)
+        return x * x_se.sigmoid()
+
 class MyAttn(nn.Module):
     """Idea from Attentional Feature Fusion (MS-CAM)
     Combines global and local attention in a better manner than scSE
@@ -195,6 +232,7 @@ def get_attn(attn_type):
         "scse": SCSEModule,
         "se-var3": SEVar3,
         "ms-cam": MSCAMModule
+        "fca": FCAAttn,
     }
         
     if attn_type is None:
