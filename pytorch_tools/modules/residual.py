@@ -231,7 +231,7 @@ def get_attn(attn_type):
         "sse": SSEModule,
         "scse": SCSEModule,
         "se-var3": SEVar3,
-        "ms-cam": MSCAMModule
+        "ms-cam": MSCAMModule,
         "fca": FCAAttn,
     }
         
