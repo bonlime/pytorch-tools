@@ -168,9 +168,9 @@ class FCAAttn(nn.Module):
         """Want this to be generated for each input size separately"""
         self.pos_encoding = torch.ones_like(inp)
         c_part = inp.size(1) // 4
-        xx = torch.linspace(0, np.pi, inp.size(3)).cos()[None].repeat(inp.size(2), 1)
-        yy = torch.linspace(0, np.pi, inp.size(2)).cos()[None].repeat(inp.size(3), 1).T
-        xy = torch.linspace(-np.pi, np.pi, inp.size(3)).cos().neg().repeat(inp.size(2), 1)
+        xx = torch.linspace(0, math.pi, inp.size(3)).cos()[None].repeat(inp.size(2), 1)
+        yy = torch.linspace(0, math.pi, inp.size(2)).cos()[None].repeat(inp.size(3), 1).T
+        xy = torch.linspace(-math.pi, math.pi, inp.size(3)).cos().neg().repeat(inp.size(2), 1)
         self.pos_encoding[:, c_part * 1:c_part * 2] = xx
         self.pos_encoding[:, c_part * 2:c_part * 3] = yy
         self.pos_encoding[:, c_part * 3:c_part * 4] = xy
