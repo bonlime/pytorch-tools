@@ -155,7 +155,7 @@ class FCAAttn(nn.Module):
     """
     def __init__(self, channels, reduction_channels, norm_act="relu"):
 
-        super(SEModule, self).__init__()
+        super().__init__()
 
         self.pool = FastGlobalAvgPool2d()
         # authors of original paper DO use bias
