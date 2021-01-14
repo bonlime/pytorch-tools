@@ -162,6 +162,7 @@ class FCAAttn(nn.Module):
         self.fc1 = conv1x1(channels, reduction_channels, bias=True)
         self.act1 = activation_from_name(norm_act)
         self.fc2 = conv1x1(reduction_channels, channels, bias=True)
+        self.register_buffer("pos_encoding", torch.ones(1, 1, 1, 1)) # dummy shape. would be overwritten later
 
     def _get_pos_encoding(self, inp):
         """Want this to be generated for each input size separately"""
