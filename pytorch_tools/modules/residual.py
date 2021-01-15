@@ -187,6 +187,42 @@ class FCAAttn(nn.Module):
         x_se = self.fc2(x_se)
         return x * x_se.sigmoid()
 
+class FCA_ECA_Attn(nn.Module):
+    """Inspired by FcaNet: Frequency Channel Attention Networks (https://arxiv.org/pdf/2012.11879.pdf)
+    
+    But I view it as positional encoding and multiply be a predefined set of filters
+    This class uses Efficient Channel Attention instead of SE
+    """
+    def __init__(self, *args, kernel_size=3, **kwargs):
+        super().__init__()
+        self.pool = FastGlobalAvgPool2d()
+        self.conv = nn.Conv1d(1, 1, kernel_size=kernel_size, padding=kernel_size // 2, bias=False)
+        # dummy shape. would be overwritten later. not registering as buffer intentionally
+        self.pos_encoding = torch.ones(1, 1, 1, 1) 
+
+    def _get_pos_encoding(self, inp):
+        """Want this to be generated for each input size separately"""
+        self.pos_encoding = torch.ones_like(inp)
+        c_part = inp.size(1) // 4
+        xx = torch.linspace(0, math.pi, inp.size(3)).cos()[None].repeat(inp.size(2), 1)
+        yy = torch.linspace(0, math.pi, inp.size(2)).cos()[None].repeat(inp.size(3), 1).T
+        xy = torch.linspace(-math.pi, math.pi, inp.size(3)).cos().neg().repeat(inp.size(2), 1)
+        self.pos_encoding[:, c_part * 1:c_part * 2] = xx
+        self.pos_encoding[:, c_part * 2:c_part * 3] = yy
+        self.pos_encoding[:, c_part * 3:c_part * 4] = xy
+        return self.pos_encoding
+
+    def forward(self, x):
+        # FCA part
+        if x.shape != self.pos_encoding.shape:
+            self._get_pos_encoding(x)
+        x = x * self.pos_encoding
+        # ECA part
+        x_s = self.pool(x)
+        x_s = self.conv(x_s.view(x.size(0), 1, -1))
+        x_s = x_s.view(x.size(0), -1, 1, 1).sigmoid()
+        return x * x_s.expand_as(x)
+
 class MyAttn(nn.Module):
     """Idea from Attentional Feature Fusion (MS-CAM)
     Combines global and local attention in a better manner than scSE
@@ -235,6 +271,7 @@ def get_attn(attn_type):
         "se-var3": SEVar3,
         "ms-cam": MSCAMModule,
         "fca": FCAAttn,
+        "fca-eca": FCA_ECA_Attn,
     }
         
     if attn_type is None:
