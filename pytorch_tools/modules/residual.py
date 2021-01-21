@@ -159,9 +159,12 @@ class FCAAttn(nn.Module):
 
         self.pool = FastGlobalAvgPool2d()
         # authors of original paper DO use bias
-        self.fc1 = conv1x1(channels, reduction_channels, bias=True)
-        self.act1 = activation_from_name(norm_act)
-        self.fc2 = conv1x1(reduction_channels, channels, bias=True)
+        self.fc = nn.Sequential(
+            conv1x1(channels, reduction_channels, bias=True),
+            activation_from_name(norm_act),
+            conv1x1(reduction_channels, channels, bias=True),
+            nn.Sigmoid(),
+        )
         # dummy shape. would be overwritten later. not registering as buffer intentionally
         self.pos_encoding = torch.ones(1, 1, 1, 1) 
 
@@ -180,12 +183,8 @@ class FCAAttn(nn.Module):
     def forward(self, x):
         if x.shape != self.pos_encoding.shape:
             self._get_pos_encoding(x)
-        x = x * self.pos_encoding
-        x_se = self.pool(x)
-        x_se = self.fc1(x_se)
-        x_se = self.act1(x_se)
-        x_se = self.fc2(x_se)
-        return x * x_se.sigmoid()
+        x_se = self.fc(self.pool(x * self.pos_encoding))
+        return x * x_se
 
 class FCA_ECA_Attn(nn.Module):
     """Inspired by FcaNet: Frequency Channel Attention Networks (https://arxiv.org/pdf/2012.11879.pdf)
@@ -216,9 +215,8 @@ class FCA_ECA_Attn(nn.Module):
         # FCA part
         if x.shape != self.pos_encoding.shape:
             self._get_pos_encoding(x)
-        x = x * self.pos_encoding
         # ECA part
-        x_s = self.pool(x)
+        x_s = self.pool(x * self.pos_encoding)
         x_s = self.conv(x_s.view(x.size(0), 1, -1))
         x_s = x_s.view(x.size(0), -1, 1, 1).sigmoid()
         return x * x_s.expand_as(x)
