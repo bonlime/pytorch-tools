@@ -81,8 +81,10 @@ class SegmentationFPN(nn.Module):
         last_upsample=True,
         output_stride=32,
         drop_rate=0,
-        norm_layer="abn",
-        norm_act="relu",
+        encoder_norm_layer="abn",
+        encoder_norm_act="relu",
+        decoder_norm_layer="abn",
+        decoder_norm_act="relu",
         **encoder_params,
     ):
         super().__init__()
@@ -90,13 +92,13 @@ class SegmentationFPN(nn.Module):
             encoder_params["output_stride"] = output_stride
         self.encoder = get_encoder(
             encoder_name,
-            norm_layer=norm_layer,
-            norm_act=norm_act,
+            norm_layer=encoder_norm_layer,
+            norm_act=encoder_norm_act,
             encoder_weights=encoder_weights,
             **encoder_params,
         )
-
-        bn_args = {"norm_layer": bn_from_name(norm_layer), "norm_act": norm_act}
+        norm_layer = bn_from_name(decoder_norm_layer)
+        bn_args = dict(norm_layer=norm_layer, norm_act=decoder_norm_act)
 
         self.fpn = self.__class__.FEATURE_PYRAMID(
             self.encoder.out_shapes[:-1],  # only want features from 1/4 to 1/32

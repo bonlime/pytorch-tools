@@ -31,9 +31,7 @@ class Runner:
         use_fp16=False,
     ):
         super().__init__()
-        self.state = RunnerState(
-            model=model, optimizer=optimizer, criterion=criterion, use_fp16=use_fp16
-        )
+        self.state = RunnerState(model=model, optimizer=optimizer, criterion=criterion, use_fp16=use_fp16)
         self.callbacks = Callbacks(callbacks)
         self.callbacks.set_state(self.state)
         self.gradient_clip_val = gradient_clip_val
@@ -53,10 +51,9 @@ class Runner:
             start_epoch (int): From which epoch to start. Useful on restarts. Defaults to 0.
         """
         self.state.num_epochs = epochs
+        self.state.batch_size = 1
         if train_loader.__dict__.get("batch_size") is not None:
             self.state.batch_size = train_loader.batch_size
-        else:
-            self.state.batch_size = 1
         self.callbacks.on_begin()
         for epoch in range(start_epoch, epochs):
             self.state.is_train = True
@@ -79,6 +76,7 @@ class Runner:
         self.state.is_train = False
         self.state.model.eval()
         self._run_loader(loader, steps=steps)
+        self.state.reduce_meters()
         return self.state.loss_meter.avg, [m.avg for m in self.state.metric_meters.values()]
 
     def _make_step(self):

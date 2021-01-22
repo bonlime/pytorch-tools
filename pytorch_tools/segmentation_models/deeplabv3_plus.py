@@ -39,8 +39,10 @@ class DeepLabV3(EncoderDecoder):
         aspp_dilation_rates=[6, 12, 18],
         output_stride=16,
         drop_rate=0,
-        norm_layer="abn",
-        norm_act="relu",
+        encoder_norm_layer="abn",
+        encoder_norm_act="relu",
+        decoder_norm_layer="abn",
+        decoder_norm_act="relu",
         **encoder_params,
     ):
 
@@ -48,8 +50,8 @@ class DeepLabV3(EncoderDecoder):
             encoder_name,
             encoder_weights=encoder_weights,
             output_stride=output_stride,
-            norm_layer=norm_layer,
-            norm_act=norm_act,
+            norm_layer=encoder_norm_layer,
+            norm_act=encoder_norm_act,
             **encoder_params,
         )
 
@@ -59,8 +61,8 @@ class DeepLabV3(EncoderDecoder):
             dilation_rates=aspp_dilation_rates,
             output_stride=output_stride,
             drop_rate=drop_rate,
-            norm_layer=bn_from_name(norm_layer),
-            norm_act=norm_act,
+            norm_layer=bn_from_name(decoder_norm_layer),
+            norm_act=decoder_norm_act,
         )
 
         super().__init__(encoder, decoder)

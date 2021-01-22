@@ -33,6 +33,16 @@ def optimizer_from_name(optim_name):
     elif optim_name == "adamw_gc":
         # in this implementation eps in inside sqrt so it can be smaller
         return partial(AdamW_my, center=True, eps=1e-7)
+    # this optimizer uses decoupled wd by default. so add more aliasses just in case
+    elif optim_name in ("adamp", "adam_p", "adamwp", "adamw_p"):
+        from adamp import AdamP
+
+        return partial(AdamP, eps=2e-5)
+    # this optimizer uses decoupled wd by default. so add more aliasses just in case
+    elif optim_name in ("sgdp", "sgd_p", "sgdwp", "sgdw_p"):
+        from adamp import SGDP
+
+        return partial(SGDP, eps=2e-5)
     elif optim_name == "rmsprop":
         # in this implementation eps in inside sqrt so it can be smaller
         return partial(RMSprop, eps=1e-7)

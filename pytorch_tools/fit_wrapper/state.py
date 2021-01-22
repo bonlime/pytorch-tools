@@ -1,6 +1,7 @@
 from loguru import logger
 from torch.cuda.amp import GradScaler
 from pytorch_tools.utils import misc as utils
+from collections import defaultdict
 
 
 class RunnerState:
@@ -31,16 +32,12 @@ class RunnerState:
         # counters
         self.num_epochs = 1
         self.epoch = 0
-        self.train_loss = None
-        self.train_metrics = None
-        self.val_loss = None
-        self.val_metrics = None
+        self.train_loss = self.val_loss = self.loss_meter = utils.AverageMeter("loss")
+        self.train_metrics = self.val_metrics = self.metric_meters = defaultdict(utils.AverageMeter())
         self.is_train = True
         self.epoch_size = None
         self.step = None
         self.batch_size = 0
-        self.metric_meters = {}
-        self.loss_meter = utils.AverageMeter("loss")
 
         # for DDP
         self.rank = utils.env_rank()

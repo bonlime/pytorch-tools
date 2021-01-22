@@ -4,13 +4,13 @@ import pytorch_tools as pt
 import pytorch_tools.modules as modules
 
 activations_name = ["Swish", "Swish_Naive", "Mish", "Mish_naive"]
+INP = torch.ones(1, 10, 16, 16)
 
 
 @pytest.mark.parametrize("activation", activations_name)
 def test_activations_init(activation):
-    inp = torch.ones(10)
     act = modules.activation_from_name(activation)
-    res = act(inp)
+    res = act(INP)
     assert res.mean()
 
 
@@ -19,6 +19,20 @@ def test_frozen_abn():
     assert list(l.parameters()) == []
     l = modules.ABN(10, frozen=True)
     assert list(l.parameters()) == []
+    # check that passing tensor through frozen ABN won't update stats
+    running_mean_original = l.running_mean.clone()
+    running_var_original = l.running_var.clone()
+    l(INP)
+    assert torch.allclose(running_mean_original, l.running_mean)
+    assert torch.allclose(running_var_original, l.running_var)
+
+
+def test_estimated_abn():
+    """Checks that init works and output is the same in eval mode"""
+    est_bn = modules.bn_from_name("estimated_abn")(10).eval()
+    bn = modules.bn_from_name("estimated_abn")(10).eval()
+    est_bn.load_state_dict(bn.state_dict())
+    assert torch.allclose(est_bn(INP), bn(INP))
 
 
 def test_abn_repr():
@@ -26,6 +40,31 @@ def test_abn_repr():
     l = modules.bn_from_name("frozen_abn")(10)
     expected = "ABN(10, eps=1e-05, momentum=0.1, affine=True, activation=ACT.LEAKY_RELU[0.01], frozen=True)"
     assert repr(l) == expected
+
+    l2 = modules.bn_from_name("estimated_abn")(10, activation="relu")
+    expected2 = "ABN(10, eps=1e-05, momentum=0.1, affine=True, activation=ACT.RELU, estimated_stats=True)"
+    assert repr(l2) == expected2
+
+
+def test_agn_repr():
+    """Checks that repr for AGN includes number of groups"""
+    l = modules.bn_from_name("agn")(10, num_groups=2, activation="leaky_relu")
+    expected = "AGN(10, num_groups=2, eps=1e-05, affine=True, activation=ACT.LEAKY_RELU[0.01])"
+    assert repr(l) == expected
+
+
+def test_abcn():
+    """Check that abcn init and forward works"""
+    l = modules.bn_from_name("abcn")(10, num_groups=2)
+
+
+# bcn runs
+
+
+def test_drop_connect_repr():
+    """Check that keep_prob is shown correctly in DropConnect repr"""
+    l = modules.residual.DropConnect(0.123)
+    assert repr(l) == "DropConnect(keep_prob=0.12)"
 
 
 # need to test and resnet and vgg because in resnet there are no Convs with bias
@@ -36,6 +75,13 @@ def test_weight_standardization(norm_layer, arch):
     m = pt.models.__dict__[arch](norm_layer=norm_layer)
     ws_m = modules.weight_standartization.conv_to_ws_conv(m)
     out = ws_m(torch.ones(2, 3, 224, 224))
+
+
+def test_weight_standardization_depthwise():
+    """check that depthwise convs are not converted"""
+    m = pt.models.efficientnet_b0()
+    ws_m = modules.weight_standartization.conv_to_ws_conv(m)
+    assert type(ws_m.blocks[1][0].conv_dw) == torch.nn.Conv2d
 
 
 def test_fpn_block():
@@ -104,4 +150,3 @@ def test_space2depth():
     out2 = s2d_2(inp)
     expected2 = torch.tensor([[[[0, 2], [8, 10]], [[1, 3], [9, 11]], [[4, 6], [12, 14]], [[5, 7], [13, 15]]]])
     assert torch.allclose(out2, expected2)
-

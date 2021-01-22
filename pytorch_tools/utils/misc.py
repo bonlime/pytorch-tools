@@ -25,7 +25,8 @@ def initialize_fn(m):
     # No check for BN because in PyTorch it is initialized with 1 & 0 by default
     elif isinstance(m, nn.Linear):
         nn.init.kaiming_uniform_(m.weight, mode="fan_out", nonlinearity="linear")
-        nn.init.constant_(m.bias, 0)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
 
 
 def initialize(module):
@@ -125,7 +126,6 @@ class AverageMeter:
         self.val = 0
         self.avg = 0
         self.avg_smooth = 0
-        self.sum = 0
         self.count = 0
 
     def update(self, val):
@@ -133,13 +133,18 @@ class AverageMeter:
         if self.count == 0:
             self.avg_smooth = val
         else:
-            self.avg_smooth = self.avg_smooth * self.avg_mom + val * (1 - self.avg_mom)
-        self.sum += val
+            self.avg_smooth *= self.avg_mom
+            self.avg_smooth += val * (1 - self.avg_mom)
         self.count += 1
-        self.avg = self.sum / self.count
+        self.avg *= (self.count - 1) / self.count
+        self.avg += val / self.count
 
     def __call__(self, val):
         return self.update(val)
+
+    def __repr__(self):
+        return f"AverageMeter(name={self.name}, avg={self.avg:.3f}, count={self.count})"
+        # return f"{self.name}: {self.avg:.3f}" # maybe use this version for easier printing?
 
 
 class TimeMeter:
@@ -196,7 +201,7 @@ def reduce_meter(meter):
     if env_world_size() == 1:
         return meter
     # can't reduce AverageMeter so need to reduce every attribute separately
-    reduce_attributes = ["val", "avg", "avg_smooth", "sum", "count"]
+    reduce_attributes = ["val", "avg", "avg_smooth", "count"]
     for attr in reduce_attributes:
         old_value = to_tensor([getattr(meter, attr)]).float().cuda()
         setattr(meter, attr, reduce_tensor(old_value).cpu().numpy()[0])

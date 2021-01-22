@@ -13,6 +13,7 @@ class Reduction(Enum):
     SUM = "sum"
     MEAN = "mean"
     NONE = "none"
+    SAMPLE_SUM = "sample_sum"  # mean by sample dim + sum by batch dim
 
 
 class Loss(_Loss):

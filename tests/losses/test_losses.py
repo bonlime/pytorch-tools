@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 import pytorch_tools as pt
@@ -140,7 +141,18 @@ def test_focal_class_is_scribtable():
     assert torch.allclose(loss, loss_jit)
 
 
+def test_binary_focal_3d():
+    """This test validates that it works for 3d by comparing results to 1d reshaped data"""
+    INP_3d = torch.rand(BS, 1, IM_SIZE, IM_SIZE, IM_SIZE)
+    TARGET_3d = torch.randint(0, 2, (BS, 1, IM_SIZE, IM_SIZE, IM_SIZE)).float()
+    my_focal_3d = losses.FocalLoss(mode="binary")(INP_3d, TARGET_3d)
+    my_focal_1d = losses.FocalLoss(mode="binary")(INP_3d.view(BS, 1, -1), TARGET_3d.view(BS, 1, -1))
+
+    assert torch.allclose(my_focal_3d, my_focal_1d)
+
+
 ## Tests for JaccardLoss
+# fmt: off
 @pytest.mark.parametrize(
     ["y_true", "y_pred", "expected"],
     [
@@ -149,6 +161,7 @@ def test_focal_class_is_scribtable():
         [[1, 1, 1, 1], [1, 1, 0, 0], 0.5],
     ],
 )
+# fmt: on
 def test_soft_jaccard_score(y_true, y_pred, expected):
     y_true = torch.tensor(y_true, dtype=torch.float32)
     y_pred = torch.tensor(y_pred, dtype=torch.float32)
@@ -171,7 +184,7 @@ def test_soft_jaccard_score_2(y_true, y_pred, expected):
     actual = actual.mean()
     assert float(actual) == pytest.approx(expected, abs=EPS)
 
-
+# fmt: off
 @pytest.mark.parametrize(
     ["y_true", "y_pred", "expected"],
     [
@@ -180,6 +193,7 @@ def test_soft_jaccard_score_2(y_true, y_pred, expected):
         [[1, 1, 1, 1], [1, 1, 0, 0], 2.0 / 3.0],
     ],
 )
+# fmt: on
 def test_soft_dice_score(y_true, y_pred, expected):
     y_true = torch.tensor(y_true, dtype=torch.float32)
     y_pred = torch.tensor(y_pred, dtype=torch.float32)
@@ -388,6 +402,13 @@ def test_binary_cross_entropy(reduction):
     my_ce = my_ce_loss(INP_IMG_BINARY, TARGET_IMG_BINARY.squeeze())
     assert torch.allclose(torch_ce.squeeze(), my_ce.squeeze())
 
+    # test for 3d volumes
+    INP_3d = torch.rand(BS, 1, IM_SIZE, IM_SIZE, IM_SIZE)
+    TARGET_3d = torch.randint(0, 2, (BS, 1, IM_SIZE, IM_SIZE, IM_SIZE)).float()
+    torch_ce = F.binary_cross_entropy_with_logits(INP_3d, TARGET_3d, reduction=reduction)
+    my_ce = my_ce_loss(INP_3d, TARGET_3d)
+    assert torch.allclose(torch_ce, my_ce)
+
 
 def test_binary_cross_entropy_from_logits():
     """Check that passing from_logits True and taking sigmoid manually gives the same result"""
@@ -407,7 +428,6 @@ def test_cross_entropy_from_logits():
     assert torch.allclose(res_1, res_2)
 
 
-@torch.no_grad()
 def test_cross_entropy_weight():
     weight_1 = torch.randint(1, 100, (N_CLASSES,)).float()
     weight_2 = weight_1.numpy().astype(int)
@@ -442,8 +462,10 @@ def test_multiclass_multilabel_lovasz():
 
 
 def test_binary_hinge():
-    assert losses.BinaryHinge()(INP_IMG_BINARY, TARGET_IMG_BINARY)
-
+    from sklearn.metrics import hinge_loss
+    my_l = losses.BinaryHinge()(INP_IMG_BINARY, TARGET_IMG_BINARY)
+    sk_l = hinge_loss(TARGET_IMG_BINARY.flatten() * 2 - 1, INP_IMG_BINARY.flatten())
+    assert torch.allclose(my_l, torch.tensor(sk_l, dtype=torch.float32))
 
 @pytest.mark.parametrize("reduction", ["sum", "mean", "none"])
 def test_smoothl1(reduction):
@@ -492,3 +514,51 @@ def test_detection_loss_is_scriptabble():
     res_jit = loss_jit((cls_out, box_out), target)
     assert torch.allclose(res, res_jit)
     assert torch.allclose(res, torch.tensor(5e-07))
+
+# tests for KLD are from @alexeykarnachev
+# https://gist.github.com/alexeykarnachev/6829d8b208585582bc9c79ad1ed8bb45
+def test_binary_kld_loss():
+    # ==================================================================================================================
+    # [1] Test an ordinal KLD loss:
+    x_logits = torch.tensor([[2.28, 4.20]])
+    x_softmax = torch.softmax(x_logits, 1)  # => [[0.1279, 0.8721]]
+    x_log_softmax = torch.log_softmax(x_logits, 1)
+
+    y_p_0 = torch.tensor([[0.1279, 0.8721]])
+    kld_loss_0 = nn.KLDivLoss(reduction='batchmean')(x_log_softmax, y_p_0)
+    assert torch.allclose(kld_loss_0, torch.tensor([0.0]), atol=1e-3)
+
+    y_p_1 = torch.tensor([[0.0, 1.0]])
+    kld_loss_1 = nn.KLDivLoss(reduction='batchmean')(x_log_softmax, y_p_1)
+    assert torch.allclose(kld_loss_1, torch.tensor([0.1368]), atol=1e-3)
+
+    y_p_2 = torch.tensor([[0.1, 0.9]])
+    kld_loss_2 = nn.KLDivLoss(reduction='batchmean')(x_log_softmax, y_p_2)
+    assert torch.allclose(kld_loss_2, torch.tensor([0.0037]), atol=1e-3)
+
+    # ==================================================================================================================
+    # [2] Compare with BCESoftLoss (with Bernoulli inputs):
+    x_p_bernoulli = x_softmax[:, 1:]
+    y_p_0_bernoulli = y_p_0[:, 1:]
+    bce_soft_loss_0 = losses.BinaryKLDivLoss(from_logits=False)(x_p_bernoulli, y_p_0_bernoulli)
+    assert torch.allclose(bce_soft_loss_0, torch.tensor([0.0]), atol=1e-3)
+
+    y_p_1_bernoulli = y_p_1[:, 1:]
+    bce_soft_loss_1 = losses.BinaryKLDivLoss(from_logits=False)(x_p_bernoulli, y_p_1_bernoulli)
+    assert torch.allclose(kld_loss_1, bce_soft_loss_1, atol=1e-3)
+
+    y_p_2_bernoulli = y_p_2[:, 1:]
+    bce_soft_loss_2 = losses.BinaryKLDivLoss(from_logits=False)(x_p_bernoulli, y_p_2_bernoulli)
+    assert torch.allclose(kld_loss_2, bce_soft_loss_2, atol=1e-3)
+
+    # ==================================================================================================================
+    # [3] Compare with BCELoss (with Bernoulli inputs in case of y in {0, 1}):
+    y_p_1_bernoulli = y_p_1[:, 1:]
+    bce_soft_loss_1 = losses.BinaryKLDivLoss(from_logits=False)(x_p_bernoulli, y_p_1_bernoulli)
+    bce_loss_1 = nn.BCELoss()(x_p_bernoulli, y_p_1_bernoulli)
+    assert torch.allclose(bce_soft_loss_1, bce_loss_1, atol=1e-3)
+
+    # ==================================================================================================================
+    # [4] Check, that torch KLDivLoss for log-bernoulli input is the WRONG approach:
+    kld_loss_2_bernoulli = nn.KLDivLoss(reduction='batchmean')(torch.log(x_p_bernoulli), y_p_2_bernoulli)
+    assert not torch.allclose(kld_loss_2, kld_loss_2_bernoulli, atol=1e-3)

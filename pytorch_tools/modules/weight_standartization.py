@@ -8,14 +8,16 @@ class WS_Conv2d(nn.Conv2d):
     def forward(self, x):
         weight = self.weight
         var, mean = torch.var_mean(weight, dim=[1, 2, 3], keepdim=True, unbiased=False)
-        weight = (weight - mean) / torch.sqrt(var + 1e-7)
+        weight = (weight - mean) / torch.sqrt(var + 1e-5)
         return F.conv2d(x, weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
 
 
 # code from SyncBatchNorm in pytorch
 def conv_to_ws_conv(module):
     module_output = module
-    if isinstance(module, torch.nn.Conv2d):
+    # no WS for convs with groups != 1 as suggested in
+    # Understanding the Disharmony between Weight Normalization ... (https://arxiv.org/abs/1911.05920)
+    if isinstance(module, torch.nn.Conv2d) and module.groups == 1:
         module_output = WS_Conv2d(
             in_channels=module.in_channels,
             out_channels=module.out_channels,
@@ -23,8 +25,6 @@ def conv_to_ws_conv(module):
             stride=module.stride,
             padding=module.padding,
             dilation=module.dilation,
-            # groups are also present in DepthWiseConvs which we don't want to patch
-            # TODO: fix this
             groups=module.groups,
             bias=module.bias is not None,
         )
