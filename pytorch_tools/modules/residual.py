@@ -157,7 +157,7 @@ class FCAAttn(nn.Module):
 
         super().__init__()
 
-        self.pool = FastGlobalAvgPool2d()
+        # self.pool = FastGlobalAvgPool2d()
         # authors of original paper DO use bias
         self.fc = nn.Sequential(
             conv1x1(channels, reduction_channels, bias=True),
@@ -183,7 +183,8 @@ class FCAAttn(nn.Module):
     def forward(self, x):
         if x.shape != self.pos_encoding.shape:
             self._get_pos_encoding(x)
-        x_se = self.fc(self.pool(x * self.pos_encoding))
+        x_se = (x * self.pos_encoding).sum(dim=(2, 3), keepdim=True)
+        x_se = self.fc(x_se)
         return x * x_se
 
 class FCA_ECA_Attn(nn.Module):
