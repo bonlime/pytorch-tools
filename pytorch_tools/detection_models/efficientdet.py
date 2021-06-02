@@ -328,7 +328,8 @@ def _efficientdet(arch, pretrained=None, **kwargs):
             )
             state_dict["cls_head_conv.1.weight"] = model.state_dict()[f"cls_head_conv.1.weight"]
             state_dict["cls_head_conv.1.bias"] = model.state_dict()["cls_head_conv.1.bias"]
-        model.load_state_dict(state_dict, strict=True)
+        # strict=False to avoid error on extra bias in BiFPN
+        model.load_state_dict(state_dict, strict=False) 
     setattr(model, "pretrained_settings", cfg_settings)
     return model
 
