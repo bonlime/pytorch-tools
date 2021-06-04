@@ -360,9 +360,8 @@ class DropConnect(nn.Module):
     def forward(self, x):
         if not self.training:
             return x
-        batch_size = x.size(0)
         random_tensor = self.keep_prob
-        random_tensor += torch.rand([batch_size, 1, 1, 1], dtype=x.dtype, device=x.device)
+        random_tensor += torch.rand((x.size(0),) + (1, ) * (x.dim() - 1), dtype=x.dtype, device=x.device)
         binary_tensor = torch.floor(random_tensor)
         output = x / self.keep_prob * binary_tensor
         return output
