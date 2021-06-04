@@ -43,7 +43,7 @@ class RunnerState:
         self.rank = utils.env_rank()
         self.world_size = utils.env_world_size()
 
-        self.__is_frozen = True
+        self.__isfrozen = True
 
     def __setattr__(self, key, value):
         if self.__isfrozen and not hasattr(self, key):

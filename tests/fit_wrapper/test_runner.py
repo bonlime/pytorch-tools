@@ -182,3 +182,8 @@ def test_loader_metric():
     assert clb.output[0].grad_fn is None
     assert clb.target[0].device == torch.device("cpu")
     assert clb.output[0].device == torch.device("cpu")
+
+def test_state_is_frozen():
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=None)
+    with pytest.raises(TypeError):
+        setattr(runner.state, "something", "value")
