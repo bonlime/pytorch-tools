@@ -4,7 +4,7 @@ import pytorch_tools as pt
 import pytorch_tools.modules as modules
 
 activations_name = ["Swish", "Swish_Naive", "Mish", "Mish_naive"]
-INP = torch.ones(1, 10, 16, 16)
+INP = torch.ones(2, 10, 16, 16)
 
 
 @pytest.mark.parametrize("activation", activations_name)
@@ -150,3 +150,12 @@ def test_space2depth():
     out2 = s2d_2(inp)
     expected2 = torch.tensor([[[[0, 2], [8, 10]], [[1, 3], [9, 11]], [[4, 6], [12, 14]], [[5, 7], [13, 15]]]])
     assert torch.allclose(out2, expected2)
+
+def test_drop_connect():
+    """"Tests that dropconnect works correctly for any number of dimensions"""
+    drop_connect = modules.residual.DropConnect(0.5)
+    inp1d = torch.rand(2, 10, 16)
+    inp3d = torch.rand(2, 10, 16, 16, 16)
+    assert drop_connect(INP).shape == INP.shape
+    assert drop_connect(inp1d).shape == inp1d.shape
+    assert drop_connect(inp3d).shape == inp3d.shape
