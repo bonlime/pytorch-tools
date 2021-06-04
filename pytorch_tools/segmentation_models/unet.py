@@ -88,6 +88,7 @@ class Unet(EncoderDecoder):
         encoder_norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
         decoder_norm_layer (str): same as encoder_norm_layer but for decoder
         decoder_norm_act (str): same as encoder_norm_act but for decoder
+        sigmoid_init (bool): if True, set last layer bias to -4.6 for faster convergence with sigmoid loss. usefull for binary classification problems
 
     Returns:
         ``torch.nn.Module``: **Unet**
@@ -109,6 +110,7 @@ class Unet(EncoderDecoder):
         encoder_norm_act="relu",
         decoder_norm_layer="abn",
         decoder_norm_act="relu",
+        sigmoid_init=True,
         **encoder_params,
     ):
         if output_stride != 32:
@@ -134,6 +136,7 @@ class Unet(EncoderDecoder):
 
         super().__init__(encoder, decoder)
         self.name = f"u-{encoder_name}"
-        # set last layer bias for better convergence with sigmoid loss
-        # -4.59 = -np.log((1 - 0.01) / 0.01)
-        nn.init.constant_(self.decoder.final_conv.bias, -4.59)
+        if sigmoid_init:
+            # set last layer bias for better convergence with sigmoid loss
+            # -4.59 = -np.log((1 - 0.01) / 0.01)
+            nn.init.constant_(self.decoder.final_conv.bias, -4.59)
