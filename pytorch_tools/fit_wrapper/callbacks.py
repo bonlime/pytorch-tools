@@ -648,6 +648,9 @@ class Cutmix(Callback):
 
     def on_batch_begin(self):
         self.state.input = self.cutmix(*self.state.input)
+    
+    def on_loader_begin(self):
+        self.prev_input = None # avoid leak from test to train
 
     @torch.no_grad()
     def cutmix(self, data, target):
