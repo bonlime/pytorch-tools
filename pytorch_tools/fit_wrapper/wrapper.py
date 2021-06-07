@@ -15,7 +15,6 @@ class Runner:
         optimizer: optimizer
         criterion: Loss used for training
         callbacks (List): List of Callbacks to use. Defaults to ConsoleLogger().
-        gradient_clip_val (float): Gradient clipping value. 0 means no clip. Causes ~5% training slowdown
         accumulate_steps (int): if > 1 uses gradient accumulation across iterations to simulate larger batch size
         use_fp16 (bool): Flag which enables mixed precision
     """
@@ -26,7 +25,6 @@ class Runner:
         optimizer,
         criterion,
         callbacks=ConsoleLogger(),
-        gradient_clip_val=0,
         accumulate_steps=1,
         use_fp16=False,
     ):
@@ -34,7 +32,6 @@ class Runner:
         self.state = RunnerState(model=model, optimizer=optimizer, criterion=criterion, use_fp16=use_fp16)
         self.callbacks = Callbacks(callbacks)
         self.callbacks.set_state(self.state)
-        self.gradient_clip_val = gradient_clip_val
         self.accumulate_steps = accumulate_steps
 
     def fit(
@@ -90,13 +87,11 @@ class Runner:
         if self.state.is_train:
             # backward for every batch
             self.state.grad_scaler.scale(loss / self.accumulate_steps).backward()
+
+            self.callbacks.on_after_backward()
+        
             # everything else only before making step
             if self.state.step % self.accumulate_steps == 0:
-
-                if self.gradient_clip_val > 0:
-                    self.state.grad_scaler.unscale_(self.state.optimizer)
-                    torch.nn.utils.clip_grad_norm_(self.state.model.parameters(), self.gradient_clip_val)
-
                 self.state.grad_scaler.step(self.state.optimizer)
                 self.state.grad_scaler.update()
                 self.state.optimizer.zero_grad()
