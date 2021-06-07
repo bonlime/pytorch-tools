@@ -445,61 +445,56 @@ class TensorBoard(Callback):
 
     Args:
         log_dir (str): path where to store logs
-        log_every (int): how often to write logs during training
+        log_every (int): how often (in batches) to write logs during training
     """
 
-    def __init__(self, log_dir, log_every=20):
+    def __init__(self, log_dir=None, log_every=20):
         super().__init__()
         self.log_dir = log_dir
         self.log_every = log_every
-        self.writer = None
-        self.current_step = 0
 
     def on_begin(self):
+        if self.state.tb_logger is not None:
+            return
         os.makedirs(self.log_dir, exist_ok=True)
-        self.writer = SummaryWriter(self.log_dir)
+        self.state.tb_logger = SummaryWriter(self.log_dir)
+        self.log_every *= self.state.batch_size * self.state.world_size
 
     def on_batch_end(self):
-        self.current_step += self.state.batch_size
-        if self.state.is_train and (self.current_step % self.log_every == 0):
+        if self.state.is_train and (self.state.global_sample_step % self.log_every == 0):
             # TODO: select better name instead of train_ ?
-            self.writer.add_scalar("train_/loss", self.state.loss_meter.val, self.current_step)
+            self.state.tb_logger.add_scalar("train_/loss", self.state.loss_meter.val, self.state.global_sample_step)
             for name, metric in self.state.metric_meters.items():
-                self.writer.add_scalar(f"train_/{name}", metric.val, self.current_step)
+                self.state.tb_logger.add_scalar(f"train_/{name}", metric.val, self.state.global_sample_step)
 
     def on_epoch_end(self):
-        self.writer.add_scalar("train/loss", self.state.train_loss.avg, self.current_step)
+        self.state.tb_logger.add_scalar("train/loss", self.state.train_loss.avg, self.state.global_sample_step)
         for name, metric in self.state.train_metrics.items():
-            self.writer.add_scalar(f"train/{name}", metric.avg, self.current_step)
+            self.state.tb_logger.add_scalar(f"train/{name}", metric.avg, self.state.global_sample_step)
 
         lr = sorted([pg["lr"] for pg in self.state.optimizer.param_groups])[-1]  # largest lr
-        self.writer.add_scalar("train_/lr", lr, self.current_step)
-        self.writer.add_scalar("train/epoch", self.state.epoch, self.current_step)
+        self.state.tb_logger.add_scalar("train_/lr", lr, self.state.global_sample_step)
+        self.state.tb_logger.add_scalar("train/epoch", self.state.epoch, self.state.global_sample_step)
         # don't log if no val
         if self.state.val_loss is None:
             return
 
-        self.writer.add_scalar("val/loss", self.state.val_loss.avg, self.current_step)
+        self.state.tb_logger.add_scalar("val/loss", self.state.val_loss.avg, self.state.global_sample_step)
         for name, metric in self.state.val_metrics.items():
-            self.writer.add_scalar(f"val/{name}", metric.avg, self.current_step)
+            self.state.tb_logger.add_scalar(f"val/{name}", metric.avg, self.state.global_sample_step)
 
     def on_end(self):
-        self.writer.close()
+        self.state.tb_logger.close()
 
-
-class TensorBoardWithCM(TensorBoard):
+class TensorBoardCM(Callback):
     """
-    Saves training and validation statistics for TensorBoard
-    And also saves Confusion Matrix as image
+    Saves training and validation Confusion Matrix as image
 
     Args:
-        log_dir (str): path where to store logs
-        log_every (int): how often to write logs during training
         class_namess (List[str]): list of class names for proper visualization
     """
 
-    def __init__(self, log_dir, log_every=20, class_names=None):
-        super().__init__(log_dir, log_every)
+    def __init__(self, class_names=None):
         self.class_names = class_names
         self.n_classes = None  # will infer implicitly later
         self.cmap = None
@@ -507,7 +502,6 @@ class TensorBoardWithCM(TensorBoard):
         self.val_cm_img = None
 
     def on_batch_end(self):
-        super().on_batch_end()
         if self.cmap is None:
             self.n_classes = self.state.output.shape[1]
             self.cmap = np.zeros((self.n_classes, self.n_classes), dtype=int)
@@ -522,7 +516,6 @@ class TensorBoardWithCM(TensorBoard):
             self.cmap[tr, pr] += 1
 
     def on_loader_end(self):
-        super().on_loader_end()
         f = plot_confusion_matrix(self.cmap, self.class_names, normalize=True, show=False)
         cm_img = render_figure_to_tensor(f)
         if self.state.is_train:
@@ -532,11 +525,10 @@ class TensorBoardWithCM(TensorBoard):
         self.cmap = None
 
     def on_epoch_end(self):
-        super().on_epoch_end()
         if self.train_cm_img is not None:
-            self.writer.add_image("train/confusion_matrix", self.train_cm_img, self.current_step)
+            self.state.tb_logger.add_image("train/confusion_matrix", self.train_cm_img, self.state.global_sample_step)
         if self.val_cm_img is not None:
-            self.writer.add_image("val/confusion_matrix", self.val_cm_img, self.current_step)
+            self.state.tb_logger.add_image("val/confusion_matrix", self.val_cm_img, self.state.global_sample_step)
 
 
 class ConsoleLogger(Callback):

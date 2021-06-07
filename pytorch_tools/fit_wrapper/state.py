@@ -20,6 +20,7 @@ class RunnerState:
         self.optimizer = optimizer
         self.criterion = criterion
         self.logger = logger
+        self.tb_logger = None # place for TensorBoard logger
 
         # make state aware of fp16 and scale. if use_fp16 is False, grad_scaler is NoOp
         self.use_fp16 = use_fp16
@@ -38,6 +39,7 @@ class RunnerState:
         self.epoch_size = None
         self.step = None
         self.batch_size = 0
+        self.global_sample_step = 0
 
         # for DDP
         self.rank = utils.env_rank()

@@ -90,17 +90,8 @@ def test_val_loader():
     runner.fit(TEST_LOADER, epochs=2, steps_per_epoch=100, val_loader=TEST_LOADER, val_steps=200)
 
 
-def test_grad_clip_loader():
-    runner = Runner(
-        model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, gradient_clip_val=1.0,
-    )
-    runner.fit(TEST_LOADER, epochs=2)
-
-
 def test_accumulate_steps():
-    runner = Runner(
-        model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, accumulate_steps=10,
-    )
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, accumulate_steps=10,)
     runner.fit(TEST_LOADER, epochs=2)
 
 
@@ -111,10 +102,7 @@ def test_fp16_training():
 
 def test_ModelEma_callback():
     runner = Runner(
-        model=TEST_MODEL,
-        optimizer=TEST_OPTIMIZER,
-        criterion=TEST_CRITERION,
-        callbacks=pt_clb.ModelEma(TEST_MODEL),
+        model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=pt_clb.ModelEma(TEST_MODEL),
     )
     runner.fit(TEST_LOADER, epochs=2)
 
@@ -132,7 +120,6 @@ os.makedirs(TMP_PATH, exist_ok=True)
         pt_clb.CheckpointSaver(TMP_PATH, save_name="model.chpn"),
         pt_clb.CheckpointSaver(TMP_PATH, save_name="model.chpn", monitor=TEST_METRIC.name, mode="max"),
         pt_clb.TensorBoard(log_dir=TMP_PATH),
-        pt_clb.TensorBoardWithCM(log_dir=TMP_PATH),
         pt_clb.ConsoleLogger(),
         pt_clb.FileLogger(),
         pt_clb.Mixup(0.2, NUM_CLASSES),
@@ -140,6 +127,8 @@ os.makedirs(TMP_PATH, exist_ok=True)
         pt_clb.ScheduledDropout(),
         pt_clb.BatchMetrics(TEST_METRIC),
         pt_clb.LoaderMetrics(TEST_METRIC),
+        pt_clb.GradientClipping(1),
+        pt_clb.AdaptiveGradientClipping(0.01),
     ],
 )
 def test_callback(callback):
@@ -156,9 +145,7 @@ def test_callback(callback):
     "callback", [pt_clb.SegmCutmix(1.0),],
 )
 def test_segm_callback(callback):
-    runner = Runner(
-        model=TEST_SEGM_MODEL, optimizer=TEST_SEGM_OPTIMZER, criterion=TEST_CRITERION, callbacks=callback,
-    )
+    runner = Runner(model=TEST_SEGM_MODEL, optimizer=TEST_SEGM_OPTIMZER, criterion=TEST_CRITERION, callbacks=callback,)
     runner.fit(TEST_SEGM_LOADER, epochs=2)
 
 
@@ -183,7 +170,18 @@ def test_loader_metric():
     assert clb.target[0].device == torch.device("cpu")
     assert clb.output[0].device == torch.device("cpu")
 
+
 def test_state_is_frozen():
     runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=None)
     with pytest.raises(TypeError):
         setattr(runner.state, "something", "value")
+
+
+def test_tensorboar_CM():
+    runner = Runner(
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        callbacks=[pt_clb.TensorBoardCM(), pt_clb.TensorBoard(log_dir=TMP_PATH)],
+    )
+    runner.fit(TEST_LOADER, epochs=2)
