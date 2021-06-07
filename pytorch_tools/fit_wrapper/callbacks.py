@@ -26,6 +26,7 @@ class Callback(object):
     ---epoch begin (one epoch - one run of every loader)
     ------loader begin 
     ---------batch begin
+    ---------on_after_backward
     ---------batch end
     ------loader end 
     ---epoch end
@@ -60,6 +61,10 @@ class Callback(object):
         pass
 
     def on_end(self):
+        pass
+
+    def on_after_backward(self):
+        """Called after ``loss.backward()`` but before optimizer does anything."""
         pass
 
 
@@ -581,6 +586,54 @@ class FileLogger(Callback):
     def _format_meters(loss, metrics):
         return f"loss: {loss.avg:.4f} | " + " | ".join(f"{m.name}: {m.avg:.4f}" for m in metrics.values())
 
+
+class GradientClipping(Callback):
+    """Clips gradients by max norm"""
+    def __init__(self, gradient_clip_val):
+        self.gradient_clip_val = gradient_clip_val
+        assert gradient_clip_val > 0, "Invalid value for gradient clipping"
+
+    def on_after_backward(self):
+        self.state.grad_scaler.unscale_(self.state.optimizer)
+        torch.nn.utils.clip_grad_norm_(self.state.model.parameters(), self.gradient_clip_val)
+
+class AdaptiveGradientClipping(Callback):
+    """Clips gradient based on max norm. 
+    
+    Ref: 
+        High-Performance Large-Scale Image Recognition Without Normalization
+        Official JAX impl (paper authors): https://github.com/deepmind/deepmind-research/tree/master/nfnets
+        Phil Wang's PyTorch gist: https://gist.github.com/lucidrains/0d6560077edac419ab5d3aa29e674d5c
+        Timm code: https://github.com/rwightman/pytorch-image-models/blob/master/timm/utils/agc.py
+    """
+
+    def __init__(self, clip_factor, eps=1e-3):
+        self.clip_factor = clip_factor
+        self.eps = eps
+
+    @staticmethod
+    def _unitwise_norm(x, norm_type=2.0):
+        if x.ndim <= 1:
+            return x.norm(norm_type)
+        else:
+            # works for nn.ConvNd and nn,Linear where output dim is first in the kernel/weight tensor
+            # might need special cases for other weights (possibly MHA) where this may not be true
+            return x.norm(norm_type, dim=tuple(range(1, x.ndim)), keepdim=True)
+
+    def on_after_backward(self): 
+        self.state.grad_scaler.unscale_(self.state.optimizer)
+        
+        for p in self.state.model.parameters():
+            if p.grad is None:
+                continue
+            p_data = p.detach()
+            g_data = p.grad.detach()
+            max_norm = self._unitwise_norm(p_data).clamp_(min=self.eps).mul_(self.clip_factor)
+            grad_norm = self._unitwise_norm(g_data)
+            clipped_grad = g_data * (max_norm / grad_norm.clamp(min=1e-6))
+            new_grads = torch.where(grad_norm < max_norm, g_data, clipped_grad)
+            p.grad.detach().copy_(new_grads)
+            
 
 class Mixup(Callback):
     """Performs mixup on input. Only for classification.
