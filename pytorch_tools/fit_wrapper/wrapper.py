@@ -115,6 +115,7 @@ class Runner:
                 self.state.input = batch
                 self.callbacks.on_batch_begin()
                 self._make_step()
+                self.state.global_sample_step += self.state.batch_size * self.state.world_size
                 self.callbacks.on_batch_end()
         self.callbacks.on_loader_end()
         return
