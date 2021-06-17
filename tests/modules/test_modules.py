@@ -159,3 +159,14 @@ def test_drop_connect():
     assert drop_connect(INP).shape == INP.shape
     assert drop_connect(inp1d).shape == inp1d.shape
     assert drop_connect(inp3d).shape == inp3d.shape
+
+
+def test_fused_vgg():
+    """Test that Fused and not Fused version of VGG block are equal"""
+    orig = modules.residual.RepVGGBlock(4, 6, act=torch.nn.SELU, alpha=0.1, n_heads=3)
+    fused = modules.residual.FusedRepVGGBlock(4, 6, act=torch.nn.SELU)
+    fused.load_state_dict(orig.state_dict())
+    inp = torch.randn(1, 4, 3, 3)
+    orig_out = orig(inp)
+    fused_out = fused(inp)
+    assert torch.allclose(orig_out, fused_out)

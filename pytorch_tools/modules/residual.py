@@ -1263,3 +1263,108 @@ class CrossStage(nn.Module):
         out = torch.cat([x1, x2], dim=1)
         # no explicit transition here. first conv in the next stage would perform transition
         return out
+
+
+class RepVGGBlock(nn.Module):
+    """
+    This block is inspired by [1] and [2]. The idea is to have `n_heads` parallel branches of convolutions which are then summed + residual
+    For performance they are implemented as one conv3x3. I removed normalization by making sure this block is variance preserving
+    RepVGGBlock(act=Identity)( N(0, 1)) ~= N(0, 1)
+    
+    NOTE: this block requires correct initialization of conv weighs to work. Highly recommended to use with ConvWS
+    NOTE: for some reasons SELU activation still causes increase in variance. The possible solution is to use gain = 0.5 in ConvWS
+        instead of 1 
+
+    For inference this block could be replaced with `FusedRepVGGBlock` for significant speed-up
+
+    Args:
+        in_chs (int): 
+            number of input channels
+        out_chs (int):
+            number of output channels. if out_chs > in_chs performs partial residual
+        n_heads (int):
+            number of parallel branches
+        act (nn.Module):
+            activation to use. recommended is nn.SELU
+        alpha (float): 
+            parameter for skip init. output would be
+            conv3x3(x) * alpha + conv1x1(x) * alpha + x * (1 - 2*alpha)
+            thus alpha is balancing between block and residual path
+        trainable_alpha (bool): 
+            if True make alpha a parameter, else it's un-trainable buffer
+            having trainable alpha may be beneficial. Timm repo says it could bring noticeable
+            slowdown for training. need to investigate
+
+    Ref:
+        [1] RepVGG: Making VGG-style ConvNets Great Again
+        [2] High-Performance Large-Scale Image Recognition Without Normalization
+    """
+    def __init__(self, in_chs, out_chs, n_heads=2, act=nn.SELU, alpha=0.1, trainable_alpha=False):
+        super().__init__()
+        self.in_chs = in_chs
+        self.out_chs = out_chs
+        self.n_heads = n_heads
+        
+        assert n_heads * alpha <= 0.5 
+        
+        self.conv = nn.Conv2d(in_chs, out_chs * n_heads, kernel_size=3, padding=1)
+        
+        # it's important to carefully initialize alpha so that this block is variance preserving
+        branch_alpha = torch.ones(1, out_chs, 1, 1) * alpha ** 0.5
+        # take care of extra features without residual (they appear if out_chs > in_chs)
+        branch_alpha[:, in_chs:] = (1 / n_heads) ** 0.5
+        residual_alpha = torch.tensor((1 - n_heads * alpha) ** 0.5)
+
+        if trainable_alpha:
+            self.register_parameter('skipinit_res', nn.Parameter(residual_alpha))
+            self.register_parameter('skipinit_branch', nn.Parameter(branch_alpha))
+        else:
+            self.register_buffer('skipinit_res', residual_alpha)
+            self.register_buffer('skipinit_branch', branch_alpha)
+    
+        self.activation = act()
+
+    def forward(self, x):
+        proj = self.conv(x)
+        # same as out = reduce(lambda x, y: torch.chunk(out, self.n_heads, 1)) but faster
+        proj = proj.view(proj.size(0), self.n_heads, proj.size(1) // self.n_heads, proj.size(2), proj.size(3))
+        branch_res = proj.sum(1)
+        res = x * self.skipinit_res
+        if self.in_chs == self.out_chs:
+            branch_res = branch_res * self.skipinit_branch
+            branch_res += res
+        else:
+            branch_res = branch_res * self.skipinit_branch
+            branch_res[:, :self.in_chs] += res
+        out = self.activation(branch_res)
+        return out
+        
+    def extra_repr(self):
+        return f"num_heads={self.n_heads}"
+
+class FusedRepVGGBlock(nn.Sequential):
+    def __init__(self, in_chs, out_chs, act=nn.SELU):
+        super().__init__()
+        self.add_module("conv", nn.Conv2d(in_chs, out_chs, kernel_size=3, padding=1))
+        self.add_module("activation", act())
+    
+    def load_state_dict(self, state_dict):
+        if state_dict.get('skipinit_res', None) is None:
+            super().load_state_dict(state_dict)
+        
+        
+        self_w = self.conv.weight
+        self_b = self.conv.bias
+        
+        kernel_id = torch.zeros_like(self_w)
+        kernel_id[:self_w.size(1), :, 1, 1] = torch.eye(self_w.size(1))
+        kernel_id *= state_dict["skipinit_res"]
+
+        kernel_conv = state_dict["conv.weight"].view(-1, *self_w.shape).sum(0)        
+        bias_conv = state_dict["conv.bias"].view(-1, *self.conv.bias.shape).sum(0)
+        
+        kernel_conv *= state_dict["skipinit_branch"].view(self_w.size(0), 1, 1, 1)
+        bias_conv *= state_dict["skipinit_branch"].flatten()
+        
+        self.conv.weight.data = kernel_id + kernel_conv
+        self.conv.bias.data = bias_conv
