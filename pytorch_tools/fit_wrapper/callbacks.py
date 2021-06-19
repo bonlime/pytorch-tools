@@ -220,7 +220,7 @@ class PhasesScheduler(Callback):
 
     Example:
         PHASES = [
-            {"ep":[0,8],  "lr":[0,0.1], "mom":0.9, },
+            {"ep":[0,8],  "lr":[0,0.1]},
             {"ep":[8,24], "lr":[0.1, 0.01], "mode":"cos"},
             {'ep':[24, 30], "lr": 0.001},
         ]
@@ -238,8 +238,7 @@ class PhasesScheduler(Callback):
     def _format_phase(self, phase):
         phase["ep"] = utils.listify(phase["ep"])
         phase["lr"] = utils.listify(phase["lr"])
-        phase["mom"] = utils.listify(phase.get("mom", None))  # optional
-        if len(phase["lr"]) == 2 or len(phase["mom"]) == 2:
+        if len(phase["lr"]) == 2:
             phase["mode"] = phase.get("mode", "linear")
             assert len(phase["ep"]) == 2, "Linear learning rates must contain end epoch"
         return phase
@@ -272,15 +271,7 @@ class PhasesScheduler(Callback):
             lr_start, lr_end = phase["lr"]
             new_lr = self._schedule(lr_start, lr_end, perc, phase["mode"])
 
-        if len(phase["mom"]) == 0:
-            new_mom = self.current_mom
-        elif len(phase["mom"]) == 1:
-            new_mom = phase["mom"][0]
-        else:
-            mom_start, mom_end = phase["mom"]
-            new_mom = self._schedule(mom_start, mom_end, perc, phase["mode"])
-
-        return new_lr, new_mom
+        return new_lr
 
     def on_epoch_begin(self):
         new_phase = None
@@ -294,14 +285,12 @@ class PhasesScheduler(Callback):
             self.phase = new_phase
 
     def on_batch_begin(self):
-        lr, mom = self._get_lr_mom(self.state.step)
-        if (self.current_lr == lr and self.current_mom == mom) or (self.state.step % self.change_every != 0):
+        lr = self._get_lr_mom(self.state.step)
+        if self.current_lr == lr or (self.state.step % self.change_every != 0):
             return
         self.current_lr = lr
-        self.current_mom = mom
         for param_group in self.state.optimizer.param_groups:
             param_group["lr"] = lr
-            param_group["momentum"] = mom
 
 
 class ReduceMode(Enum):
