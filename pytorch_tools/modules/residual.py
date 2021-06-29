@@ -1272,8 +1272,7 @@ class RepVGGBlock(nn.Module):
     RepVGGBlock(act=Identity)( N(0, 1)) ~= N(0, 1)
     
     NOTE: this block requires correct initialization of conv weighs to work. Highly recommended to use with ConvWS
-    NOTE: for some reasons SELU activation still causes increase in variance. The possible solution is to use gain = 0.5 in ConvWS
-        instead of 1 
+    NOTE: for some reasons SELU activation still causes increase in variance. The possible solution is to use gain = 0.5 in ConvWS instead of 1 
 
     For inference this block could be replaced with `FusedRepVGGBlock` for significant speed-up
 
@@ -1287,9 +1286,8 @@ class RepVGGBlock(nn.Module):
         act (nn.Module):
             activation to use. recommended is nn.SELU
         alpha (float): 
-            parameter for skip init. output would be
-            conv3x3(x) * alpha + conv1x1(x) * alpha + x * (1 - 2*alpha)
-            thus alpha is balancing between block and residual path
+            parameter for skip init, balancing signal between block and residual path. output would be
+            x * (1 - alpha) + sum[conv3x3_i(x) * alpha], for i in range(n_heads)
         trainable_alpha (bool): 
             if True make alpha a parameter, else it's un-trainable buffer
             having trainable alpha may be beneficial. Timm repo says it could bring noticeable
@@ -1299,21 +1297,21 @@ class RepVGGBlock(nn.Module):
         [1] RepVGG: Making VGG-style ConvNets Great Again
         [2] High-Performance Large-Scale Image Recognition Without Normalization
     """
-    def __init__(self, in_chs, out_chs, n_heads=2, act=nn.SELU, alpha=0.1, trainable_alpha=False):
+    def __init__(self, in_chs, out_chs, n_heads=2, act=nn.SELU, alpha=0.2, trainable_alpha=False):
         super().__init__()
         self.in_chs = in_chs
         self.out_chs = out_chs
         self.n_heads = n_heads
         
-        assert n_heads * alpha <= 0.5 
-        
+        assert 0 <= alpha <= 1
+
         self.conv = nn.Conv2d(in_chs, out_chs * n_heads, kernel_size=3, padding=1)
         
         # it's important to carefully initialize alpha so that this block is variance preserving
-        branch_alpha = torch.ones(1, out_chs, 1, 1) * alpha ** 0.5
+        branch_alpha = torch.ones(1, out_chs, 1, 1) * (alpha / n_heads) ** 0.5
         # take care of extra features without residual (they appear if out_chs > in_chs)
         branch_alpha[:, in_chs:] = (1 / n_heads) ** 0.5
-        residual_alpha = torch.tensor((1 - n_heads * alpha) ** 0.5)
+        residual_alpha = torch.tensor((1 - alpha) ** 0.5)
 
         if trainable_alpha:
             self.register_parameter('skipinit_res', nn.Parameter(residual_alpha))
