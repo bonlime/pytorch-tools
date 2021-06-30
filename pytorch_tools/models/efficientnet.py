@@ -31,6 +31,7 @@ from pytorch_tools.utils.misc import add_docs_for
 from pytorch_tools.utils.misc import make_divisible
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from pytorch_tools.utils.misc import repeat_channels
+from pytorch_tools.utils.misc import patch_bn_mom
 
 # avoid overwriting doc string
 wraps = partial(wraps, assigned=("__module__", "__name__", "__qualname__", "__annotations__"))
@@ -144,7 +145,7 @@ class EfficientNet(nn.Module):
             self.dropout = nn.Dropout(drop_rate, inplace=True)
             self.last_linear = nn.Linear(num_features, num_classes)
 
-        patch_bn_tf(self)  # adjust epsilon
+        patch_bn_mom(self, 0.01)  # adjust epsilon
         initialize(self)
         if match_tf_same_padding:
             conv_to_same_conv(self)
@@ -389,15 +390,6 @@ CFGS = {
 }
 
 # fmt: on
-
-
-def patch_bn_tf(module):
-    """TF ported weights use slightly different eps in BN. Need to adjust for better performance"""
-    if isinstance(module, ABN):
-        module.eps = 1e-3
-        module.momentum = 1e-2
-    for m in module.children():
-        patch_bn_tf(m)
 
 
 def _efficientnet(arch, pretrained=None, **kwargs):
