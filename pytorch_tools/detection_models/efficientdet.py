@@ -25,7 +25,7 @@ from pytorch_tools.segmentation_models.encoders import get_encoder
 import pytorch_tools.utils.box as box_utils
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 from pytorch_tools.utils.misc import initialize_iterator
-from pytorch_tools.models.efficientnet import patch_bn_tf
+from pytorch_tools.utils.misc import patch_bn_mom
 
 
 class EfficientDet(nn.Module):
@@ -142,7 +142,7 @@ class EfficientDet(nn.Module):
         self.num_classes = num_classes
         self.num_head_repeats = num_head_repeats
 
-        patch_bn_tf(self)
+        patch_bn_mom(self, 0.01)
         self._initialize_weights()
         if match_tf_same_padding:
             conv_to_same_conv(self)

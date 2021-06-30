@@ -16,17 +16,9 @@ from pytorch_tools.modules.spatial_ocr_block import SpatialOCR_Gather
 
 from pytorch_tools.utils.misc import initialize
 from pytorch_tools.utils.misc import repeat_channels
+from pytorch_tools.utils.misc import patch_bn_mom
 
 from .encoders import get_encoder
-
-
-def patch_bn_mom(module):
-    """changes default bn momentum"""
-    if isinstance(module, ABN) or isinstance(module, InPlaceABN):
-        module.momentum = 0.01
-    for m in module.children():
-        patch_bn_mom(m)
-
 
 def patch_inplace_abn(module):
     """changes weight from InplaceABN to be compatible with usual ABN"""

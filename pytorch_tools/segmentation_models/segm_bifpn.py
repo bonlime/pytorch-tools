@@ -20,7 +20,7 @@ from pytorch_tools.modules.residual import DepthwiseSeparableConv
 from pytorch_tools.modules.tf_same_ops import conv_to_same_conv
 from pytorch_tools.modules.tf_same_ops import maxpool_to_same_maxpool
 
-from pytorch_tools.models.efficientnet import patch_bn_tf
+from pytorch_tools.utils.misc import patch_bn_mom
 from pytorch_tools.segmentation_models.encoders import get_encoder
 
 
@@ -68,7 +68,7 @@ class SegmentationBiFPN(nn.Module):
 
         self.num_classes = num_classes
 
-        patch_bn_tf(self)
+        patch_bn_mom(self, 0.01)
         # set last layer bias for better convergence with sigmoid loss
         # -4.59 = -np.log((1 - 0.01) / 0.01)
         nn.init.constant_(self.cls_head_conv[-1][1].bias, -4.59)

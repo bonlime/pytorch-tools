@@ -253,6 +253,28 @@ def filter_bn_from_wd(model):
     return [{"params": rem_params}, {"params": bn_params2, "weight_decay": 0}]
 
 
+def patch_bn_mom(module, momentum: float = 0.01):
+    """changes default bn momentum"""
+    # import inside function to avoid problems with circular imports
+    import pytorch_tools.modules as pt_modules
+
+    NORM_CLASSES = (
+        torch.nn.modules.batchnorm._BatchNorm,
+        pt_modules.ABN,
+        pt_modules.SyncABN,
+        pt_modules.AGN,
+        pt_modules.InPlaceABN,
+        pt_modules.InPlaceABNSync,
+    )
+    if isinstance(module, NORM_CLASSES):
+        module.momentum = momentum
+        # in my opinion TF eps is better than default in pytorch
+        module.eps = 1e-3
+
+    for m in module.children():
+        patch_bn_mom(m, momentum)
+
+
 def make_divisible(v, divisor=8):
     min_value = divisor
     new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
