@@ -250,7 +250,7 @@ def filter_bn_from_wd(model):
     bn_params = _get_params(model)
     bn_params2 = [p for p in model.parameters() if p in bn_params]
     rem_params = [p for p in model.parameters() if p not in bn_params]
-    return [{"params": bn_params2, "weight_decay": 0}, {"params": rem_params}]
+    return [{"params": rem_params}, {"params": bn_params2, "weight_decay": 0}]
 
 
 def make_divisible(v, divisor=8):
