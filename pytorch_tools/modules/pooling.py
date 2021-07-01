@@ -86,14 +86,17 @@ class BlurPool(nn.Module):
         channels (int): numbers of input channels. needed to construct gauss kernel
     """
 
-    def __init__(self, channels=0):
+    def __init__(self, channels=0, trainable=False):
         super(BlurPool, self).__init__()
         self.channels = channels
         filt = torch.tensor([1.0, 2.0, 1.0])
         filt = filt[:, None] * filt[None, :]
         filt = filt / torch.sum(filt)
         filt = filt[None, None, :, :].repeat((self.channels, 1, 1, 1))
-        self.register_buffer("filt", filt)
+        if trainable:
+            self.register_parameter('filt', torch.nn.Parameter(filt))
+        else:
+            self.register_buffer("filt", filt)
 
     def forward(self, inp):
         return F.conv2d(inp, self.filt, stride=2, padding=1, groups=inp.shape[1])
