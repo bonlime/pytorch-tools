@@ -74,6 +74,9 @@ class FastGlobalAvgPool2d(nn.Module):
     def forward(self, x):
         return x.mean(dim=(2, 3), keepdim=not self.flatten)
 
+    def extra_repr(self):
+        return f"flatten={self.flatten}"
+
 
 class BlurPool(nn.Module):
     """
