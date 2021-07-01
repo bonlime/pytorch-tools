@@ -5,21 +5,16 @@ import torch
 import random
 import collections
 import numpy as np
-from functools import partial
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
 
 
-def initialize_fn(m):
-    """m (nn.Module): module"""
+def initialize_fn(m: nn.Module, gamma: float=2):
     if isinstance(m, nn.Conv2d):
         # nn.init.kaiming_uniform_ doesn't take into account groups
         # remove when https://github.com/pytorch/pytorch/issues/23854 is resolved
-        # this is needed for proper init of EffNet models
-        fan_out = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-        fan_out //= m.groups
-        m.weight.data.normal_(0, math.sqrt(2.0 / fan_out))
+        m.weight.data.normal_(0, gamma / m.weight[0].numel() ** 0.5)  # gamma * 1 / sqrt(fan-in)
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
     # No check for BN because in PyTorch it is initialized with 1 & 0 by default
@@ -29,14 +24,10 @@ def initialize_fn(m):
             nn.init.constant_(m.bias, 0)
 
 
-def initialize(module):
-    for m in module.modules():
-        initialize_fn(m)
-
-
-def initialize_iterator(module_iterator):
-    for m in module_iterator:
-        initialize_fn(m)
+def initialize(module, gamma=2):
+    iterator = module.modules() if hasattr(module, 'modules') else module
+    for m in iterator:
+        initialize_fn(m, gamma=gamma)
 
 
 def set_random_seed(seed):

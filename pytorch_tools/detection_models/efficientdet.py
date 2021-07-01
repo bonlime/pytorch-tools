@@ -23,9 +23,9 @@ from pytorch_tools.modules.tf_same_ops import maxpool_to_same_maxpool
 from pytorch_tools.segmentation_models.encoders import get_encoder
 
 import pytorch_tools.utils.box as box_utils
-from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
-from pytorch_tools.utils.misc import initialize_iterator
+from pytorch_tools.utils.misc import initialize
 from pytorch_tools.utils.misc import patch_bn_mom
+from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 
 
 class EfficientDet(nn.Module):
@@ -209,7 +209,7 @@ class EfficientDet(nn.Module):
     def _initialize_weights(self):
         # init everything except encoder
         no_encoder_m = [m for n, m in self.named_modules() if not "encoder" in n]
-        initialize_iterator(no_encoder_m)
+        initialize(no_encoder_m)
         # need to init last bias so that after sigmoid it's 0.01
         cls_bias_init = -torch.log(torch.tensor((1 - 0.01) / 0.01))  # -4.59
         nn.init.constant_(self.cls_head_conv[1].bias, cls_bias_init)
