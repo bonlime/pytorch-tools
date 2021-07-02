@@ -9,8 +9,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
 
-
-def initialize_fn(m: nn.Module, gamma: float=2):
+# 1.71 is default for ReLU. see NFNet paper for details and timm's implementation
+def initialize_fn(m: nn.Module, gamma: float = 1.71):
     if isinstance(m, nn.Conv2d):
         # nn.init.kaiming_uniform_ doesn't take into account groups
         # remove when https://github.com/pytorch/pytorch/issues/23854 is resolved
@@ -24,10 +24,21 @@ def initialize_fn(m: nn.Module, gamma: float=2):
             nn.init.constant_(m.bias, 0)
 
 
-def initialize(module, gamma=2):
-    iterator = module.modules() if hasattr(module, 'modules') else module
+def initialize(module: nn.Module, gamma: float = 1.71):
+    iterator = module.modules() if hasattr(module, "modules") else module
     for m in iterator:
         initialize_fn(m, gamma=gamma)
+
+def zero_mean_conv_weight(w: torch.Tensor):
+    """zero mean conv would prevent mean shift in the network during training"""
+    w.data.sub_(w.mean(dim=(1, 2, 3), keepdim=True))
+
+def normalize_conv_weight(w: torch.Tensor, gamma: float = 1):
+    """w: Conv2d weight matrix; gamma: nonlinearity gain. should be 1 for identity, 1.72 for relu. see ... for details
+    Idea for implementation is borrowed from `timm` package
+    """
+    scale = torch.full((w.size(0),), fill_value=gamma * w[0].numel() ** -0.5, device=w.device)
+    return F.batch_norm(w.view(1, w.size(0), -1), None, None, weight=scale, training=True, momentum=0).reshape_as(w)
 
 
 def set_random_seed(seed):

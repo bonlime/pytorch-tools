@@ -55,3 +55,27 @@ def test_init_iterator():
     """check that init function works on iterators"""
     m = pt.models.resnet18()
     pt.utils.misc.initialize(m.modules())
+
+def test_normalize_conv_weight():
+    """test that normalizing conv weights helps to remove large mean shifts"""
+    seq = nn.Conv2d(16, 16, 3).requires_grad_(False)
+    inp = torch.randn(2, 16, 16, 16) + 10  # simulate large mean shift
+    out = seq(inp)
+    # usual conv doesn't help with mean shift
+    assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() > 5
+    seq.weight.data.copy_(pt.utils.misc.normalize_conv_weight(seq.weight))
+    out = seq(inp)
+    # correctly normalized conv should remove mean shift
+    assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() < 0.1
+
+def test_zero_mean_conv_weight():
+    """test that zero-mean of conv weights helps to remove large mean shifts"""
+    seq = nn.Conv2d(32, 32, 3).requires_grad_(False)
+    inp = torch.randn(2, 32, 16, 16) + 10  # simulate large mean shift
+    out = seq(inp)
+    # usual conv doesn't help with mean shift
+    assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() > 3
+    pt.utils.misc.zero_mean_conv_weight(seq.weight)
+    out = seq(inp)
+    # correctly normalized conv should remove mean shift
+    assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() < 0.1
