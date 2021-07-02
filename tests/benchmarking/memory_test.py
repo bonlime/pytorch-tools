@@ -4,18 +4,18 @@ import torch
 import pytest
 import argparse
 import numpy as np
-from apex import amp
+# from apex import amp
 import torchvision as tv
 import torch.backends.cudnn as cudnn
 
 import pytorch_tools as pt
 from pytorch_tools import models
 import pytorch_tools.segmentation_models as pt_sm
-import effdet
-import timm
+# import effdet
+# import timm
 
-sys.path.append("/home/zakirov/repoz/GPU-Efficient-Networks/")
-import GENet
+# sys.path.append("/home/zakirov/repoz/GPU-Efficient-Networks/")
+# import GENet
 
 
 class AverageMeter:
