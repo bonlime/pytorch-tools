@@ -270,11 +270,6 @@ def patch_bn_mom(module, momentum: float = 0.01):
     )
     if isinstance(module, NORM_CLASSES):
         module.momentum = momentum
-<<<<<<< HEAD
-=======
-        # in my opinion TF eps is better than default in pytorch
-        module.eps = 1e-3
->>>>>>> 335c47ef9526a7234cd23ef09ad74d8a69e99166
 
     for m in module.children():
         patch_bn_mom(m, momentum)

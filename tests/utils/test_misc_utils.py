@@ -30,7 +30,6 @@ def test_patch_bn_mom():
     assert model.bn1.momentum == new_mom
     assert model.layer4[1].bn2.momentum == model.bn1.momentum
 
-<<<<<<< HEAD
 def test_init_fn_long_seq():
     """check that variance is preserved over long sequences"""
     seq = nn.Sequential(*[nn.Conv2d(64, 64, 3, groups=16, padding_mode='reflect', padding=1) for _ in range(5)])
@@ -85,5 +84,3 @@ def test_zero_mean_conv_weight():
     out = seq(inp)
     # correctly normalized conv should remove mean shift
     assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() < 0.1
-=======
->>>>>>> 335c47ef9526a7234cd23ef09ad74d8a69e99166
