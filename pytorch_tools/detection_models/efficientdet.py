@@ -26,12 +26,6 @@ import pytorch_tools.utils.box as box_utils
 from pytorch_tools.utils.misc import initialize
 from pytorch_tools.utils.misc import patch_bn_mom
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
-<<<<<<< HEAD
-=======
-from pytorch_tools.utils.misc import initialize_iterator
-from pytorch_tools.utils.misc import patch_bn_mom
->>>>>>> 335c47ef9526a7234cd23ef09ad74d8a69e99166
-
 
 class EfficientDet(nn.Module):
     """
