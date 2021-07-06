@@ -33,7 +33,7 @@ class Callback(object):
     end
     """
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         self.state = RunnerState()
 
     def set_state(self, state):
@@ -111,6 +111,14 @@ class Callbacks(Callback):
         for callback in self.callbacks:
             callback.on_end()
 
+def rank_zero_only(cls: Callback) -> Callback:
+    """Returns Identity callback if rank != zero. supports wrapping a class and an instance"""
+    is_rank_zero = utils.env_rank() == 0
+    if isinstance(cls, type):  # cls is a class
+        return cls if is_rank_zero else Callback
+    else:  # cls is an instance of some Callback
+        return cls if is_rank_zero else Callback()
+
 
 class BatchMetrics(Callback):
     """
@@ -180,6 +188,7 @@ class LoaderMetrics(Callback):
                 self.state.metric_meters[name].update(utils.to_numpy(metric(output, target).squeeze()))
 
 
+@rank_zero_only
 class Timer(Callback):
     """
     Profiles first epoch and prints time spend on data loader and on model.
@@ -350,6 +359,7 @@ class ReduceLROnPlateau(Callback):
         return value
 
 
+@rank_zero_only
 class CheckpointSaver(Callback):
     """
     Save best model every epoch based on loss
@@ -428,6 +438,7 @@ class CheckpointSaver(Callback):
         return value
 
 
+@rank_zero_only
 class TensorBoard(Callback):
     """
     Saves training and validation statistics for TensorBoard
@@ -520,6 +531,7 @@ class TensorBoardCM(Callback):
             self.state.tb_logger.add_image("val/confusion_matrix", self.val_cm_img, self.state.global_sample_step)
 
 
+@rank_zero_only
 class ConsoleLogger(Callback):
     """Prints training progress to console for monitoring."""
 

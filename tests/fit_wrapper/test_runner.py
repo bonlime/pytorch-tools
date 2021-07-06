@@ -163,7 +163,7 @@ def test_invalid_phases_scheduler_mode():
 def test_loader_metric():
     """Check that LoaderMetric doesn't store grads and results are on cpu to avoid memory leak"""
     clb = pt_clb.LoaderMetrics(TEST_METRIC)
-    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=clb,)
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=clb)
     runner.fit(TEST_LOADER, epochs=2)
     assert clb.target[0].grad_fn is None
     assert clb.output[0].grad_fn is None
@@ -185,3 +185,15 @@ def test_tensorboar_CM():
         callbacks=[pt_clb.TensorBoardCM(), pt_clb.TensorBoard(log_dir=TMP_PATH)],
     )
     runner.fit(TEST_LOADER, epochs=2)
+
+def test_rank_zero_only():
+    """check that decorator disables come callbacks"""
+    os.environ["RANK"] = "0"
+    # check that wrapping instance work
+    timer = pt_clb.rank_zero_only(pt_clb.Timer())
+    assert hasattr(timer, 'timer')
+    
+    os.environ["RANK"] = "1"
+    # check that wrapping class also works
+    timer = pt_clb.rank_zero_only(pt_clb.Timer)()
+    assert not hasattr(timer, 'timer')
