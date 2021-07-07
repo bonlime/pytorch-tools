@@ -8,6 +8,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
+from typing import Optional, List
 
 # 1.71 is default for ReLU. see NFNet paper for details and timm's implementation
 def initialize_fn(m: nn.Module, gamma: float = 1.71):
@@ -29,9 +30,11 @@ def initialize(module: nn.Module, gamma: float = 1.71):
     for m in iterator:
         initialize_fn(m, gamma=gamma)
 
+
 def zero_mean_conv_weight(w: torch.Tensor):
     """zero mean conv would prevent mean shift in the network during training"""
     return w - w.mean(dim=(1, 2, 3), keepdim=True)
+
 
 def normalize_conv_weight(w: torch.Tensor, gamma: float = 1):
     """w: Conv2d weight matrix; gamma: nonlinearity gain. should be 1 for identity, 1.72 for relu. see ... for details
@@ -209,50 +212,19 @@ def reduce_meter(meter):
         setattr(meter, attr, reduce_tensor(old_value).cpu().numpy()[0])
 
 
-def filter_bn_from_wd(model):
-    """
-    Filter out batch norm parameters (and bias for conv) and remove them from weight decay. Gives
-    higher accuracy for large batch training.
-    Idea from: https://arxiv.org/pdf/1807.11205.pdf
-    Code from: https://github.com/cybertronai/imagenet18
-    Args:
-        model (torch.nn.Module): model
-    Returns:
-        dict with parameters
-    """
-    # import inside function to avoid problems with circular imports
-    import pytorch_tools.modules as pt_modules
-
-    NORM_CLASSES = (
-        torch.nn.modules.batchnorm._BatchNorm,
-        pt_modules.ABN,
-        pt_modules.SyncABN,
-        pt_modules.AGN,
-        pt_modules.InPlaceABN,
-        pt_modules.InPlaceABNSync,
-    )
-    CONV_CLASSES = (
-        torch.nn.modules.Linear,  # also add linear here
-        torch.nn.modules.conv._ConvNd,
-        pt_modules.weight_standartization.WS_Conv2d,
-    )
-
-    def _get_params(module):
-        # for BN filter both weight and bias
-        if isinstance(module, NORM_CLASSES):
-            return module.parameters()
-        # for conv & linear only filter bias
-        elif isinstance(module, CONV_CLASSES) and module.bias is not None:
-            return (module.bias,)  # want to return list
-        accum = set()
-        for child in module.children():
-            [accum.add(p) for p in _get_params(child)]
-        return accum
-
-    bn_params = _get_params(model)
-    bn_params2 = [p for p in model.parameters() if p in bn_params]
-    rem_params = [p for p in model.parameters() if p not in bn_params]
-    return [{"params": rem_params}, {"params": bn_params2, "weight_decay": 0}]
+def filter_from_weight_decay(model: nn.Module, skip_list: Optional[List[str]] = None):
+    decay = []
+    no_decay = []
+    skip_list = listify(skip_list)
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue  # frozen weights
+        in_stop_list = any(skip_word in name for skip_word in skip_list)
+        if len(param.shape) == 1 or name.endswith(".bias") or in_stop_list:
+            no_decay.append(param)
+        else:
+            decay.append(param)
+    return [{"params": decay}, {"params": no_decay, "weight_decay": 0}]
 
 
 def patch_bn_mom(module, momentum: float = 0.01):

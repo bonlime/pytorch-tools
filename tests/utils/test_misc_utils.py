@@ -5,16 +5,21 @@ import pytorch_tools as pt
 
 def test_filter_bn():
     model = pt.models.resnet18()
-    param_groups = pt.utils.misc.filter_bn_from_wd(model)
+    param_groups = pt.utils.misc.filter_from_weight_decay(model)
     assert param_groups[1]["weight_decay"] == 0
     assert len(param_groups[0]["params"]) == 21
     assert len(param_groups[1]["params"]) == 41
 
     model = pt.models.efficientnet_b0()
-    param_groups = pt.utils.misc.filter_bn_from_wd(model)
+    param_groups = pt.utils.misc.filter_from_weight_decay(model)
     assert param_groups[1]["weight_decay"] == 0
     assert len(param_groups[0]["params"]) == 82
     assert len(param_groups[1]["params"]) == 131
+
+    # check that skip_list works as expected
+    model = pt.models.resnet18(attn_type="eca")
+    param_groups = pt.utils.misc.filter_from_weight_decay(model, skip_list=("se_module",))
+    assert len(param_groups[1]["params"]) == 49
 
 
 def test_patch_bn_mom():
