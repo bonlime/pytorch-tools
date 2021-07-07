@@ -1,10 +1,5 @@
-<<<<<<< HEAD
 import torch
 import torch.nn as nn
-=======
-from pytorch_tools import models
-import pytest
->>>>>>> 335c47ef9526a7234cd23ef09ad74d8a69e99166
 import pytorch_tools as pt
 
 
@@ -30,36 +25,40 @@ def test_patch_bn_mom():
     assert model.bn1.momentum == new_mom
     assert model.layer4[1].bn2.momentum == model.bn1.momentum
 
+
 def test_init_fn_long_seq():
     """check that variance is preserved over long sequences"""
-    seq = nn.Sequential(*[nn.Conv2d(64, 64, 3, groups=16, padding_mode='reflect', padding=1) for _ in range(5)])
+    seq = nn.Sequential(*[nn.Conv2d(64, 64, 3, groups=16, padding_mode="reflect", padding=1) for _ in range(5)])
     seq = seq.eval().requires_grad_(False)
     inp = torch.randn(64, 64, 64, 64)
-    assert seq(inp).std() < 0.2 # always holds for default init
+    assert seq(inp).std() < 0.2  # always holds for default init
     pt.utils.misc.initialize(seq, gamma=1)
     assert seq(inp).std() > 0.9  # usually >0.5 but setting lower to pass test in 100%
 
-    
+
 def test_init_fn_groups():
     """check that init works for DW convs"""
     seq = nn.Conv2d(64, 64, 3, groups=4).requires_grad_(False)
     inp = torch.randn(64, 64, 64, 64)
-    assert seq(inp).std() < 0.6 # always holds for default init
+    assert seq(inp).std() < 0.6  # always holds for default init
     pt.utils.misc.initialize(seq, gamma=1)
     assert seq(inp).std() > 0.9  # usually >0.5 but setting lower to pass test in 100%
+
 
 def test_init_fn_diff_out():
     """check that init works in case of very different number of channels"""
     seq = nn.Conv2d(16, 256, 3).requires_grad_(False)
     inp = torch.randn(64, 16, 64, 64)
-    assert seq(inp).std() < 0.6 # always holds for default init
+    assert seq(inp).std() < 0.6  # always holds for default init
     pt.utils.misc.initialize(seq, gamma=1)
     assert seq(inp).std() > 0.9  # usually >0.5 but setting lower to pass test in 100%
+
 
 def test_init_iterator():
     """check that init function works on iterators"""
     m = pt.models.resnet18()
     pt.utils.misc.initialize(m.modules())
+
 
 def test_normalize_conv_weight():
     """test that normalizing conv weights helps to remove large mean shifts"""
@@ -73,6 +72,7 @@ def test_normalize_conv_weight():
     # correctly normalized conv should remove mean shift
     assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() < 0.1
 
+
 def test_zero_mean_conv_weight():
     """test that zero-mean of conv weights helps to remove large mean shifts"""
     seq = nn.Conv2d(32, 32, 3).requires_grad_(False)
@@ -80,7 +80,7 @@ def test_zero_mean_conv_weight():
     out = seq(inp)
     # usual conv doesn't help with mean shift
     assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() > 3
-    pt.utils.misc.zero_mean_conv_weight(seq.weight)
+    seq.weight.data = pt.utils.misc.zero_mean_conv_weight(seq.weight)
     out = seq(inp)
     # correctly normalized conv should remove mean shift
     assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() < 0.1

@@ -31,7 +31,7 @@ def initialize(module: nn.Module, gamma: float = 1.71):
 
 def zero_mean_conv_weight(w: torch.Tensor):
     """zero mean conv would prevent mean shift in the network during training"""
-    w.data.sub_(w.mean(dim=(1, 2, 3), keepdim=True))
+    return w - w.mean(dim=(1, 2, 3), keepdim=True)
 
 def normalize_conv_weight(w: torch.Tensor, gamma: float = 1):
     """w: Conv2d weight matrix; gamma: nonlinearity gain. should be 1 for identity, 1.72 for relu. see ... for details
