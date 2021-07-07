@@ -19,7 +19,7 @@ from .weight_standartization import conv_to_ws_conv
 from .activations import ACT_DICT
 from .activations import ACT_FUNC_DICT
 from .activations import activation_from_name
-from .activations import Mish, MishNaive, Swish, SwishNaive
+from .activations import Mish, MishNaive
 
 from .activated_batch_norm import ABN
 from .activated_batch_norm import SyncABN

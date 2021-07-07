@@ -3,7 +3,7 @@ import pytest
 import pytorch_tools as pt
 import pytorch_tools.modules as modules
 
-activations_name = ["Swish", "Swish_Naive", "Mish", "Mish_naive"]
+activations_name = ["Mish", "Mish_naive"]
 INP = torch.ones(2, 10, 16, 16)
 
 
@@ -154,6 +154,7 @@ def test_space2depth():
     expected2 = torch.tensor([[[[0, 2], [8, 10]], [[1, 3], [9, 11]], [[4, 6], [12, 14]], [[5, 7], [13, 15]]]])
     assert torch.allclose(out2, expected2)
 
+
 def test_drop_connect():
     """"Tests that dropconnect works correctly for any number of dimensions"""
     drop_connect = modules.residual.DropConnect(0.5)
@@ -172,4 +173,4 @@ def test_fused_vgg():
     inp = torch.randn(1, 4, 3, 3)
     orig_out = orig(inp)
     fused_out = fused(inp)
-    assert torch.allclose(orig_out, fused_out)
+    assert torch.allclose(orig_out, fused_out, atol=1e-6)
