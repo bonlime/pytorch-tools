@@ -58,7 +58,10 @@ def test_abcn():
     l = modules.bn_from_name("abcn")(10, num_groups=2)
 
 
-# bcn runs
+def test_no_norm():
+    """check that can init without params"""
+    modules.bn_from_name("none")(10)
+    modules.bn_from_name("none")()
 
 
 def test_drop_connect_repr():

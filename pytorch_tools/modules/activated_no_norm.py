@@ -17,7 +17,7 @@ class NoNormAct(nn.Module):
         activation_param (float): Negative slope for the `leaky_relu` activation.
     """
 
-    def __init__(self, num_features, activation="relu", activation_param=0.01):
+    def __init__(self, num_features=-1, activation="relu", activation_param=0.01):
         super().__init__()
         self.num_features = num_features
         self.activation = ACT(activation)
