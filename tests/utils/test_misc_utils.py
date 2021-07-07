@@ -71,11 +71,11 @@ def test_normalize_conv_weight():
     inp = torch.randn(2, 16, 16, 16) + 10  # simulate large mean shift
     out = seq(inp)
     # usual conv doesn't help with mean shift
-    assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() > 5
+    assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() > 3
     seq.weight.data.copy_(pt.utils.misc.normalize_conv_weight(seq.weight))
     out = seq(inp)
     # correctly normalized conv should remove mean shift
-    assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() < 0.1
+    assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() < 0.5
 
 
 def test_zero_mean_conv_weight():
@@ -88,4 +88,4 @@ def test_zero_mean_conv_weight():
     seq.weight.data = pt.utils.misc.zero_mean_conv_weight(seq.weight)
     out = seq(inp)
     # correctly normalized conv should remove mean shift
-    assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() < 0.1
+    assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() < 0.5
