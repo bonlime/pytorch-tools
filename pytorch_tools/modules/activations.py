@@ -126,7 +126,7 @@ ACT_FUNC_DICT = {
 }
 
 
-def activation_from_name(activation_name):
+def activation_from_name(activation_name, inplace=True):
     if type(activation_name) == str:
         activation_name = ACT(activation_name.lower())
-    return ACT_DICT[activation_name](inplace=True)
+    return ACT_DICT[activation_name](inplace=inplace)
