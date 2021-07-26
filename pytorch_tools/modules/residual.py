@@ -59,7 +59,7 @@ class SEVar3(nn.Module):
         self.fc1 = conv1x1(channels, channels, bias=True)
 
     def forward(self, x):
-        return x * self.fc1(self.pool(x))
+        return x * self.fc1(self.pool(x)).sigmoid()
 
 class ECAModule(nn.Module):
     """Efficient Channel Attention
@@ -271,6 +271,8 @@ def get_attn(attn_type):
         "ms-cam": MSCAMModule,
         "fca": FCAAttn,
         "fca-eca": FCA_ECA_Attn,
+        "xca": XCA,
+        "esa": ESA,
     }
         
     if attn_type is None:
@@ -1366,3 +1368,122 @@ class FusedRepVGGBlock(nn.Sequential):
         
         self.conv.weight.data = kernel_id + kernel_conv
         self.conv.bias.data = bias_conv
+
+
+# modules from XCiT paper
+# XCA_Token is from timm, XCA is the same (convered by tests) but works direcly on B x C x H x W tensor
+class XCA_Token(nn.Module):
+    """ Cross-Covariance Attention (XCA)
+    Operation where the channels are updated using a weighted sum. The weights are obtained from the (softmax
+    normalized) Cross-covariance matrix (Q^T \\cdot K \\in d_h \\times d_h)
+    """
+
+    def __init__(self, dim, num_heads=8, qkv_bias=False, attn_drop=0., proj_drop=0.):
+        super().__init__()
+        self.num_heads = num_heads
+        self.temperature = nn.Parameter(torch.ones(num_heads, 1, 1))
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(proj_drop)
+
+    def forward(self, x):
+        B, N, C = x.shape
+        # Result of next line is (qkv, B, num (H)eads,  (C')hannels per head, N)
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 4, 1)
+        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
+        
+        # Paper section 3.2 l2-Normalization and temperature scaling
+        q = torch.nn.functional.normalize(q, dim=-1)
+        k = torch.nn.functional.normalize(k, dim=-1)
+        attn = (q @ k.transpose(-2, -1)) * self.temperature
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+
+        # (B, H, C', N), permute -> (B, N, H, C')
+        x = (attn @ v).permute(0, 3, 1, 2).reshape(B, N, C)
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        return x
+
+class XCA(nn.Module):
+    """ Cross-Covariance Attention (XCA)
+    Operation where the channels are updated using a weighted sum. The weights are obtained from the (softmax
+    normalized) Cross-covariance matrix (Q^T \\cdot K \\in d_h \\times d_h)
+    This could be viewed as dynamic 1x1 convolution
+    """
+
+    def __init__(self, dim, num_heads=8, qkv_bias=True, attn_drop=0., proj_drop=0.):
+        super().__init__()
+        self.num_heads = num_heads
+        self.temperature = nn.Parameter(torch.ones(num_heads, 1, 1))
+        self.qkv = conv1x1(dim, dim * 3, bias=qkv_bias)
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = conv1x1(dim, dim, bias=True)
+        self.proj_drop = nn.Dropout(proj_drop)
+
+    def forward(self, x):
+        B, C, H, W = x.shape
+        # C` == channels per head, Hd == num heads
+        # B x C x H x W -> B x 3*C x H x W -> B x 3 x Hd x C` x H*W -> 3 x B x Hd x C` x H*W
+        qkv = self.qkv(x).reshape(B, 3, self.num_heads, C // self.num_heads, -1).transpose(0, 1)
+        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy
+        
+        # Paper section 3.2 l2-Normalization and temperature scaling
+        q = torch.nn.functional.normalize(q, dim=-1)
+        k = torch.nn.functional.normalize(k, dim=-1)
+        # -> B x Hd x C` x C`
+        attn = (q @ k.transpose(-2, -1)) * self.temperature
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+        
+        # B x Hd x C` x C` @ B x Hd x C` x H*W -> B x C x H x W
+        x_out = (attn @ v).reshape(B, C, H, W)
+        x_out = self.proj(x_out)
+        x_out = self.proj_drop(x_out)
+        # in original paper there is no residual here 
+        return x + x_out
+    
+    def load_state_dict(self, state_dict):
+        # to allow loading from Linear layer
+        new_sd = {}
+        for k, v in state_dict.items():
+            if v.dim() == 2:
+                new_sd[k] = v[..., None, None]
+            else:
+                new_sd[k] = v
+        super().load_state_dict(new_sd)
+
+
+class ESA(nn.Module):
+    """
+    Efficient self-attention. Performs self-attention on channels after GAP to significantly reduce ammount of required compute
+    Close to SE-Var3 from ECA paper and XCA above
+
+    """
+    def __init__(self, dim, num_heads=8, qkv_bias=True, use_proj=True):
+        super().__init__()
+        self.num_heads = num_heads
+        self.pool = FastGlobalAvgPool2d()
+        self.qkv = conv1x1(dim, dim * 3, bias=qkv_bias)
+        self.temperature = nn.Parameter(torch.ones(num_heads, 1, 1))
+        self.proj = conv1x1(dim, dim, bias=True) if use_proj else nn.Identity()
+        
+    def forward(self, x):
+        B, C = x.shape[:2]
+        # C` == channels per head, Hd == num heads
+        # B x C x H x W -> B x 3*C x 1 x 1 -> B x 3 x Hd x C` x 1 -> 3 x B x Hd x C` x 1
+        qkv = self.qkv(self.pool(x)).reshape(B, 3, self.num_heads, C // self.num_heads, -1).transpose(0, 1)
+        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy
+        
+        # Paper section 3.2 l2-Normalization and temperature scaling. BUT! scaling is for channels because we don't have enough tokens
+        q = torch.nn.functional.normalize(q, dim=-2)
+        k = torch.nn.functional.normalize(k, dim=-2)
+        # -> B x Hd x C` x C`
+        attn = (q @ k.transpose(-2, -1)) * self.temperature
+        attn = attn.softmax(dim=-1)
+        
+        # B x Hd x C` x C` @ B x Hd x C` x 1 -> B x C x 1
+        x_out = (attn @ v).reshape(B, C, 1, 1)
+        x_out = self.proj(x_out)
+        return x + x_out.expand_as(x)
