@@ -48,9 +48,7 @@ class Runner:
             start_epoch (int): From which epoch to start. Useful on restarts. Defaults to 0.
         """
         self.state.num_epochs = epochs
-        self.state.batch_size = 1
-        if train_loader.__dict__.get("batch_size") is not None:
-            self.state.batch_size = train_loader.batch_size
+        self.state.batch_size = getattr(train_loader, 'batch_size', 1)
         self.callbacks.on_begin()
         for epoch in range(start_epoch, epochs):
             self.state.is_train = True
