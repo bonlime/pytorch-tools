@@ -8,7 +8,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 # 1.71 is default for ReLU. see NFNet paper for details and timm's implementation
 def initialize_fn(m: nn.Module, gamma: float = 1.71):
@@ -282,3 +282,12 @@ class ToCudaLoader:
     def __len__(self):
         return len(self.loader)
 
+
+def update_dict(to_dict: Dict, from_dict: Dict) -> Dict:
+    """close to `to_dict.update(from_dict)` but correctly updates internal dicts"""
+    for k, v in from_dict.items():
+        if hasattr(v, "keys") and k in to_dict.keys():
+            to_dict[k].update(v)
+        else:
+            to_dict[k] = v
+    return to_dict

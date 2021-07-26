@@ -89,3 +89,24 @@ def test_zero_mean_conv_weight():
     out = seq(inp)
     # correctly normalized conv should remove mean shift
     assert out.mean(dim=(0, 2, 3)).pow(2).mean().sqrt().item() < 0.5
+
+
+def test_update_dict():
+    """Tests to make sure updating dict works as expected"""
+    # simple update
+    d_to = {'a': 10, 'b': 20}
+    d_from = {'a': 12, 'c': 30}
+    d_expected = {'a': 12, 'b': 20, 'c': 30}
+    assert pt.utils.misc.update_dict(d_to, d_from) == d_expected
+
+    # recursive update. dict.update would fail in this case
+    d_to = {'foo': {'a': 10, 'b': 20}}
+    d_from = {'foo': {'a': 12, 'c': 30}}
+    d_expected = {'foo': {'a': 12, 'b': 20, 'c': 30}}
+    assert pt.utils.misc.update_dict(d_to, d_from) == d_expected
+
+    # when key is not present in `to`
+    d_to = {'bar': 1}
+    d_from = {'foo': {'a': 12, 'c': 30}}
+    d_expected = {'bar': 1, 'foo': {'a': 12, 'c': 30}}
+    assert pt.utils.misc.update_dict(d_to, d_from) == d_expected
