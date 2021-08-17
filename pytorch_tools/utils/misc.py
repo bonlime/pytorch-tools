@@ -117,10 +117,10 @@ def to_tensor(x, dtype=None):
 
 class AverageMeter:
     """Computes and stores the average and current value
-        Attributes:
-            val - last value
-            avg - true average
-            avg_smooth - smoothed average"""
+    Attributes:
+        val - last value
+        avg - true average
+        avg_smooth - smoothed average"""
 
     def __init__(self, name="Meter", avg_mom=0.9):
         self.avg_mom = avg_mom

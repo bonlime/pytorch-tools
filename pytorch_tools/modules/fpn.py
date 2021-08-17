@@ -17,7 +17,7 @@ class FPN(nn.Module):
     """Feature Pyramid Network for enhancing high-resolution feature maps with semantic
     meaning from low resolution maps
     Ref: https://arxiv.org/abs/1612.03144
-        
+
     Args:
         encoder_channels (List[int]): Number of channels for each input feature map
         pyramid_channels (int): Number of channels in each feature map after FPN. Defaults to 256.
@@ -37,9 +37,7 @@ class FPN(nn.Module):
         assert num_layers == 1, "More that 1 layer is not supported in FPN"
 
         # we DO use bias in this convs
-        self.lateral_convs = nn.ModuleList(
-            [conv1x1(in_ch, pyramid_channels, bias=True) for in_ch in encoder_channels]
-        )
+        self.lateral_convs = nn.ModuleList([conv1x1(in_ch, pyramid_channels, bias=True) for in_ch in encoder_channels])
         self.smooth_convs = nn.ModuleList(
             [conv3x3(pyramid_channels, pyramid_channels, bias=True) for in_ch in encoder_channels]
         )

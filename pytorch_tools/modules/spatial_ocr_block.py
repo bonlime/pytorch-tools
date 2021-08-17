@@ -19,7 +19,7 @@ from pytorch_tools.modules.residual import conv1x1
 class SpatialOCR_Gather(nn.Module):
     """Aggregate the context features according to the initial predicted probability distribution.
        Employ the soft-weighted method to aggregate the context.
-    Input: 
+    Input:
         torch.Tensor (B x C_2 x H x W), torch.Tensor (B x C_1 x H x W)
     Returns:
         torch.Tensor (B x C_2 x C_1 x 1)
@@ -80,14 +80,17 @@ class SpatialOCR(nn.Module):
             norm_layer(key_channels, activation=norm_act),
         )
         self.f_down = nn.Sequential(
-            conv1x1(in_channels, key_channels, bias=True), norm_layer(key_channels, activation=norm_act),
+            conv1x1(in_channels, key_channels, bias=True),
+            norm_layer(key_channels, activation=norm_act),
         )
         self.f_up = nn.Sequential(
-            conv1x1(key_channels, in_channels, bias=True), norm_layer(in_channels, activation=norm_act),
+            conv1x1(key_channels, in_channels, bias=True),
+            norm_layer(in_channels, activation=norm_act),
         )
 
         self.conv_bn = nn.Sequential(
-            conv1x1(2 * in_channels, out_channels, bias=True), norm_layer(out_channels, activation=norm_act),
+            conv1x1(2 * in_channels, out_channels, bias=True),
+            norm_layer(out_channels, activation=norm_act),
         )
 
     def forward(self, feats, proxy_feats):

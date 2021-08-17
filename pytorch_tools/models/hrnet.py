@@ -127,7 +127,7 @@ class HighResolutionModule(nn.Module):
 class TransitionBlock(nn.Module):
     """Transition is where new branches for smaller resolution are born
     -- ==> --
-    
+
     -- ==> --
       \
        \=> --
@@ -195,9 +195,9 @@ class HRClassificationHead(nn.Module):
 
 class HighResolutionNet(nn.Module):
     """HighResolution Nets constructor
-    Supports any width and small version of the network 
+    Supports any width and small version of the network
 
-    Ref: 
+    Ref:
         * HRNet paper https://arxiv.org/abs/1908.07919
 
 
@@ -219,8 +219,8 @@ class HighResolutionNet(nn.Module):
             Activation for normalizion layer. It's reccomended to use `leacky_relu` with `inplaceabn`. Default: 'relu'
         encoder (bool):
             Flag to overwrite forward pass to return 5 tensors with different resolutions. Defaults to False.
-            NOTE: HRNet first features have resolution 4x times smaller than input, not 2x as all other models. 
-            So it CAN'T be used as encoder in Unet and Linknet models 
+            NOTE: HRNet first features have resolution 4x times smaller than input, not 2x as all other models.
+            So it CAN'T be used as encoder in Unet and Linknet models
     """
 
     # drop_rate (float):
@@ -261,7 +261,10 @@ class HighResolutionNet(nn.Module):
 
         self.transition3 = TransitionBlock(channels[:3], channels, **bn_args)
         self.stage4 = self._make_stage(  # 2 if small else 3
-            n_modules=(3, 2)[small], n_branches=4, n_blocks=n_blocks, n_chnls=channels,
+            n_modules=(3, 2)[small],
+            n_branches=4,
+            n_blocks=n_blocks,
+            n_chnls=channels,
         )
 
         self.encoder = encoder
@@ -278,7 +281,14 @@ class HighResolutionNet(nn.Module):
     def _make_stage(self, n_modules, n_branches, n_blocks, n_chnls):
         modules = []
         for i in range(n_modules):
-            modules.append(HighResolutionModule(n_branches, n_blocks, n_chnls, **self.bn_args,))
+            modules.append(
+                HighResolutionModule(
+                    n_branches,
+                    n_blocks,
+                    n_chnls,
+                    **self.bn_args,
+                )
+            )
         return nn.Sequential(*modules)
 
     def encoder_features(self, x):
@@ -378,9 +388,7 @@ def _hrnet(arch, pretrained=None, **kwargs):
         cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
     if common_args:
-        logging.warning(
-            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
-        )
+        logging.warning(f"Args {common_args} are going to be overwritten by default params for {pretrained} weights")
     kwargs.update(cfg_params)
     model = HighResolutionNet(**kwargs)
     if pretrained:

@@ -37,6 +37,7 @@ except (ModuleNotFoundError, ImportError):
     InPlaceABN = ABN
     InPlaceABNSync = ABN
 
+
 def bn_from_name(norm_name):
     norm_name = norm_name.lower()
     if norm_name == "abn":

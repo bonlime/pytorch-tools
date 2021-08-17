@@ -53,7 +53,7 @@ class ResNet(nn.Module):
         in_channels (int):
             Number of input (color) channels. Defaults to 3.
         attn_type (Union[str, None]):
-            If given, selects attention type to use in blocks. One of 
+            If given, selects attention type to use in blocks. One of
             `se` - Squeeze-Excitation
             `eca` - Efficient Channel Attention
         groups (int):
@@ -61,10 +61,10 @@ class ResNet(nn.Module):
         base_width (int):
             Factor determining bottleneck channels. `planes * base_width / 64 * groups`. Defaults to 64.
         stem_type (str):
-            Type on input stem. Supported options are: 
+            Type on input stem. Supported options are:
             '' - default. One 7x7 conv with 64 channels
             'deep' - three 3x3 conv with 32, 32, 64, channels
-            'space2depth' - Reshape followed by one convolution. Idea from TResNet paper 
+            'space2depth' - Reshape followed by one convolution. Idea from TResNet paper
         output_stride (List[8, 16, 32]): Applying dilation strategy to pretrained ResNet. Typically used in
             Semantic Segmentation. Defaults to 32.
             NOTE: Don't use this arg with `antialias` and `pretrained` together. it may produce weird results
@@ -80,7 +80,7 @@ class ResNet(nn.Module):
         drop_rate (float):
             Dropout probability before classifier, for training. Defaults to 0.0.
         drop_connect_rate (float):
-            Drop rate for StochasticDepth. Randomly removes samples each block. Used as regularization during training. 
+            Drop rate for StochasticDepth. Randomly removes samples each block. Used as regularization during training.
             keep prob will be linearly decreased from 1 to 1 - drop_connect_rate each block. Ref: https://arxiv.org/abs/1603.09382
         init_bn0 (bool):
             Zero-initialize the last BN in each residual branch, so that the residual
@@ -241,9 +241,7 @@ class ResNet(nn.Module):
                     conv3x3(stem_width // 2, stem_width),
                 )
             else:
-                self.conv1 = nn.Conv2d(
-                    in_channels, stem_width, kernel_size=7, stride=2, padding=3, bias=False
-                )
+                self.conv1 = nn.Conv2d(in_channels, stem_width, kernel_size=7, stride=2, padding=3, bias=False)
             self.bn1 = norm_layer(stem_width, activation=norm_act)
             self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
@@ -340,25 +338,25 @@ CFGS = {
     "resnet50": {
         "default": {"params": {"block": Bottleneck, "layers": [3, 4, 6, 3]}, **DEFAULT_IMAGENET_SETTINGS,},
         "imagenet": {"url": "https://download.pytorch.org/models/resnet50-19c8e357.pth"},
-        # I couldn't validate this weights because they give Acc@1 0.1 maybe a bug somewhere. Still leaving them just in case 
+        # I couldn't validate this weights because they give Acc@1 0.1 maybe a bug somewhere. Still leaving them just in case
         # it works better that starting from scratch
         "imagenet_gn": {
-            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-101-GN-abf6008e.pth", 
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-101-GN-abf6008e.pth",
             "params": {"norm_layer": "agn"}
         },
         # Acc@1: 76.33. Acc@5: 93.34. This weights only work with weight standardization!
         "imagenet_gn_ws": {
-            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-50-GN-WS-fd84efb6.pth", 
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-50-GN-WS-fd84efb6.pth",
             "params": {"norm_layer": "agn"}
         },
     },
     "resnet101": {
         "default": {"params": {"block": Bottleneck, "layers": [3, 4, 23, 3]}, **DEFAULT_IMAGENET_SETTINGS,},
         "imagenet": {"url": "https://download.pytorch.org/models/resnet101-5d3b4d8f.pth"},
-        # I couldn't validate this weights because they give Acc@1 0.1 maybe a bug somewhere. Still leaving them just in case 
+        # I couldn't validate this weights because they give Acc@1 0.1 maybe a bug somewhere. Still leaving them just in case
         # it works better that starting from scratch
         "imagenet_gn": {
-            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-101-GN-abf6008e.pth", 
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/R-101-GN-abf6008e.pth",
             "params": {"norm_layer": "agn"}
         },
         # Acc@1: 77.85. Acc@5: 93.90. This weights only work with weight standardization!
@@ -400,7 +398,7 @@ CFGS = {
         },
         # Acc@1: 77.28. Acc@5: 93.61. This weights only work with weight standardization!
         "imagenet_gn_ws": {
-            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/X-50-GN-WS-2dea43a8.pth", 
+            "url": "https://github.com/bonlime/pytorch-tools/releases/download/v0.1.2/X-50-GN-WS-2dea43a8.pth",
             "params": {"norm_layer": "agn"}
         },
     },
@@ -549,9 +547,7 @@ def _resnet(arch, pretrained=None, **kwargs):
         cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
     if common_args:
-        logging.warning(
-            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
-        )
+        logging.warning(f"Args {common_args} are going to be overwritten by default params for {pretrained} weights")
     kwargs.update(cfg_params)
     model = ResNet(**kwargs)
     if pretrained:

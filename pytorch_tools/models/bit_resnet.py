@@ -106,7 +106,7 @@ class ResNetV2(nn.Module):
     """
     Implementation of Pre-activation (v2) ResNet mode.
     Used to create Bit-M-50/101/152x1/2/3/4 models
-    
+
     Args:
         num_classes (int): Number of classification classes. Defaults to 5
     """

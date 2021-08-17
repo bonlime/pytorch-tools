@@ -4,6 +4,7 @@ import torch
 import pytest
 import argparse
 import numpy as np
+
 # from apex import amp
 import torchvision as tv
 import torch.backends.cudnn as cudnn
@@ -11,6 +12,7 @@ import torch.backends.cudnn as cudnn
 import pytorch_tools as pt
 from pytorch_tools import models
 import pytorch_tools.segmentation_models as pt_sm
+
 # import effdet
 # import timm
 
@@ -128,10 +130,16 @@ if __name__ == "__main__":
     parser.add_argument("--torch_amp", action="store_true", help="Measure speed using torch native mixed precision")
     parser.add_argument("--channels_last", action="store_true", help="Use channels last memory format")
     parser.add_argument(
-        "--bs", default=64, type=int, help="BS for benchmarking",
+        "--bs",
+        default=64,
+        type=int,
+        help="BS for benchmarking",
     )
     parser.add_argument(
-        "--sz", default=224, type=int, help="Size of images for benchmarking",
+        "--sz",
+        default=224,
+        type=int,
+        help="Size of images for benchmarking",
     )
     args = parser.parse_args()
     # all models are first init to cpu memory to find errors earlier

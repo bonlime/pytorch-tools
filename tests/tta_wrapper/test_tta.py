@@ -108,5 +108,14 @@ def test_wrapper_segm(merge):
 def test_wrapper_cls(merge):
     m = SumAll()
     inp = INPUT / 15.0  # make sure max is less that 1 to avoid overflow
-    tta_m = TTA(m, segm=False, h_flip=True, v_flip=True, h_shift=1, v_shift=-1, rotation=90, merge=merge,)
+    tta_m = TTA(
+        m,
+        segm=False,
+        h_flip=True,
+        v_flip=True,
+        h_shift=1,
+        v_shift=-1,
+        rotation=90,
+        merge=merge,
+    )
     assert tta_m(inp).allclose(torch.Tensor([8.0]))

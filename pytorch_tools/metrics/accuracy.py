@@ -2,7 +2,7 @@ class Accuracy:
     """
     Accuracy with support for binary and multiclass classification.
     Also supports images
-    
+
     Args:
         y_pred (Tensor): raw logits of shape (N, C) or (N, C, H, W)
         y_true (Long Tensor): true classes of shape (N,) or one-hot encoded of shape (N, C)

@@ -2,7 +2,7 @@
 
 Tool box for PyTorch for fast prototyping.
 
-# Overview  
+# Overview
 * [FitWrapper](./pytorch_tools/fit_wrapper/) - Keras like model trainer
 * [Losses](./pytorch_tools/losses/) - collection of different Loss functions.
 * [Metrics](./pytorch_tools/metrics/) - collection of metrics.
@@ -18,4 +18,4 @@ Requires GPU drivers and CUDA already installed.
 
 It is also recommended to install NVIDIA Apex to allow usage of additional optimizers
 
-`pip install ---upgrade -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git`  
+`pip install ---upgrade -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git`

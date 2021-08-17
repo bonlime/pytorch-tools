@@ -7,9 +7,7 @@ from .residual import conv3x3, conv1x1, DepthwiseSeparableConv, get_attn
 
 
 class UnetDecoderBlock(nn.Module):
-    def __init__(
-        self, in_channels, out_channels, norm_layer=ABN, norm_act="relu", upsample=True, attn_type=None
-    ):
+    def __init__(self, in_channels, out_channels, norm_layer=ABN, norm_act="relu", upsample=True, attn_type=None):
         super(UnetDecoderBlock, self).__init__()
 
         conv1 = conv3x3(in_channels, out_channels)
@@ -86,7 +84,8 @@ class ASPP(nn.Module):
         out_channels = 256
         norm_params = {"norm_layer": norm_layer, "norm_act": norm_act}
         self.conv0 = nn.Sequential(
-            conv1x1(in_channels, out_channels), norm_layer(out_channels, activation=norm_act),
+            conv1x1(in_channels, out_channels),
+            norm_layer(out_channels, activation=norm_act),
         )
         self.pool = ASPPPooling(in_channels, out_channels, **norm_params)
 
@@ -132,7 +131,8 @@ class DeepLabHead(nn.Module):
             dilation_rates = [i * 2 for i in dilation_rates]
         self.aspp = ASPP(encoder_channels[0], dilation_rates, norm_layer, norm_act)
         self.conv0 = nn.Sequential(
-            conv3x3(OUT_CHANNELS, OUT_CHANNELS), norm_layer(OUT_CHANNELS, activation=norm_act),
+            conv3x3(OUT_CHANNELS, OUT_CHANNELS),
+            norm_layer(OUT_CHANNELS, activation=norm_act),
         )
         self.proj_conv = nn.Sequential(
             conv1x1(encoder_channels[3], PROJ_CONV_CHANNELS),

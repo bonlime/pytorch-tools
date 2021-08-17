@@ -7,7 +7,7 @@ def rle_encode(mask):
     """
     Convert mask to EncodedPixels in run-length encoding
     from https://www.kaggle.com/stainsby/fast-tested-rle-and-input-routines
-    Args: 
+    Args:
         mask(np.array): mask to be converted
     """
     pixels = mask.T.flatten()

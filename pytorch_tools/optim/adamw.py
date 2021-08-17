@@ -99,7 +99,7 @@ class AdamW(Optimizer):
                     # Exponential moving average of gradient values
                     state["exp_avg"] = torch.zeros_like(p, memory_format=torch.preserve_format)
                     # Exponential moving average of squared gradient values
-                    state["exp_avg_sq"] = torch.ones_like(p, memory_format=torch.preserve_format) # torch init to zeros
+                    state["exp_avg_sq"] = torch.ones_like(p, memory_format=torch.preserve_format)  # torch init to zeros
                     if amsgrad:
                         # Maintains max of all exp. moving avg. of sq. grad. values
                         state["max_exp_avg_sq"] = torch.zeros_like(p, memory_format=torch.preserve_format)

@@ -5,9 +5,7 @@ import pytorch_tools as pt
 import pytorch_tools.models as models
 
 ALL_MODEL_NAMES = sorted(
-    name
-    for name in models.__dict__
-    if name.islower() and not name.startswith("_") and callable(models.__dict__[name])
+    name for name in models.__dict__ if name.islower() and not name.startswith("_") and callable(models.__dict__[name])
 )
 
 DENSENET_NAMES = [name for name in ALL_MODEL_NAMES if "dense" in name]
@@ -24,12 +22,7 @@ HRNET_NAMES = [name for name in ALL_MODEL_NAMES if "hrnet" in name]
 
 # test only part of the models
 TEST_MODEL_NAMES = (
-    DENSENET_NAMES[:1]
-    + EFFNET_NAMES[:1]
-    + VGG_NAMES[:1]
-    + RESNET_NAMES[:1]
-    + TRESNET_NAMES[:1]
-    + HRNET_NAMES[:1]
+    DENSENET_NAMES[:1] + EFFNET_NAMES[:1] + VGG_NAMES[:1] + RESNET_NAMES[:1] + TRESNET_NAMES[:1] + HRNET_NAMES[:1]
 )
 # TEST_MODEL_NAMES = HRNET_NAMES[:1]
 INP = torch.ones(2, 3, 128, 128)

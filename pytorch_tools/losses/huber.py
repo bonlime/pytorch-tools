@@ -4,7 +4,7 @@ from .base import Reduction
 
 class SmoothL1Loss(Loss):
     """Huber loss aka Smooth L1 Loss
-    
+
     loss = 0.5 * x^2                  if |x| <= d
     loss = 0.5 * d^2 + d * (|x| - d)  if |x| > d
 

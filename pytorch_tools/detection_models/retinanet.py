@@ -15,27 +15,27 @@ from pytorch_tools.utils.misc import initialize
 
 
 class RetinaNet(nn.Module):
-    """RetinaNet 
+    """RetinaNet
     Main difference from other implementations are:
     * support of any custom encoder from this repo
     * optional normalization layer in box classification head
     * ability to freeze batch norm in encoder with one line
-    
+
     Args:
-        pretrained (str): one of `coco` or None. if `coco` - load pretrained weights 
+        pretrained (str): one of `coco` or None. if `coco` - load pretrained weights
         encoder_name (str): name of classification model (without last dense layers) used as feature
             extractor to build detection model
         encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-trained on ImageNet)
         pyramid_channels (int): size of features after FPN. Default 256
-        num_classes (int): a number of classes to predict 
+        num_classes (int): a number of classes to predict
             class_outputs shape is (BS, *, NUM_CLASSES) where each row in * corresponds to one bbox
         encoder_norm_layer (str): Normalization layer to use in encoder. If using pretrained
             it should be the same as in pretrained weights
         encoder_norm_act (str): Activation for normalization layer in encoder
-        decoder_norm_layer (str): Normalization to use in head convolutions. Default (none) is not to use normalization. 
+        decoder_norm_layer (str): Normalization to use in head convolutions. Default (none) is not to use normalization.
             Current implementation is optimized for `GroupNorm`, not `BatchNorm` check code for details
         decoder_norm_act (str): Activation for normalization layer in head convolutions
-    
+
     Ref:
         Focal Loss for Dense Object Detection - https://arxiv.org/abs/1708.02002
         Mmdetection - https://github.com/open-mmlab/mmdetection/ (at commit b9daf23)

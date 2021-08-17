@@ -10,9 +10,7 @@ from pytorch_tools.utils.visualization import tensor_from_rgb_image
 import pytorch_tools.models as models
 
 MODEL_NAMES = sorted(
-    name
-    for name in models.__dict__
-    if name.islower() and not name.startswith("__") and callable(models.__dict__[name])
+    name for name in models.__dict__ if name.islower() and not name.startswith("__") and callable(models.__dict__[name])
 )
 
 # tests are made to be run from root project directory

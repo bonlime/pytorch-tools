@@ -126,9 +126,7 @@ class StyleLoss(Loss):
         loss = 0
         # for i_g, s_g in zip(input_gram, style_gram):
 
-        loss = [
-            self.criterion(torch.stack(i_g), torch.stack(s_g)) for i_g, s_g in zip(input_gram, style_gram)
-        ]
+        loss = [self.criterion(torch.stack(i_g), torch.stack(s_g)) for i_g, s_g in zip(input_gram, style_gram)]
         return loss
 
     def get_features(self, x):

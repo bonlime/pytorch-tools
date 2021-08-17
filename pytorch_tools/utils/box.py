@@ -35,7 +35,7 @@ def delta2box(deltas, anchors):
         deltas (torch.Tensor): shape [N, 4] or [BS, N, 4]
         anchors (torch.Tensor): shape [N, 4] or [BS, N, 4]
     Returns:
-        bboxes (torch.Tensor): bboxes obtained from anchors by regression 
+        bboxes (torch.Tensor): bboxes obtained from anchors by regression
             Output shape is [N, 4] or [BS, N, 4] depending on input
     """
     # cast to fp32 to avoid numerical problems with exponent
@@ -63,8 +63,8 @@ def box_area(box):
 def clip_bboxes(bboxes, size):
     # type: (Tensor, Tuple[int, int]) -> Tensor
     """Args:
-        bboxes (torch.Tensor): in `ltrb` format. Shape [N, 4]
-        size (Union[torch.Size, tuple]): (H, W). Shape [2,]"""
+    bboxes (torch.Tensor): in `ltrb` format. Shape [N, 4]
+    size (Union[torch.Size, tuple]): (H, W). Shape [2,]"""
     bboxes[:, 0::2] = bboxes[:, 0::2].clamp(0, size[1])
     bboxes[:, 1::2] = bboxes[:, 1::2].clamp(0, size[0])
     return bboxes
@@ -73,10 +73,10 @@ def clip_bboxes(bboxes, size):
 def clip_bboxes_batch(bboxes, size):
     # type: (Tensor, Tensor) -> Tensor
     """Args:
-        This function could also accept not batched bboxes but it works
-        slower than `clip_bboxes` in that case
-        bboxes (torch.Tensor): in `ltrb` format. Shape [BS, N, 4]
-        size (torch.Tensor): (H, W). Shape [BS, 2] """
+    This function could also accept not batched bboxes but it works
+    slower than `clip_bboxes` in that case
+    bboxes (torch.Tensor): in `ltrb` format. Shape [BS, N, 4]
+    size (torch.Tensor): (H, W). Shape [BS, 2]"""
     size = size.to(bboxes)
     h_size = size[..., 0].view(-1, 1, 1)  # .float()
     w_size = size[..., 1].view(-1, 1, 1)  # .float()
@@ -148,13 +148,17 @@ def batch_box_iou(box1, box2):
 # based on https://github.com/NVIDIA/retinanet-examples/
 # and on https://github.com/google/automl/
 def generate_anchors_boxes(
-    image_size, num_scales=3, aspect_ratios=(1.0, 2.0, 0.5), pyramid_levels=(3, 4, 5, 6, 7), anchor_scale=4,
+    image_size,
+    num_scales=3,
+    aspect_ratios=(1.0, 2.0, 0.5),
+    pyramid_levels=(3, 4, 5, 6, 7),
+    anchor_scale=4,
 ):
     # type: (Tuple[int, int], int, List[float], List[int], int) -> Tuple[Tensor, int]
     """Generates multiscale anchor boxes
     Minimum object size which could be detected is anchor_scale * 2**pyramid_levels[0]. By default it's 32px
     Maximum object size which could be detected is anchor_scale * 2**pyramid_levels[-1]. By default it's 512px
-    
+
     Args:
         image_size (int or (int, int)): shape of the image
         num_scales (int): integer number representing intermediate scales added on each level. For instances,
@@ -202,7 +206,7 @@ def generate_anchors_boxes(
 def generate_targets(anchors, batch_gt_boxes, num_classes, matched_iou=0.5, unmatched_iou=0.4):
     # type: (Tensor, Tensor, int, float, float) -> Tuple[Tensor, Tensor, Tensor]
     """Generate targets for regression and classification
-    
+
     Based on IoU between anchor and true bounding box there are three types of anchor boxes
     1) IoU >= matched_iou: Highest similarity. Matched/Positive. Mask value is 1
     2) matched_iou > IoU >= unmatched_iou: Medium similarity. Ignored. Mask value is -1
@@ -336,9 +340,7 @@ def decode(
     # It's much faster to calculate topk once for full batch here rather than doing it inside loop
     # In TF The same bbox may belong to two different objects
     # select `max_detection_points` scores and corresponding bboxes
-    scores_topk_all, cls_topk_indices_all = torch.topk(
-        batch_cls_head.view(batch_size, -1), k=max_detection_points
-    )
+    scores_topk_all, cls_topk_indices_all = torch.topk(batch_cls_head.view(batch_size, -1), k=max_detection_points)
     indices_all = cls_topk_indices_all // num_classes
     classes_all = (cls_topk_indices_all % num_classes).float()  # turn to float for onnx export
 

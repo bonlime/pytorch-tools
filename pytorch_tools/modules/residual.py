@@ -49,8 +49,10 @@ class SEModule(nn.Module):
         x_se = self.fc2(x_se)
         return x * x_se.sigmoid()
 
+
 class SEVar3(nn.Module):
     """Variant of SE module from ECA paper (see above) which doesn't have dimensionality reduction"""
+
     def __init__(self, channels, *args):
         super().__init__()
 
@@ -60,6 +62,7 @@ class SEVar3(nn.Module):
 
     def forward(self, x):
         return x * self.fc1(self.pool(x)).sigmoid()
+
 
 class ECAModule(nn.Module):
     """Efficient Channel Attention
@@ -121,38 +124,41 @@ class SCSEModule(nn.Module):
     def forward(self, x):
         return self.reduction_conv(torch.cat([self.sse(x), self.cse(x)], dim=1))
 
+
 class MSCAMModule(nn.Module):
     """Idea from Attentional Feature Fusion (MS-CAM)
     Combines global and local attention in a better manner than scSE
     """
 
-    def __init__(self, in_ch, reduced_ch, norm_layer=ABN, norm_act="relu"): # parse additional args for compatability
+    def __init__(self, in_ch, reduced_ch, norm_layer=ABN, norm_act="relu"):  # parse additional args for compatability
         super().__init__()
         self.global_attn = nn.Sequential(
             FastGlobalAvgPool2d(),
             conv1x1(in_ch, reduced_ch),
             norm_layer(reduced_ch, activation=norm_act),
             conv1x1(reduced_ch, in_ch),
-            norm_layer(in_ch, activation="identity"), # no last activation
+            norm_layer(in_ch, activation="identity"),  # no last activation
         )
-        # this 
+        # this
         self.local_attn = nn.Sequential(
             conv1x1(in_ch, reduced_ch),
             norm_layer(reduced_ch, activation=norm_act),
             conv1x1(reduced_ch, in_ch),
-            norm_layer(in_ch, activation="identity"), # no last activation
+            norm_layer(in_ch, activation="identity"),  # no last activation
         )
-        
+
     def forward(self, x):
         xl = self.local_attn(x)
         xg = self.global_attn(x)
         return x * (xl + xg).sigmoid()
 
+
 class FCAAttn(nn.Module):
     """Inspired by FcaNet: Frequency Channel Attention Networks (https://arxiv.org/pdf/2012.11879.pdf)
-    
+
     But I view it as positional encoding and multiply be a predefined set of filters
     """
+
     def __init__(self, channels, reduction_channels, norm_act="relu"):
 
         super().__init__()
@@ -166,7 +172,7 @@ class FCAAttn(nn.Module):
             nn.Sigmoid(),
         )
         # dummy shape. would be overwritten later. not registering as buffer intentionally
-        self.pos_encoding = torch.ones(1, 1, 1, 1) 
+        self.pos_encoding = torch.ones(1, 1, 1, 1)
 
     def _get_pos_encoding(self, inp):
         """Want this to be generated for each input size separately"""
@@ -175,9 +181,9 @@ class FCAAttn(nn.Module):
         xx = torch.linspace(0, math.pi, inp.size(3)).cos()[None].repeat(inp.size(2), 1)
         yy = torch.linspace(0, math.pi, inp.size(2)).cos()[None].repeat(inp.size(3), 1).T
         xy = torch.linspace(-math.pi, math.pi, inp.size(3)).cos().neg().repeat(inp.size(2), 1)
-        self.pos_encoding[:, c_part * 1:c_part * 2] = xx
-        self.pos_encoding[:, c_part * 2:c_part * 3] = yy
-        self.pos_encoding[:, c_part * 3:c_part * 4] = xy
+        self.pos_encoding[:, c_part * 1 : c_part * 2] = xx
+        self.pos_encoding[:, c_part * 2 : c_part * 3] = yy
+        self.pos_encoding[:, c_part * 3 : c_part * 4] = xy
         return self.pos_encoding
 
     def forward(self, x):
@@ -187,18 +193,20 @@ class FCAAttn(nn.Module):
         x_se = self.fc(x_se)
         return x * x_se
 
+
 class FCA_ECA_Attn(nn.Module):
     """Inspired by FcaNet: Frequency Channel Attention Networks (https://arxiv.org/pdf/2012.11879.pdf)
-    
+
     But I view it as positional encoding and multiply be a predefined set of filters
     This class uses Efficient Channel Attention instead of SE
     """
+
     def __init__(self, *args, kernel_size=3, **kwargs):
         super().__init__()
         self.pool = FastGlobalAvgPool2d()
         self.conv = nn.Conv1d(1, 1, kernel_size=kernel_size, padding=kernel_size // 2, bias=False)
         # dummy shape. would be overwritten later. not registering as buffer intentionally
-        self.pos_encoding = torch.ones(1, 1, 1, 1) 
+        self.pos_encoding = torch.ones(1, 1, 1, 1)
 
     def _get_pos_encoding(self, inp):
         """Want this to be generated for each input size separately"""
@@ -207,9 +215,9 @@ class FCA_ECA_Attn(nn.Module):
         xx = torch.linspace(0, math.pi, inp.size(3)).cos()[None].repeat(inp.size(2), 1)
         yy = torch.linspace(0, math.pi, inp.size(2)).cos()[None].repeat(inp.size(3), 1).T
         xy = torch.linspace(-math.pi, math.pi, inp.size(3)).cos().neg().repeat(inp.size(2), 1)
-        self.pos_encoding[:, c_part * 1:c_part * 2] = xx
-        self.pos_encoding[:, c_part * 2:c_part * 3] = yy
-        self.pos_encoding[:, c_part * 3:c_part * 4] = xy
+        self.pos_encoding[:, c_part * 1 : c_part * 2] = xx
+        self.pos_encoding[:, c_part * 2 : c_part * 3] = yy
+        self.pos_encoding[:, c_part * 3 : c_part * 4] = xy
         return self.pos_encoding
 
     def forward(self, x):
@@ -222,28 +230,29 @@ class FCA_ECA_Attn(nn.Module):
         x_s = x_s.view(x.size(0), -1, 1, 1).sigmoid()
         return x * x_s.expand_as(x)
 
+
 class MyAttn(nn.Module):
     """Idea from Attentional Feature Fusion (MS-CAM)
     Combines global and local attention in a better manner than scSE
     """
 
-    def __init__(self, in_ch, reduced_ch, norm_layer=ABN, norm_act="relu"): # parse additional args for compatability
+    def __init__(self, in_ch, reduced_ch, norm_layer=ABN, norm_act="relu"):  # parse additional args for compatability
         super().__init__()
         self.global_attn = nn.Sequential(
             FastGlobalAvgPool2d(),
             conv1x1(in_ch, reduced_ch),
             norm_layer(reduced_ch, activation=norm_act),
             conv1x1(reduced_ch, in_ch),
-            norm_layer(in_ch, activation="identity"), # no last activation
+            norm_layer(in_ch, activation="identity"),  # no last activation
         )
-        # this 
+        # this
         self.local_attn = nn.Sequential(
             conv1x1(in_ch, reduced_ch),
             norm_layer(reduced_ch, activation=norm_act),
             conv1x1(reduced_ch, in_ch),
-            norm_layer(in_ch, activation="identity"), # no last activation
+            norm_layer(in_ch, activation="identity"),  # no last activation
         )
-        
+
     def forward(self, x):
         xl = self.local_attn(x)
         xg = self.global_attn(x)
@@ -274,7 +283,7 @@ def get_attn(attn_type):
         "xca": XCA,
         "esa": ESA,
     }
-        
+
     if attn_type is None:
         return nn.Identity
     else:
@@ -363,7 +372,7 @@ class DropConnect(nn.Module):
         if not self.training:
             return x
         random_tensor = self.keep_prob
-        random_tensor += torch.rand((x.size(0),) + (1, ) * (x.dim() - 1), dtype=x.dtype, device=x.device)
+        random_tensor += torch.rand((x.size(0),) + (1,) * (x.dim() - 1), dtype=x.dtype, device=x.device)
         binary_tensor = torch.floor(random_tensor)
         output = x / self.keep_prob * binary_tensor
         return output
@@ -578,7 +587,13 @@ class CSPDarkBasicBlock(nn.Module):
     """
 
     def __init__(
-        self, in_channels, out_channels, attn_type=None, norm_layer=ABN, norm_act="leaky_relu", keep_prob=1,
+        self,
+        in_channels,
+        out_channels,
+        attn_type=None,
+        norm_layer=ABN,
+        norm_act="leaky_relu",
+        keep_prob=1,
     ):
         super().__init__()
         mid_channels = int(in_channels * bottle_ratio)
@@ -873,13 +888,16 @@ class SimplePreActRes2BasicBlock(nn.Module):
         else:
             self.bn1 = norm_layer(in_chs, activation=norm_act)
             self.block_1 = nn.Sequential(
-                conv3x3(in_chs // 4, in_chs // 4), norm_layer(in_chs // 4, activation=norm_act),
+                conv3x3(in_chs // 4, in_chs // 4),
+                norm_layer(in_chs // 4, activation=norm_act),
             )
             self.block_2 = nn.Sequential(
-                conv3x3(in_chs // 4, in_chs // 4), norm_layer(in_chs // 4, activation=norm_act),
+                conv3x3(in_chs // 4, in_chs // 4),
+                norm_layer(in_chs // 4, activation=norm_act),
             )
             self.block_3 = nn.Sequential(
-                conv3x3(in_chs // 4, in_chs // 4), norm_layer(in_chs // 4, activation=norm_act),
+                conv3x3(in_chs // 4, in_chs // 4),
+                norm_layer(in_chs // 4, activation=norm_act),
             )
             self.last_conv = conv3x3(in_chs, out_chs)  # expand in last conv in block
 
@@ -919,7 +937,13 @@ class SimpleInvertedResidual(nn.Module):
         else:
             self.expansion = nn.Identity()
         self.conv_dw = nn.Conv2d(
-            mid_chs, mid_chs, dw_kernel_size, stride=stride, groups=mid_chs, bias=False, padding=dw_kernel_size // 2,
+            mid_chs,
+            mid_chs,
+            dw_kernel_size,
+            stride=stride,
+            groups=mid_chs,
+            bias=False,
+            padding=dw_kernel_size // 2,
         )
         self.bn2 = norm_layer(mid_chs, activation=norm_act)
         # some models like MobileNet use mid_chs here instead of in_channels. But I don't care for now
@@ -973,7 +997,13 @@ class SimplePreActInvertedResidual(nn.Module):
         self.bn2 = norm_layer(mid_chs, activation=norm_act)
         dw_kernel_size = dw_str2_kernel_size if stride == 2 else dw_kernel_size
         self.conv_dw = nn.Conv2d(
-            mid_chs, mid_chs, dw_kernel_size, stride=stride, groups=mid_chs, bias=False, padding=dw_kernel_size // 2,
+            mid_chs,
+            mid_chs,
+            dw_kernel_size,
+            stride=stride,
+            groups=mid_chs,
+            bias=False,
+            padding=dw_kernel_size // 2,
         )
         # some models like MobileNet use mid_chs here instead of in_channels. But I don't care for now
         self.se = get_attn(attn_type)(mid_chs, in_chs // 4, norm_act)
@@ -1024,7 +1054,13 @@ class PreBlock_2(nn.Module):
 
         dw_kernel_size = dw_str2_kernel_size if stride == 2 else dw_kernel_size
         conv_dw = nn.Conv2d(
-            out_chs, out_chs, dw_kernel_size, stride=stride, groups=out_chs, bias=False, padding=dw_kernel_size // 2,
+            out_chs,
+            out_chs,
+            dw_kernel_size,
+            stride=stride,
+            groups=out_chs,
+            bias=False,
+            padding=dw_kernel_size // 2,
         )
         self.dw = nn.Sequential(norm_layer(out_chs, activation=norm_act), conv_dw)
 
@@ -1177,8 +1213,8 @@ class SimpleStage(nn.Module):
         stride (int): stride for first convolution
         bottle_ratio (float): how much channels are reduced inside blocks
         antialias (bool): flag to apply gaussiian smoothing before conv with stride 2
-    
-    Ref: TODO: add 
+
+    Ref: TODO: add
 
     """
 
@@ -1272,14 +1308,14 @@ class RepVGGBlock(nn.Module):
     This block is inspired by [1] and [2]. The idea is to have `n_heads` parallel branches of convolutions which are then summed + residual
     For performance they are implemented as one conv3x3. I removed normalization by making sure this block is variance preserving
     RepVGGBlock(act=Identity)( N(0, 1)) ~= N(0, 1)
-    
+
     NOTE: this block requires correct initialization of conv weighs to work. Highly recommended to use with ConvWS
-    NOTE: for some reasons SELU activation still causes increase in variance. The possible solution is to use gain = 0.5 in ConvWS instead of 1 
+    NOTE: for some reasons SELU activation still causes increase in variance. The possible solution is to use gain = 0.5 in ConvWS instead of 1
 
     For inference this block could be replaced with `FusedRepVGGBlock` for significant speed-up
 
     Args:
-        in_chs (int): 
+        in_chs (int):
             number of input channels
         out_chs (int):
             number of output channels. if out_chs > in_chs performs partial residual
@@ -1287,10 +1323,10 @@ class RepVGGBlock(nn.Module):
             number of parallel branches
         act (nn.Module):
             activation to use. recommended is nn.SELU
-        alpha (float): 
+        alpha (float):
             parameter for skip init, balancing signal between block and residual path. output would be
             x * (1 - alpha) + sum[conv3x3_i(x) * alpha], for i in range(n_heads)
-        trainable_alpha (bool): 
+        trainable_alpha (bool):
             if True make alpha a parameter, else it's un-trainable buffer
             having trainable alpha may be beneficial. Timm repo says it could bring noticeable
             slowdown for training. need to investigate
@@ -1299,16 +1335,17 @@ class RepVGGBlock(nn.Module):
         [1] RepVGG: Making VGG-style ConvNets Great Again
         [2] High-Performance Large-Scale Image Recognition Without Normalization
     """
+
     def __init__(self, in_chs, out_chs, n_heads=2, act=nn.SELU, alpha=0.2, trainable_alpha=False):
         super().__init__()
         self.in_chs = in_chs
         self.out_chs = out_chs
         self.n_heads = n_heads
-        
+
         assert 0 <= alpha <= 1
 
         self.conv = nn.Conv2d(in_chs, out_chs * n_heads, kernel_size=3, padding=1)
-        
+
         # it's important to carefully initialize alpha so that this block is variance preserving
         branch_alpha = torch.ones(1, out_chs, 1, 1) * (alpha / n_heads) ** 0.5
         # take care of extra features without residual (they appear if out_chs > in_chs)
@@ -1316,12 +1353,12 @@ class RepVGGBlock(nn.Module):
         residual_alpha = torch.tensor((1 - alpha) ** 0.5)
 
         if trainable_alpha:
-            self.register_parameter('skipinit_res', nn.Parameter(residual_alpha))
-            self.register_parameter('skipinit_branch', nn.Parameter(branch_alpha))
+            self.register_parameter("skipinit_res", nn.Parameter(residual_alpha))
+            self.register_parameter("skipinit_branch", nn.Parameter(branch_alpha))
         else:
-            self.register_buffer('skipinit_res', residual_alpha)
-            self.register_buffer('skipinit_branch', branch_alpha)
-    
+            self.register_buffer("skipinit_res", residual_alpha)
+            self.register_buffer("skipinit_branch", branch_alpha)
+
         self.activation = act()
 
     def forward(self, x):
@@ -1335,37 +1372,37 @@ class RepVGGBlock(nn.Module):
             branch_res += res
         else:
             branch_res = branch_res * self.skipinit_branch
-            branch_res[:, :self.in_chs] += res
+            branch_res[:, : self.in_chs] += res
         out = self.activation(branch_res)
         return out
-        
+
     def extra_repr(self):
         return f"num_heads={self.n_heads}"
+
 
 class FusedRepVGGBlock(nn.Sequential):
     def __init__(self, in_chs, out_chs, act=nn.SELU):
         super().__init__()
         self.add_module("conv", nn.Conv2d(in_chs, out_chs, kernel_size=3, padding=1))
         self.add_module("activation", act())
-    
+
     def load_state_dict(self, state_dict):
-        if state_dict.get('skipinit_res', None) is None:
+        if state_dict.get("skipinit_res", None) is None:
             super().load_state_dict(state_dict)
-        
-        
+
         self_w = self.conv.weight
         self_b = self.conv.bias
-        
+
         kernel_id = torch.zeros_like(self_w)
-        kernel_id[:self_w.size(1), :, 1, 1] = torch.eye(self_w.size(1))
+        kernel_id[: self_w.size(1), :, 1, 1] = torch.eye(self_w.size(1))
         kernel_id *= state_dict["skipinit_res"]
 
-        kernel_conv = state_dict["conv.weight"].view(-1, *self_w.shape).sum(0)        
+        kernel_conv = state_dict["conv.weight"].view(-1, *self_w.shape).sum(0)
         bias_conv = state_dict["conv.bias"].view(-1, *self.conv.bias.shape).sum(0)
-        
+
         kernel_conv *= state_dict["skipinit_branch"].view(self_w.size(0), 1, 1, 1)
         bias_conv *= state_dict["skipinit_branch"].flatten()
-        
+
         self.conv.weight.data = kernel_id + kernel_conv
         self.conv.bias.data = bias_conv
 
@@ -1373,12 +1410,12 @@ class FusedRepVGGBlock(nn.Sequential):
 # modules from XCiT paper
 # XCA_Token is from timm, XCA is the same (convered by tests) but works direcly on B x C x H x W tensor
 class XCA_Token(nn.Module):
-    """ Cross-Covariance Attention (XCA)
+    """Cross-Covariance Attention (XCA)
     Operation where the channels are updated using a weighted sum. The weights are obtained from the (softmax
     normalized) Cross-covariance matrix (Q^T \\cdot K \\in d_h \\times d_h)
     """
 
-    def __init__(self, dim, num_heads=8, qkv_bias=False, attn_drop=0., proj_drop=0.):
+    def __init__(self, dim, num_heads=8, qkv_bias=False, attn_drop=0.0, proj_drop=0.0):
         super().__init__()
         self.num_heads = num_heads
         self.temperature = nn.Parameter(torch.ones(num_heads, 1, 1))
@@ -1392,7 +1429,7 @@ class XCA_Token(nn.Module):
         # Result of next line is (qkv, B, num (H)eads,  (C')hannels per head, N)
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 4, 1)
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
-        
+
         # Paper section 3.2 l2-Normalization and temperature scaling
         q = torch.nn.functional.normalize(q, dim=-1)
         k = torch.nn.functional.normalize(k, dim=-1)
@@ -1406,14 +1443,15 @@ class XCA_Token(nn.Module):
         x = self.proj_drop(x)
         return x
 
+
 class XCA(nn.Module):
-    """ Cross-Covariance Attention (XCA)
+    """Cross-Covariance Attention (XCA)
     Operation where the channels are updated using a weighted sum. The weights are obtained from the (softmax
     normalized) Cross-covariance matrix (Q^T \\cdot K \\in d_h \\times d_h)
     This could be viewed as dynamic 1x1 convolution
     """
 
-    def __init__(self, dim, num_heads=8, qkv_bias=True, attn_drop=0., proj_drop=0.):
+    def __init__(self, dim, num_heads=8, qkv_bias=True, attn_drop=0.0, proj_drop=0.0):
         super().__init__()
         self.num_heads = num_heads
         self.temperature = nn.Parameter(torch.ones(num_heads, 1, 1))
@@ -1428,7 +1466,7 @@ class XCA(nn.Module):
         # B x C x H x W -> B x 3*C x H x W -> B x 3 x Hd x C` x H*W -> 3 x B x Hd x C` x H*W
         qkv = self.qkv(x).reshape(B, 3, self.num_heads, C // self.num_heads, -1).transpose(0, 1)
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy
-        
+
         # Paper section 3.2 l2-Normalization and temperature scaling
         q = torch.nn.functional.normalize(q, dim=-1)
         k = torch.nn.functional.normalize(k, dim=-1)
@@ -1436,14 +1474,14 @@ class XCA(nn.Module):
         attn = (q @ k.transpose(-2, -1)) * self.temperature
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
-        
+
         # B x Hd x C` x C` @ B x Hd x C` x H*W -> B x C x H x W
         x_out = (attn @ v).reshape(B, C, H, W)
         x_out = self.proj(x_out)
         x_out = self.proj_drop(x_out)
-        # in original paper there is no residual here 
+        # in original paper there is no residual here
         return x + x_out
-    
+
     def load_state_dict(self, state_dict):
         # to allow loading from Linear layer
         new_sd = {}
@@ -1461,6 +1499,7 @@ class ESA(nn.Module):
     Close to SE-Var3 from ECA paper and XCA above
 
     """
+
     def __init__(self, dim, num_heads=8, qkv_bias=True, use_proj=True):
         super().__init__()
         self.num_heads = num_heads
@@ -1468,21 +1507,21 @@ class ESA(nn.Module):
         self.qkv = conv1x1(dim, dim * 3, bias=qkv_bias)
         self.temperature = nn.Parameter(torch.ones(num_heads, 1, 1))
         self.proj = conv1x1(dim, dim, bias=True) if use_proj else nn.Identity()
-        
+
     def forward(self, x):
         B, C = x.shape[:2]
         # C` == channels per head, Hd == num heads
         # B x C x H x W -> B x 3*C x 1 x 1 -> B x 3 x Hd x C` x 1 -> 3 x B x Hd x C` x 1
         qkv = self.qkv(self.pool(x)).reshape(B, 3, self.num_heads, C // self.num_heads, -1).transpose(0, 1)
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy
-        
+
         # Paper section 3.2 l2-Normalization and temperature scaling. BUT! scaling is for channels because we don't have enough tokens
         q = torch.nn.functional.normalize(q, dim=-2)
         k = torch.nn.functional.normalize(k, dim=-2)
         # -> B x Hd x C` x C`
         attn = (q @ k.transpose(-2, -1)) * self.temperature
         attn = attn.softmax(dim=-1)
-        
+
         # B x Hd x C` x C` @ B x Hd x C` x 1 -> B x C x 1
         x_out = (attn @ v).reshape(B, C, 1, 1)
         x_out = self.proj(x_out)

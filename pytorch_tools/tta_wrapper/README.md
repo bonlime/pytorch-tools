@@ -1,5 +1,5 @@
 # Test Time Augmentation Wrapper
-This module wraps existing PyTorch model, performs inference on multiple augmented images and them merges the predictions into one. 
+This module wraps existing PyTorch model, performs inference on multiple augmented images and them merges the predictions into one.
 
 Wrapper adds augmentation layers to your model like this:
 ```

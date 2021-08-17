@@ -24,7 +24,7 @@ class TResNet(ResNet):
     """TResNet M / TResNet L / XL
 
 
-    Ref: 
+    Ref:
         * TResNet paper: https://arxiv.org/abs/2003.13630
 
 
@@ -38,7 +38,7 @@ class TResNet(ResNet):
             Number of classification classes. Defaults to 1000.
         in_channels (int):
             Number of input (color) channels. Defaults to 3.
-        width_factor (int): 
+        width_factor (int):
             Stem width is 64 * width_factor. neede to make larger models
         output_stride (List[8, 16, 32]): Applying dilation strategy to pretrained ResNet. Typically used in
             Semantic Segmentation. Defaults to 32.
@@ -50,8 +50,8 @@ class TResNet(ResNet):
             Activation for normalizion layer. It's reccomended to use `leacky_relu` with `inplaceabn`.
         encoder (bool):
             Flag to overwrite forward pass to return 5 tensors with different resolutions. Defaults to False.
-            NOTE: TResNet first features have resolution 4x times smaller than input, not 2x as all other models. 
-            So it CAN'T be used as encoder in Unet and Linknet models 
+            NOTE: TResNet first features have resolution 4x times smaller than input, not 2x as all other models.
+            So it CAN'T be used as encoder in Unet and Linknet models
         drop_rate (float):
             Dropout probability before classifier, for training. Defaults to 0.
         drop_connect_rate (float):
@@ -104,13 +104,9 @@ class TResNet(ResNet):
 
         self.block = TBottleneck  # first 2 - Basic, last 2 - Bottleneck
         self.expansion = TBottleneck.expansion
-        self.layer3 = self._make_layer(
-            stem_width * 4, layers[2], stride=stride_3, dilation=dilation_3, **largs
-        )
+        self.layer3 = self._make_layer(stem_width * 4, layers[2], stride=stride_3, dilation=dilation_3, **largs)
         largs.update(attn_type=None)  # no se in last layer
-        self.layer4 = self._make_layer(
-            stem_width * 8, layers[3], stride=stride_4, dilation=dilation_4, **largs
-        )
+        self.layer4 = self._make_layer(stem_width * 8, layers[3], stride=stride_4, dilation=dilation_4, **largs)
         self.global_pool = FastGlobalAvgPool2d(flatten=True)
         self.num_features = stem_width * 8 * self.expansion
         self.encoder = encoder
@@ -139,7 +135,7 @@ PRETRAIN_SETTINGS = {
     "std": [1., 1., 1.],
     "num_classes": 1000,
 }
-# for each model there are weights trained on 224 crops from imagenet and 
+# for each model there are weights trained on 224 crops from imagenet and
 # weights finetuned on 448x448 crops. I'm using the latest as default because they work better for
 # finetuning on large image sizes
 CFGS = {
@@ -195,9 +191,7 @@ def _resnet(arch, pretrained=None, **kwargs):
         cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
     if common_args:
-        logging.warning(
-            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
-        )
+        logging.warning(f"Args {common_args} are going to be overwritten by default params for {pretrained} weights")
     kwargs.update(cfg_params)
     model = TResNet(**kwargs)
     if pretrained:

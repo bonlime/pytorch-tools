@@ -20,6 +20,7 @@ from pytorch_tools.utils.misc import patch_bn_mom
 
 from .encoders import get_encoder
 
+
 def patch_inplace_abn(module):
     """changes weight from InplaceABN to be compatible with usual ABN"""
     if isinstance(module, ABN):
@@ -37,15 +38,15 @@ class HRNet(nn.Module):
         encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
         num_classes (int): a number of classes for output (output shape - ``(batch, classes, h, w)``).
         pretrained (Union[str, None]): hrnet_w48 and hrnet_w48+OCR have pretrained weights. init models using functions rather than
-            from class to load them. Available options are: None, `cityscape` 
+            from class to load them. Available options are: None, `cityscape`
         last_upsample (bool): Flag to enable upsampling predictions to the original image size. If set to `False` prediction
             would be 4x times smaller than input image. Default True.
         drop_rate (float): Probability of spatial dropout on last feature map
-        OCR (bool): Flag to add object context block to the model. See `Ref` section for paper. 
+        OCR (bool): Flag to add object context block to the model. See `Ref` section for paper.
         norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory
             footprint. But increases backward time. Defaults to 'abn'.
         norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
-    
+
     Ref:
         Deep High-Resolution Representation Learning for Visual Recognition: https://arxiv.org/abs/1908.07919
         Object-Contextual Representations for Semantic Segmentation: https://arxiv.org/abs/1909.11065
@@ -79,7 +80,8 @@ class HRNet(nn.Module):
         self.OCR = OCR
         if OCR:
             self.conv3x3 = nn.Sequential(
-                conv3x3(final_channels, 512, bias=True), norm_layer(512, activation=norm_act),
+                conv3x3(final_channels, 512, bias=True),
+                norm_layer(512, activation=norm_act),
             )
             self.ocr_gather_head = SpatialOCR_Gather()
             self.ocr_distri_head = SpatialOCR(
@@ -164,7 +166,7 @@ CFGS = {
     "hrnet_w48_ocr": {
         "default": {
             "params": {"encoder_name": "hrnet_w48", "OCR": True},
-            "input_space": "BGR", # this weights were trained using cv2.imread 
+            "input_space": "BGR", # this weights were trained using cv2.imread
             "norm_layer": "inplace_abn",
             **SETTINGS,
         },
@@ -183,9 +185,7 @@ def _hrnet(arch, pretrained=None, **kwargs):
         cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
     if common_args:
-        logging.warning(
-            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
-        )
+        logging.warning(f"Args {common_args} are going to be overwritten by default params for {pretrained} weights")
     kwargs.update(cfg_params)
     model = HRNet(**kwargs)
     if pretrained:

@@ -17,8 +17,7 @@ def global_catavgmax_pool2d(x):
 
 
 def global_pool2d(x, pool_type):
-    """Selectable global pooling function
-    """
+    """Selectable global pooling function"""
     if pool_type == "avg":
         x = F.adaptive_avg_pool2d(x, output_size=1)
     elif pool_type == "max":
@@ -44,9 +43,9 @@ class Flatten(nn.Module):
 
 class GlobalPool2d(nn.Module):
     """Selectable global pooling layer
-    
-        Args:
-            pool_type (str): One of 'avg', 'max', 'avgmax', 'catavgmax'
+
+    Args:
+        pool_type (str): One of 'avg', 'max', 'avgmax', 'catavgmax'
     """
 
     def __init__(self, pool_type):
@@ -94,7 +93,7 @@ class BlurPool(nn.Module):
         filt = filt / torch.sum(filt)
         filt = filt[None, None, :, :].repeat((self.channels, 1, 1, 1))
         if trainable:
-            self.register_parameter('filt', torch.nn.Parameter(filt))
+            self.register_parameter("filt", torch.nn.Parameter(filt))
         else:
             self.register_buffer("filt", filt)
 

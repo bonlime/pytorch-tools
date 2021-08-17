@@ -218,7 +218,9 @@ class BNet(nn.Module):  # copied from DarkNet not to break backward compatabilit
             # instead of default stem I'm using Space2Depth followed by conv. no norm because there is one at the beginning
             # of DarkStage. upd. there is norm in not PreAct version
             self.stem_conv1 = nn.Sequential(
-                SpaceToDepth(block_size=2), conv3x3(in_channels * 4, stem_width), first_norm,
+                SpaceToDepth(block_size=2),
+                conv3x3(in_channels * 4, stem_width),
+                first_norm,
             )
         else:
             raise ValueError(f"Stem type `{stem_type}` is not supported")
@@ -301,10 +303,10 @@ class BNet(nn.Module):  # copied from DarkNet not to break backward compatabilit
                 FastGlobalAvgPool2d(flatten=True),
             )
             self.last_linear = nn.Linear(head_width, num_classes)
-        elif head_type == "default_nonorm": # if used in angular losses don't want norm
+        elif head_type == "default_nonorm":  # if used in angular losses don't want norm
             self.head = nn.Sequential(
                 last_norm,
-                conv1x1(channels[3], head_width, bias=True), # need bias because not followed by norm
+                conv1x1(channels[3], head_width, bias=True),  # need bias because not followed by norm
                 FastGlobalAvgPool2d(flatten=True),
             )
             self.last_linear = nn.Linear(head_width, num_classes)
@@ -319,7 +321,7 @@ class BNet(nn.Module):  # copied from DarkNet not to break backward compatabilit
                 nn.BatchNorm1d(head_width, affine=False),
             )
             self.last_linear = nn.Linear(head_width, num_classes)
-        elif head_type == "mlp_bn_fc": # same as above but without last BN
+        elif head_type == "mlp_bn_fc":  # same as above but without last BN
             self.head = nn.Sequential(
                 last_norm,
                 conv1x1(channels[3], channels[3]),

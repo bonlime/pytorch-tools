@@ -13,7 +13,7 @@ class ABCN(nn.Module):
     This gathers a Batch Channel Normalization and an activation function in a single module
     BCN is basically a Batch Norm followed by Group Norm. In case of small batch size it's reccomended to use
     `estimated_stats` flag to force BN to use running statistics instead of batch
-    
+
     see Ref. for paper
 
     Args:
@@ -73,7 +73,14 @@ class ABCN(nn.Module):
         # if `training` is True and buffers are given, they always would be updated!
         use_batch_stats = self.training and not self.estimated_stats
         x = F.batch_norm(
-            x, self.running_mean, self.running_var, self.weight, self.bias, use_batch_stats, self.momentum, self.eps,
+            x,
+            self.running_mean,
+            self.running_var,
+            self.weight,
+            self.bias,
+            use_batch_stats,
+            self.momentum,
+            self.eps,
         )
         if self.training and self.estimated_stats:
             with torch.no_grad():  # not sure if needed but just in case

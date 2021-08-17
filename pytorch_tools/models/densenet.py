@@ -31,7 +31,7 @@ wraps = partial(wraps, assigned=("__module__", "__name__", "__qualname__", "__an
 class _Transition(nn.Module):
     r"""
     Transition Block as described in [DenseNet](https://arxiv.org/abs/1608.06993)
-    
+
     - Activation
     - 1x1 Convolution (with optional compression of the number of channels)
     - 2x2 Average Pooling
@@ -63,7 +63,13 @@ class _DenseLayer(nn.Module):
     expansion = 4
 
     def __init__(
-        self, in_planes, growth_rate, drop_rate=0.0, memory_efficient=False, norm_layer=ABN, norm_act="relu",
+        self,
+        in_planes,
+        growth_rate,
+        drop_rate=0.0,
+        memory_efficient=False,
+        norm_layer=ABN,
+        norm_act="relu",
     ):
         super(_DenseLayer, self).__init__()
 
@@ -105,30 +111,30 @@ class DenseNet(nn.Module):
     r"""
 
     Args:
-        growth_rate (int): 
+        growth_rate (int):
             How many filters to add each layer (`k` in paper).
-        block_config (List[int]): 
+        block_config (List[int]):
             How many layers in each pooling block.
-        pretrained (str): 
+        pretrained (str):
             if present, returns a model pre-trained on 'str' dataset
-        num_classes (int): 
+        num_classes (int):
             Number of classification classes. Defaults to 1000.
-        drop_rate (float): 
+        drop_rate (float):
             Dropout probability after each DenseLayer. Defaults to 0.0.
-        in_channels (int): 
+        in_channels (int):
             Number of input (color) channels. Defaults to 3.
-        norm_layer (str): 
-            Nomaliztion layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory footprint. 
+        norm_layer (str):
+            Nomaliztion layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory footprint.
             But increases backward time. Defaults to 'abn'.
-        norm_act (str): 
+        norm_act (str):
             Activation for normalizion layer. It's reccomended to use `relu` with `abn`.
-        deep_stem (bool): 
+        deep_stem (bool):
             Whether to replace the 7x7 conv1 with 3 3x3 convolution layers. Defaults to False.
         stem_width (int):
             Number of filters in the input stem
-        encoder (bool): 
+        encoder (bool):
             Flag to overwrite forward pass to return 5 tensors with different resolutions. Defaults to False.
-        global_pool (str): 
+        global_pool (str):
             Global pooling type. One of 'avg', 'max', 'avgmax', 'catavgmax'. Defaults to 'avg'.
         memory_efficient (bool):
             Use checkpointing. Much more memory efficient, but slower.
@@ -259,7 +265,11 @@ class DenseNet(nn.Module):
 CFGS = {
     "densenet121": {
         "default": {
-            "params": {"growth_rate": 32, "block_config": (6, 12, 24, 16), "stem_width": 64,},
+            "params": {
+                "growth_rate": 32,
+                "block_config": (6, 12, 24, 16),
+                "stem_width": 64,
+            },
             **DEFAULT_IMAGENET_SETTINGS,
         },
         "imagenet": {"url": "https://download.pytorch.org/models/densenet121-a639ec97.pth"},
@@ -293,7 +303,10 @@ CFGS = {
     },
     # DenseNet_BC
     "densenet121_bc": {
-        "default": {"params": {"growth_rate": 32, "layers": (6, 12, 24, 16)}, **DEFAULT_IMAGENET_SETTINGS,},
+        "default": {
+            "params": {"growth_rate": 32, "layers": (6, 12, 24, 16)},
+            **DEFAULT_IMAGENET_SETTINGS,
+        },
     },
     "densenet161_bc": {
         "default": {
@@ -328,9 +341,7 @@ def _densenet(arch, pretrained=None, **kwargs):
 
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
     if common_args:
-        logging.warning(
-            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
-        )
+        logging.warning(f"Args {common_args} are going to be overwritten by default params for {pretrained} weights")
     kwargs.update(cfg_params)
     model = DenseNet(**kwargs)
 

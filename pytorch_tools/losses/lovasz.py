@@ -98,9 +98,7 @@ def _lovasz_softmax(y_pred, y_true, classes="present", per_image=False, ignore=N
     """
     if per_image:
         loss = mean(
-            _lovasz_softmax_flat(
-                *_flatten_preds(pred.unsqueeze(0), lab.unsqueeze(0), ignore), classes=classes
-            )
+            _lovasz_softmax_flat(*_flatten_preds(pred.unsqueeze(0), lab.unsqueeze(0), ignore), classes=classes)
             for pred, lab in zip(y_pred, y_true)
         )
     else:
@@ -202,7 +200,7 @@ class LovaszLoss(Loss):
                     multilabel case, so target would be turned to `multiclass` with max(dim=1)
         per_image: compute the loss per image instead of per batch
         ignore: void class y_true
-    
+
     Shape:
         y_pred: [N, C, H, W]. Should be raw logits output
         y_true: [N, C, H, W] or [N, H, W] depending on mode. Values in [0, C-1]
@@ -215,7 +213,7 @@ class LovaszLoss(Loss):
         self.per_image = per_image
 
     def forward(self, y_pred, y_true):
-        if self.mode == Mode.MULTILABEL and y_true.dim() == 4: # double check
+        if self.mode == Mode.MULTILABEL and y_true.dim() == 4:  # double check
             # select one class for every pixel
             y_true = y_true.argmax(dim=1)
 

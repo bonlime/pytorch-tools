@@ -27,6 +27,4 @@ def get_preprocessing_fn(pretrain_settings):
     mean = pretrain_settings.get("mean")
     std = pretrain_settings.get("std")
 
-    return functools.partial(
-        preprocess_input, mean=mean, std=std, input_space=input_space, input_range=input_range
-    )
+    return functools.partial(preprocess_input, mean=mean, std=std, input_space=input_space, input_range=input_range)

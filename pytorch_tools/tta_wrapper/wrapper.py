@@ -64,7 +64,7 @@ class Augmentation(object):
 
 
 class TTA(nn.Module):
-    """Module wrapper for convinient TTA. 
+    """Module wrapper for convinient TTA.
     Wrapper add augmentation layers to your model like this:
 
             Input
@@ -76,9 +76,9 @@ class TTA(nn.Module):
          \ \ \ / / /      # merge predictions (mean, max, gmean)
               |           # output mask; shape B, H, W, C
             Output
-            
+
     Args:
-        model (nn.Module): 
+        model (nn.Module):
         segm (bool): Flag to revert augmentations before merging. Requires output of a model
             to be of the same size as input. Defaults to False.
         h_flip (bool): Horizontal flip.
@@ -88,14 +88,15 @@ class TTA(nn.Module):
         rotation (List[int]): list of angles (deg) for rotation should be divisible by 90 deg (e.g. [90, 180, 270])
         add (List[float]): list of floats to add to input images.
         mul (List[float]): list of float to multiply input. Ex: [0.9, 1.1]
-        merge (str): Mode of merging augmented predictions. One of 'mean', 'gmean' and 'max'. 
+        merge (str): Mode of merging augmented predictions. One of 'mean', 'gmean' and 'max'.
             When using 'gmean' option make sure that predictions are less than 1 or number of augs isn't too large
             otherwise it could lead to an overflow.
-        activation (str): Activation to apply to predictions before merging. One of {None, `sigmoid`, `softmax`}.  
-    
+        activation (str): Activation to apply to predictions before merging. One of {None, `sigmoid`, `softmax`}.
+
     Returns:
         nn.Module
     """
+
     def __init__(
         self,
         model,

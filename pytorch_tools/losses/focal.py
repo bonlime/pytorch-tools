@@ -36,7 +36,7 @@ class FocalLoss(Loss):
     Shape:
         y_pred (torch.Tensor): Tensor of arbitrary shape
         y_true (torch.Tensor): Tensor of the same shape as y_pred
-    
+
     References:
         https://github.com/open-mmlab/mmdetection/blob/master/mmdet/core/loss/losses.py
         https://github.com/BloodAxe/pytorch-toolbelt/blob/develop/pytorch_toolbelt/losses/functional.py
@@ -78,7 +78,13 @@ class FocalLoss(Loss):
             y_true_one_hot.scatter_(1, y_true.unsqueeze(1), 1.0)
             y_true = y_true_one_hot
             # need to avoid mask shape mismatch later
-            not_ignored = torch.stack([not_ignored,] * y_pred.size(1), dim=1)
+            not_ignored = torch.stack(
+                [
+                    not_ignored,
+                ]
+                * y_pred.size(1),
+                dim=1,
+            )
 
         loss = focal_loss_with_logits(
             y_pred,

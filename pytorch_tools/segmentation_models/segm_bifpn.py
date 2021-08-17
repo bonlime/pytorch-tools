@@ -3,7 +3,7 @@ This file defines segmentation model based on Efficient Det networks
 In paper they mention the following:
 
 `We modify our EfficientDet model to keep feature level {P2, P3, ..., P7} in BiFPN, but only use
-P2 for the final per-pixel classification. For ... B4 backbone ... we set the channel size to 128 
+P2 for the final per-pixel classification. For ... B4 backbone ... we set the channel size to 128
 for BiFPN and 256 for classification head. Both BiFPN and classification head are repeated by 3 times.`
 
 I only use features {P2, P3, P4, P5} because very often such large OS is not needed.

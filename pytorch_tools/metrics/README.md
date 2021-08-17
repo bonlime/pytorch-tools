@@ -1,7 +1,7 @@
-# Collection of metrics  
-This metrics could be used during training in `Runner` or separately.  
+# Collection of metrics
+This metrics could be used during training in `Runner` or separately.
 
-## Classification metrics  
+## Classification metrics
 * Top-k Accuracy
 * Balanced Accuracy
 

@@ -165,7 +165,12 @@ def test_generate_anchors():
     ).float()
     # fmt: on
     generated, num_anchors = pt.utils.box.generate_anchors_boxes(
-        16, num_scales=1, aspect_ratios=(1, 0.25, 4), pyramid_levels=[3,]
+        16,
+        num_scales=1,
+        aspect_ratios=(1, 0.25, 4),
+        pyramid_levels=[
+            3,
+        ],
     )
     assert torch.allclose(expected, generated)
     assert num_anchors == 3
@@ -173,7 +178,12 @@ def test_generate_anchors():
     # check that it is scriptable
     jit_generate = torch.jit.script(pt.utils.box.generate_anchors_boxes)
     generated, num_anchors = jit_generate(
-        (16, 16), num_scales=1, aspect_ratios=(1, 0.25, 4), pyramid_levels=[3,]
+        (16, 16),
+        num_scales=1,
+        aspect_ratios=(1, 0.25, 4),
+        pyramid_levels=[
+            3,
+        ],
     )
     assert torch.allclose(expected, generated)
     assert num_anchors == 3

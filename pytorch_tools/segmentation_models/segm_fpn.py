@@ -24,9 +24,7 @@ class PanopticDecoder(nn.Module):
         super().__init__()
         self.seg_blocks = nn.ModuleList(
             [
-                SegmentationUpsample(
-                    pyramid_channels, segmentation_channels, n_upsamples=n_upsamples, **bn_args
-                )
+                SegmentationUpsample(pyramid_channels, segmentation_channels, n_upsamples=n_upsamples, **bn_args)
                 for n_upsamples in upsamples
             ]
         )
@@ -52,7 +50,7 @@ class SegmentationFPN(nn.Module):
             extractor to build segmentation model.
         encoder_weights (str): one of ``None`` (random initialization), ``imagenet`` (pre-training on ImageNet).
         pyramid_channels (int): Feature pyramid output channels. Defaults to 256.
-        num_fpn_layers (int): a number of layers in FPN module. Only supprted in SegmentationBiFPN 
+        num_fpn_layers (int): a number of layers in FPN module. Only supprted in SegmentationBiFPN
         segmentation_channels (int): Number of segmentation output channels. Defaults to 128.
         num_classes (int): a number of classes for output (output shape - ``(batch, classes, h, w)``).
         merge_policy (str): One of `add` of `cat`. `sum` would sum resulting feature maps.
@@ -64,7 +62,7 @@ class SegmentationFPN(nn.Module):
         norm_layer (str): Normalization layer to use. One of 'abn', 'inplaceabn'. The inplace version lowers memory
             footprint. But increases backward time. Defaults to 'abn'.
         norm_act (str): Activation for normalizion layer. 'inplaceabn' doesn't support `ReLU` activation.
-    
+
     """
 
     FEATURE_PYRAMID = FPN

@@ -184,6 +184,7 @@ def test_soft_jaccard_score_2(y_true, y_pred, expected):
     actual = actual.mean()
     assert float(actual) == pytest.approx(expected, abs=EPS)
 
+
 # fmt: off
 @pytest.mark.parametrize(
     ["y_true", "y_pred", "expected"],
@@ -463,9 +464,11 @@ def test_multiclass_multilabel_lovasz():
 
 def test_binary_hinge():
     from sklearn.metrics import hinge_loss
+
     my_l = losses.BinaryHinge()(INP_IMG_BINARY, TARGET_IMG_BINARY)
     sk_l = hinge_loss(TARGET_IMG_BINARY.flatten() * 2 - 1, INP_IMG_BINARY.flatten())
     assert torch.allclose(my_l, torch.tensor(sk_l, dtype=torch.float32))
+
 
 @pytest.mark.parametrize("reduction", ["sum", "mean", "none"])
 def test_smoothl1(reduction):
@@ -489,11 +492,11 @@ def test_detection_loss_is_scriptabble():
         [[  1.,  45., 276., 422.,  0.], [  2., 223., 256., 506.,  0.]]
     ])
     anchors = torch.tensor([
-        [-12.0000, -12.0000,  20.0000,  20.0000], 
+        [-12.0000, -12.0000,  20.0000,  20.0000],
         [-18.6274,  -7.3137,  26.6274,  15.3137]
     ])
     cls_out = torch.tensor([
-        [[-3.4645, -4.9549], [-6.3456, -7.3695]], 
+        [[-3.4645, -4.9549], [-6.3456, -7.3695]],
         [[-4.7375, -5.5270], [-5.4755, -6.7083]],
         [[-3.7339, -4.7242], [-6.2671, -6.8925]],
         [[-3.6217, -4.7811], [-5.6993, -6.7674]],
@@ -515,6 +518,7 @@ def test_detection_loss_is_scriptabble():
     assert torch.allclose(res, res_jit)
     assert torch.allclose(res, torch.tensor(5e-07))
 
+
 # tests for KLD are from @alexeykarnachev
 # https://gist.github.com/alexeykarnachev/6829d8b208585582bc9c79ad1ed8bb45
 def test_binary_kld_loss():
@@ -525,15 +529,15 @@ def test_binary_kld_loss():
     x_log_softmax = torch.log_softmax(x_logits, 1)
 
     y_p_0 = torch.tensor([[0.1279, 0.8721]])
-    kld_loss_0 = nn.KLDivLoss(reduction='batchmean')(x_log_softmax, y_p_0)
+    kld_loss_0 = nn.KLDivLoss(reduction="batchmean")(x_log_softmax, y_p_0)
     assert torch.allclose(kld_loss_0, torch.tensor([0.0]), atol=1e-3)
 
     y_p_1 = torch.tensor([[0.0, 1.0]])
-    kld_loss_1 = nn.KLDivLoss(reduction='batchmean')(x_log_softmax, y_p_1)
+    kld_loss_1 = nn.KLDivLoss(reduction="batchmean")(x_log_softmax, y_p_1)
     assert torch.allclose(kld_loss_1, torch.tensor([0.1368]), atol=1e-3)
 
     y_p_2 = torch.tensor([[0.1, 0.9]])
-    kld_loss_2 = nn.KLDivLoss(reduction='batchmean')(x_log_softmax, y_p_2)
+    kld_loss_2 = nn.KLDivLoss(reduction="batchmean")(x_log_softmax, y_p_2)
     assert torch.allclose(kld_loss_2, torch.tensor([0.0037]), atol=1e-3)
 
     # ==================================================================================================================
@@ -560,5 +564,5 @@ def test_binary_kld_loss():
 
     # ==================================================================================================================
     # [4] Check, that torch KLDivLoss for log-bernoulli input is the WRONG approach:
-    kld_loss_2_bernoulli = nn.KLDivLoss(reduction='batchmean')(torch.log(x_p_bernoulli), y_p_2_bernoulli)
+    kld_loss_2_bernoulli = nn.KLDivLoss(reduction="batchmean")(torch.log(x_p_bernoulli), y_p_2_bernoulli)
     assert not torch.allclose(kld_loss_2, kld_loss_2_bernoulli, atol=1e-3)

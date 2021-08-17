@@ -175,12 +175,13 @@ def test_fused_vgg():
     fused_out = fused(inp)
     assert torch.allclose(orig_out, fused_out, atol=1e-6)
 
+
 def test_xca_module():
     """make sure that version that works on images and version that works on token are identical"""
     BS = 2
     DIM = 128
     SIZE = 7
-    inp = torch.rand(BS, SIZE**2, DIM)
+    inp = torch.rand(BS, SIZE ** 2, DIM)
     inp_img = inp.transpose(1, 2).reshape(BS, DIM, SIZE, SIZE)
     xca_timm = modules.residual.XCA_Token(DIM, num_heads=4)
     xca_my = modules.residual.XCA(DIM, num_heads=4)

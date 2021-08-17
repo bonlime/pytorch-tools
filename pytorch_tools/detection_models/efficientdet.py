@@ -27,6 +27,7 @@ from pytorch_tools.utils.misc import initialize
 from pytorch_tools.utils.misc import patch_bn_mom
 from pytorch_tools.utils.misc import DEFAULT_IMAGENET_SETTINGS
 
+
 class EfficientDet(nn.Module):
     """
     Implementation of the EfficientDet Object Detection model
@@ -37,7 +38,7 @@ class EfficientDet(nn.Module):
     * ability to freeze batch norm in encoder with one line
     * fast train speed and low memory consumption. partly due to memory efficient Swish
         partly due to heavy use of inplace operations
-    
+
     Args:
         pretrained (str): one of `coco` or None. if `coco` - load pretrained weights
         encoder_name (str): name of classification model (without last dense layers) used as feature
@@ -58,7 +59,7 @@ class EfficientDet(nn.Module):
         match_tf_same_padding (bool): If True patches Conv and MaxPool to implements tf-like asymmetric padding
             Should only be used to validate pretrained weights. Not needed for training. Gives ~10% slowdown
         anchors_per_location (int): Number of anchors per feature map pixel. In fact it only affects the size of output
-        
+
     Ref:
         EfficientDet: Scalable and Efficient Object Detection - https://arxiv.org/abs/1911.09070
     """
@@ -117,10 +118,7 @@ class EfficientDet(nn.Module):
             return nn.ModuleList(
                 [
                     nn.ModuleList(
-                        [
-                            norm_layer(pyramid_channels, activation=decoder_norm_act)
-                            for _ in range(num_head_repeats)
-                        ]
+                        [norm_layer(pyramid_channels, activation=decoder_norm_act) for _ in range(num_head_repeats)]
                     )
                     for _ in range(5)
                 ]
@@ -133,9 +131,7 @@ class EfficientDet(nn.Module):
         self.cls_norms = make_head_norm()
 
         self.box_convs = make_head(4 * anchors_per_location)
-        self.box_head_conv = DepthwiseSeparableConv(
-            pyramid_channels, 4 * anchors_per_location, use_norm=False
-        )
+        self.box_head_conv = DepthwiseSeparableConv(pyramid_channels, 4 * anchors_per_location, use_norm=False)
         self.box_norms = make_head_norm()
 
         self.num_classes = num_classes
@@ -197,10 +193,10 @@ class EfficientDet(nn.Module):
     def predict(self, x):
         """
         Run forward on given images and decode raw prediction into bboxes
-		Returns:
+                Returns:
             torch.Tensor with bboxes, scores and classes. bboxes in `lrtb` format
             shape [BS, MAX_DETECTION_PER_IMAGE, 6]
-		"""
+        """
         class_outputs, box_outputs = self.forward(x)
         anchors = box_utils.generate_anchors_boxes(x.shape[-2:])[0]
         return box_utils.decode(class_outputs, box_outputs, anchors)
@@ -328,7 +324,7 @@ def _efficientdet(arch, pretrained=None, **kwargs):
             state_dict["cls_head_conv.1.weight"] = model.state_dict()[f"cls_head_conv.1.weight"]
             state_dict["cls_head_conv.1.bias"] = model.state_dict()["cls_head_conv.1.bias"]
         # strict=False to avoid error on extra bias in BiFPN
-        model.load_state_dict(state_dict, strict=False) 
+        model.load_state_dict(state_dict, strict=False)
     setattr(model, "pretrained_settings", cfg_settings)
     return model
 

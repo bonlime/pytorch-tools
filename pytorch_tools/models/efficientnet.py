@@ -271,13 +271,13 @@ PRETRAIN_SETTINGS["crop_pct"] = 0.875
 CFGS = {
     # All pretrained models were trained on TF by Google and ported to PyTorch by Ross Wightman @rwightman
     # Due to framework little differences (BN epsilon and different padding in convs) this weights give slightly
-    # worse performance when loaded into model above but the drop is only about ~1% on Imagenet and doesn't really 
-    # mater for transfer learning 
+    # worse performance when loaded into model above but the drop is only about ~1% on Imagenet and doesn't really
+    # mater for transfer learning
     # upd. by default weights from Noisy Student paper are loaded due to a much better predictions
     "efficientnet-b0": {
         "default": {
             "params": {
-                "blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.0, "depth_multiplier": 1.0}, 
+                "blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.0, "depth_multiplier": 1.0},
                 **PRETRAIN_SETTINGS,
                 "input_size": [3, 224, 224],
             },
@@ -291,9 +291,9 @@ CFGS = {
     "efficientnet-b1": {
         "default": {
             "params": {
-                "blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.0, "depth_multiplier": 1.1}, 
+                "blocks_args": EFFNET_BLOCKARGS, "width_multiplier": 1.0, "depth_multiplier": 1.1},
                 **PRETRAIN_SETTINGS,
-                "input_size": [3, 240, 240], 
+                "input_size": [3, 240, 240],
                 "crop_pct": 0.882,
             },
         "imagenet": {
@@ -404,9 +404,7 @@ def _efficientnet(arch, pretrained=None, **kwargs):
         cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
     if common_args:
-        logging.warning(
-            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
-        )
+        logging.warning(f"Args {common_args} are going to be overwritten by default params for {pretrained} weights")
     kwargs.update(cfg_params)
     model = EfficientNet(**kwargs)
     if pretrained:
@@ -421,9 +419,7 @@ def _efficientnet(arch, pretrained=None, **kwargs):
             state_dict["classifier.weight"] = model.state_dict()["last_linear.weight"]
             state_dict["classifier.bias"] = model.state_dict()["last_linear.bias"]
         if kwargs.get("in_channels", 3) != 3:  # support pretrained for custom input channels
-            state_dict["conv_stem.weight"] = repeat_channels(
-                state_dict["conv_stem.weight"], kwargs["in_channels"]
-            )
+            state_dict["conv_stem.weight"] = repeat_channels(state_dict["conv_stem.weight"], kwargs["in_channels"])
         model.load_state_dict(state_dict)
     setattr(model, "pretrained_settings", cfg_settings)
     return model

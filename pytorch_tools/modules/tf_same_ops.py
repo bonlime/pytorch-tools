@@ -83,7 +83,9 @@ def maxpool_to_same_maxpool(module):
     module_output = module
     if isinstance(module, nn.MaxPool2d):
         module_output = MaxPool2dSamePadding(
-            kernel_size=module.kernel_size, stride=module.stride, padding=0,  # explicitly set to 0
+            kernel_size=module.kernel_size,
+            stride=module.stride,
+            padding=0,  # explicitly set to 0
         )
     for name, child in module.named_children():
         module_output.add_module(name, maxpool_to_same_maxpool(child))

@@ -82,7 +82,12 @@ TEST_METRIC = Accuracy()
 
 
 def test_default():
-    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=None,)
+    runner = Runner(
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        callbacks=None,
+    )
     runner.fit(TEST_LOADER, epochs=2)
 
 
@@ -92,18 +97,31 @@ def test_val_loader():
 
 
 def test_accumulate_steps():
-    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, accumulate_steps=10,)
+    runner = Runner(
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        accumulate_steps=10,
+    )
     runner.fit(TEST_LOADER, epochs=2)
 
 
 def test_fp16_training():
-    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, use_fp16=True,)
+    runner = Runner(
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        use_fp16=True,
+    )
     runner.fit(TEST_LOADER, epochs=2)
 
 
 def test_ModelEma_callback():
     runner = Runner(
-        model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=pt_clb.ModelEma(TEST_MODEL),
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        callbacks=pt_clb.ModelEma(TEST_MODEL),
     )
     runner.fit(TEST_LOADER, epochs=2)
 
@@ -143,10 +161,18 @@ def test_callback(callback):
 
 
 @pytest.mark.parametrize(
-    "callback", [pt_clb.SegmCutmix(1.0),],
+    "callback",
+    [
+        pt_clb.SegmCutmix(1.0),
+    ],
 )
 def test_segm_callback(callback):
-    runner = Runner(model=TEST_SEGM_MODEL, optimizer=TEST_SEGM_OPTIMZER, criterion=TEST_CRITERION, callbacks=callback,)
+    runner = Runner(
+        model=TEST_SEGM_MODEL,
+        optimizer=TEST_SEGM_OPTIMZER,
+        criterion=TEST_CRITERION,
+        callbacks=callback,
+    )
     runner.fit(TEST_SEGM_LOADER, epochs=2)
 
 
@@ -155,7 +181,11 @@ def test_invalid_phases_scheduler_mode():
         model=TEST_MODEL,
         optimizer=TEST_OPTIMIZER,
         criterion=TEST_CRITERION,
-        callbacks=pt_clb.PhasesScheduler([{"ep": [0, 1], "lr": [0, 1], "mode": "new_mode"},]),
+        callbacks=pt_clb.PhasesScheduler(
+            [
+                {"ep": [0, 1], "lr": [0, 1], "mode": "new_mode"},
+            ]
+        ),
     )
     with pytest.raises(ValueError):
         runner.fit(TEST_LOADER, epochs=2)
@@ -187,17 +217,18 @@ def test_tensorboar_CM():
     )
     runner.fit(TEST_LOADER, epochs=2)
 
+
 def test_rank_zero_only():
     """check that decorator disables come callbacks"""
     os.environ["RANK"] = "0"
     # check that wrapping instance work
     timer = pt_clb.rank_zero_only(pt_clb.Timer())
-    assert hasattr(timer, 'timer')
+    assert hasattr(timer, "timer")
 
     os.environ["RANK"] = "1"
     # check that wrapping class also works
     timer = pt_clb.rank_zero_only(pt_clb.Timer)()
-    assert not hasattr(timer, 'timer')
+    assert not hasattr(timer, "timer")
 
 
 def test_state_batch_size():

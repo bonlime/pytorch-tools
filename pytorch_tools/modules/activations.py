@@ -23,7 +23,6 @@ class ACT(Enum):
     SWISH_HARD = "swish_hard"  # hard swish
 
 
-
 #### MISH ####
 # There is equivalent formulation of Mish which could be faster but isn't (in my tests). So not adding it for now
 # feel free to open PR if you manage to speed it up
@@ -89,6 +88,7 @@ class MishNaive(nn.Module):
 #### Helpfull functions ####
 def identity(x, *args, **kwargs):
     return x
+
 
 ACT_DICT = {
     ACT.CELU: nn.CELU,

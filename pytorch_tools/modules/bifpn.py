@@ -45,7 +45,7 @@ class BiFPNLayer(nn.Module):
     """Builds one layer of Bi-directional Feature Pyramid Network
     Args:
         channels (int): Number of channels in each feature map after BiFPN. Defaults to 64.
-        
+
     Input:
         features (List): 5 feature maps from encoder with resolution from 1/128 to 1/8
 
@@ -65,9 +65,7 @@ class BiFPNLayer(nn.Module):
 
         # There is no activation in SeparableConvs, instead activation is in fusion layer
         # fusions for p6, p5, p4, p3. (no fusion for first feature map)
-        self.fuse_up = nn.ModuleList(
-            [Fusion(in_nodes=2, activation=norm_act) for _ in range(num_features - 1)]
-        )
+        self.fuse_up = nn.ModuleList([Fusion(in_nodes=2, activation=norm_act) for _ in range(num_features - 1)])
 
         # fusions for p4, p5, p6, p7. last is different because there is no bottop up tensor for it
         self.fuse_out = nn.ModuleList(
@@ -133,10 +131,12 @@ class FirstBiFPNLayer(BiFPNLayer):
             layer, layer2 = nn.Identity(), nn.Identity()
             if enc_in_channel != channels:
                 layer = nn.Sequential(
-                    conv1x1(enc_in_channel, channels), norm_layer(channels, activation="identity"),
+                    conv1x1(enc_in_channel, channels),
+                    norm_layer(channels, activation="identity"),
                 )
                 layer2 = nn.Sequential(
-                    conv1x1(enc_in_channel, channels), norm_layer(channels, activation="identity"),
+                    conv1x1(enc_in_channel, channels),
+                    norm_layer(channels, activation="identity"),
                 )
             self.downsample_1.append(layer)
             self.downsample_2.append(layer2)
@@ -148,7 +148,7 @@ class FirstBiFPNLayer(BiFPNLayer):
     def forward(self, features):
         # type: List[Tensor] -> List[Tensor]
         """Args:
-            features (List[Tensor]): number of input features should match number of encoder_channels passed during init
+        features (List[Tensor]): number of input features should match number of encoder_channels passed during init
         """
         features_in_1 = [down(feat) for down, feat in zip(self.downsample_1, features)]
         features_in_2 = [down(feat) for down, feat in zip(self.downsample_2[::-1], features)]
@@ -189,7 +189,7 @@ class BiFPN(nn.Sequential):
         encoder_channels (List[int]): Number of channels for each feature map from low res to high res.
         pyramid_channels (int): Number of channels in each feature map after BiFPN. Defaults to 64.
         num_layers (int): Number or repeats for BiFPN block. Default is 2
-    
+
     Input:
         features (List): 5 feature maps from encoder [low_res, ... , high_res]
 

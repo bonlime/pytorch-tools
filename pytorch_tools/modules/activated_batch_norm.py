@@ -22,7 +22,7 @@ class ABN(nn.Module):
         frozen (bool): if True turns `weight` and `bias` into untrainable buffers.
         estimated_stats (bool): Flag to use running stats for normalization instead of batch stats. Useful for
             micro-batch training. See Ref.
-    
+
     Reference:
         https://arxiv.org/abs/1911.09738 - Rethinking Normalization and Elimination Singularity in Neural Networks
     """
@@ -74,7 +74,14 @@ class ABN(nn.Module):
         # if `training` is True and buffers are given, they always would be updated!
         use_batch_stats = self.training and not self.estimated_stats and not self.frozen
         x = F.batch_norm(
-            x, self.running_mean, self.running_var, self.weight, self.bias, use_batch_stats, self.momentum, self.eps,
+            x,
+            self.running_mean,
+            self.running_var,
+            self.weight,
+            self.bias,
+            use_batch_stats,
+            self.momentum,
+            self.eps,
         )
         if self.training and self.estimated_stats:
             with torch.no_grad():  # not sure if needed but just in case

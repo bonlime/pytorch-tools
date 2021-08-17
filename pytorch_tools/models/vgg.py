@@ -24,11 +24,11 @@ class VGG(nn.Module):
         in_channels (int): Number of input (color) channels. Defaults to 3.
         norm_layer (ABN, optional): Which version of ABN to use. Choices are:
             'ABN' - dropin replacement for BN+Relu.
-            'InplaceABN' - efficient version. If used with `pretrain` Weights still 
-                will be loaded but performance may be worse than with ABN. 
-        encoder (bool, optional): Flag to return features with different resolution. 
+            'InplaceABN' - efficient version. If used with `pretrain` Weights still
+                will be loaded but performance may be worse than with ABN.
+        encoder (bool, optional): Flag to return features with different resolution.
             Defaults to False.
-        antialias (bool, optional): Flag to turn on Rect-2 antialiasing 
+        antialias (bool, optional): Flag to turn on Rect-2 antialiasing
             from https://arxiv.org/abs/1904.11486. Defaults to False.
     """
 
@@ -170,9 +170,7 @@ def _vgg(arch, pretrained=None, **kwargs):
         cfg_params.update(pretrained_params)
     common_args = set(cfg_params.keys()).intersection(set(kwargs.keys()))
     if common_args:
-        logging.warning(
-            f"Args {common_args} are going to be overwritten by default params for {pretrained} weights"
-        )
+        logging.warning(f"Args {common_args} are going to be overwritten by default params for {pretrained} weights")
     kwargs.update(cfg_params)
     model = VGG(**kwargs)
     if pretrained:

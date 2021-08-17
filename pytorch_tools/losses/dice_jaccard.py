@@ -22,7 +22,7 @@ class DiceLoss(Loss):
 
     IOU_FUNCTION = soft_dice_score
 
-    def __init__(self, mode="binary", log_loss=False, from_logits=True, eps=1.):
+    def __init__(self, mode="binary", log_loss=False, from_logits=True, eps=1.0):
         super(DiceLoss, self).__init__()
         self.mode = Mode(mode)  # raises an error if not valid
         self.log_loss = log_loss
@@ -59,7 +59,7 @@ class DiceLoss(Loss):
             loss = -torch.log(scores)
         else:
             loss = 1 - scores
-        
+
         # IoU loss is defined for non-empty classes
         # So we zero contribution of channel that does not have true pixels
         mask = y_true.sum(dims) > 0
