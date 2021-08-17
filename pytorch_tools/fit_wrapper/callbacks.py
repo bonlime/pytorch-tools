@@ -111,6 +111,10 @@ class Callbacks(Callback):
         for callback in self.callbacks:
             callback.on_end()
 
+    def on_after_backward(self):
+        for callback in self.callbacks:
+            callback.on_after_backward()
+
 def rank_zero_only(cls: Callback) -> Callback:
     """Returns Identity callback if rank != zero. supports wrapping a class and an instance"""
     is_rank_zero = utils.env_rank() == 0
