@@ -25,11 +25,11 @@ class Callback(object):
     usage example:
     begin
     ---epoch begin (one epoch - one run of every loader)
-    ------loader begin 
+    ------loader begin
     ---------batch begin
     ---------on_after_backward
     ---------batch end
-    ------loader end 
+    ------loader end
     ---epoch end
     end
     """
@@ -115,6 +115,7 @@ class Callbacks(Callback):
     def on_after_backward(self):
         for callback in self.callbacks:
             callback.on_after_backward()
+
 
 def rank_zero_only(cls: Callback) -> Callback:
     """Returns Identity callback if rank != zero. supports wrapping a class and an instance"""
@@ -229,7 +230,7 @@ class PhasesScheduler(Callback):
 
     Args:
         phases (List[Dict]): phases
-        change_every (int): how often to actually change the lr. changing too 
+        change_every (int): how often to actually change the lr. changing too
             often may slowdown the training
 
     Example:
@@ -413,9 +414,7 @@ class CheckpointSaver(Callback):
         if self.monitor_op(current, self.best):
             ep = self.state.epoch_log
             if self.verbose:
-                logger.info(
-                    f"Epoch {ep:2d}: best {self.monitor} improved from {self.best:.4f} to {current:.4f}"
-                )
+                logger.info(f"Epoch {ep:2d}: best {self.monitor} improved from {self.best:.4f} to {current:.4f}")
             self.best = current
             save_name = os.path.join(self.save_dir, self.save_name.format(ep=ep, metric=current))
             self._save_checkpoint(save_name)
@@ -490,6 +489,7 @@ class TensorBoard(Callback):
     def on_end(self):
         self.state.tb_logger.close()
 
+
 class TensorBoardCM(Callback):
     """
     Saves training and validation Confusion Matrix as image
@@ -562,7 +562,7 @@ class ConsoleLogger(Callback):
 
 
 class FileLogger(Callback):
-    """Logs loss and metrics every epoch. 
+    """Logs loss and metrics every epoch.
     You have to manually configure loguru.logger to enable actual logging to file"""
 
     def on_epoch_begin(self):
@@ -586,6 +586,7 @@ class FileLogger(Callback):
 
 class GradientClipping(Callback):
     """Clips gradients by max norm"""
+
     def __init__(self, gradient_clip_val):
         self.gradient_clip_val = gradient_clip_val
         assert gradient_clip_val > 0, "Invalid value for gradient clipping"
@@ -594,10 +595,11 @@ class GradientClipping(Callback):
         self.state.grad_scaler.unscale_(self.state.optimizer)
         torch.nn.utils.clip_grad_norm_(self.state.model.parameters(), self.gradient_clip_val)
 
+
 class AdaptiveGradientClipping(Callback):
-    """Clips gradient based on max norm. 
-    
-    Ref: 
+    """Clips gradient based on max norm.
+
+    Ref:
         High-Performance Large-Scale Image Recognition Without Normalization
         Official JAX impl (paper authors): https://github.com/deepmind/deepmind-research/tree/master/nfnets
         Phil Wang's PyTorch gist: https://gist.github.com/lucidrains/0d6560077edac419ab5d3aa29e674d5c
@@ -617,9 +619,9 @@ class AdaptiveGradientClipping(Callback):
             # might need special cases for other weights (possibly MHA) where this may not be true
             return x.norm(norm_type, dim=tuple(range(1, x.ndim)), keepdim=True)
 
-    def on_after_backward(self): 
+    def on_after_backward(self):
         self.state.grad_scaler.unscale_(self.state.optimizer)
-        
+
         for p in self.state.model.parameters():
             if p.grad is None:
                 continue
@@ -630,7 +632,7 @@ class AdaptiveGradientClipping(Callback):
             clipped_grad = g_data * (max_norm / grad_norm.clamp(min=1e-6))
             new_grads = torch.where(grad_norm < max_norm, g_data, clipped_grad)
             p.grad.detach().copy_(new_grads)
-            
+
 
 class Mixup(Callback):
     """Performs mixup on input. Only for classification.
@@ -698,9 +700,9 @@ class Cutmix(Callback):
 
     def on_batch_begin(self):
         self.state.input = self.cutmix(*self.state.input)
-    
+
     def on_loader_begin(self):
-        self.prev_input = None # avoid leak from test to train
+        self.prev_input = None  # avoid leak from test to train
 
     @torch.no_grad()
     def cutmix(self, data, target):
@@ -727,7 +729,7 @@ class Cutmix(Callback):
 
     @staticmethod
     def rand_bbox(H, W, lam):
-        """ returns bbox with area close to lam*H*W """
+        """returns bbox with area close to lam*H*W"""
         cut_rat = np.sqrt(lam)
         cut_h = np.int(H * cut_rat)
         cut_w = np.int(W * cut_rat)
@@ -785,9 +787,9 @@ class ScheduledDropout(Callback):
 
 class ResetOptimizer(Callback):
     """Set's Optimizers state to empty for epoch in `reset_epoch`. Could be used for restarts.
-        Args:
-            reset_epoch (List[int]): after which epochs to reset optimizer
-            verbose (bool): Flag to print that optimizer was reset."""
+    Args:
+        reset_epoch (List[int]): after which epochs to reset optimizer
+        verbose (bool): Flag to print that optimizer was reset."""
 
     def __init__(self, reset_epochs=[], verbose=True):
         super().__init__()
@@ -808,7 +810,7 @@ class ResetOptimizer(Callback):
 
 # docstring from https://github.com/rwightman/pytorch-image-models
 class ModelEma(Callback):
-    """ Model Exponential Moving Average
+    """Model Exponential Moving Average
     Keeps a moving average of everything in the model state_dict (parameters and buffers).
     This is intended to allow functionality like
     https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage
@@ -816,15 +818,15 @@ class ModelEma(Callback):
     A smoothed version of the weights is necessary for some training schemes to perform well.
     E.g. Google's hyper-params for training MNASNet, MobileNet-V3, EfficientNet, etc that use
     RMSprop with a short 2.4-3 epoch decay period and slow LR decay rate of .96-.99 requires EMA
-    smoothing of weights to match results. 
-    
+    smoothing of weights to match results.
+
     Current implementation follows TensorFlow and uses the following formula:
     ema -= (1 - decay) * (ema - model)
     This is mathematically equivalent to the classic formula below but inplace is faster
     ema = decay * ema + (1 - decay) * model
 
     NOTE: Pay attention to the decay constant you are using relative to your update count per epoch.
-    
+
     NOTE: put this Callback AFTER Checkpoint saver! Otherwise you would validate EMA weights but save
     model weights
 
@@ -835,7 +837,7 @@ class ModelEma(Callback):
     Args:
         model (nn.Module): model after cuda and AMP
         decay (float): decay for EMA for every step
-        decay_every (int): how oftern to really decay weights. Decaying every step produced a 
+        decay_every (int): how oftern to really decay weights. Decaying every step produced a
             visible training slowdown. Real decay factor is adjusted to match every step update.
     """
 

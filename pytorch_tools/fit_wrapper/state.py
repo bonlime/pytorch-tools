@@ -12,7 +12,12 @@ class RunnerState:
     __isfrozen = False
 
     def __init__(
-        self, *, model=None, optimizer=None, criterion=None, use_fp16=False,
+        self,
+        *,
+        model=None,
+        optimizer=None,
+        criterion=None,
+        use_fp16=False,
     ):
         # base
         self.model = model

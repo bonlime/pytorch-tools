@@ -35,7 +35,13 @@ class Runner:
         self.accumulate_steps = accumulate_steps
 
     def fit(
-        self, train_loader, steps_per_epoch=None, val_loader=None, val_steps=None, epochs=1, start_epoch=0,
+        self,
+        train_loader,
+        steps_per_epoch=None,
+        val_loader=None,
+        val_steps=None,
+        epochs=1,
+        start_epoch=0,
     ):
         """
         Args:
@@ -48,7 +54,7 @@ class Runner:
             start_epoch (int): From which epoch to start. Useful on restarts. Defaults to 0.
         """
         self.state.num_epochs = epochs
-        self.state.batch_size = getattr(train_loader, 'batch_size', 1)
+        self.state.batch_size = getattr(train_loader, "batch_size", 1)
         self.callbacks.on_begin()
         for epoch in range(start_epoch, epochs):
             self.state.is_train = True
@@ -87,7 +93,7 @@ class Runner:
             self.state.grad_scaler.scale(loss / self.accumulate_steps).backward()
 
             self.callbacks.on_after_backward()
-        
+
             # everything else only before making step
             if self.state.step % self.accumulate_steps == 0:
                 self.state.grad_scaler.step(self.state.optimizer)
