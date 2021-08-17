@@ -1,4 +1,3 @@
-from loguru import logger
 from torch.cuda.amp import GradScaler
 from pytorch_tools.utils import misc as utils
 from collections import defaultdict
@@ -19,8 +18,7 @@ class RunnerState:
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
-        self.logger = logger
-        self.tb_logger = None # place for TensorBoard logger
+        self.tb_logger = None  # place for TensorBoard logger
 
         # make state aware of fp16 and scale. if use_fp16 is False, grad_scaler is NoOp
         self.use_fp16 = use_fp16
@@ -37,8 +35,10 @@ class RunnerState:
         self.train_metrics = self.val_metrics = self.metric_meters = defaultdict(utils.AverageMeter())
         self.is_train = True
         self.epoch_size = None
-        self.step = None
         self.batch_size = 0
+        # number of steps performed. resets each epoch!
+        self.step = None
+        # total number of samples seen. usefull to log independentely of batch_size or world_size
         self.global_sample_step = 0
 
         # for DDP

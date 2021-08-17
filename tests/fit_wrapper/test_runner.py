@@ -1,5 +1,6 @@
 import os
 import pytest
+from copy import deepcopy
 import torch
 import torch.nn as nn
 from pytorch_tools.metrics import Accuracy
@@ -49,7 +50,7 @@ class SegmModel(Model):
 class Loader:
     def __init__(self):
         self.i = 1
-        pass
+        self.batch_size = BS
 
     def __iter__(self):
         return self
@@ -192,8 +193,26 @@ def test_rank_zero_only():
     # check that wrapping instance work
     timer = pt_clb.rank_zero_only(pt_clb.Timer())
     assert hasattr(timer, 'timer')
-    
+
     os.environ["RANK"] = "1"
     # check that wrapping class also works
     timer = pt_clb.rank_zero_only(pt_clb.Timer)()
     assert not hasattr(timer, 'timer')
+
+
+def test_state_batch_size():
+    runner = Runner(
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        callbacks=None,
+    )
+    runner.fit(TEST_LOADER, epochs=1)
+    # check that batch_size is copied correctly
+    assert runner.state.batch_size == BS
+
+    # check that if batch_size is not given, it would be 1
+    loader = deepcopy(TEST_LOADER)
+    delattr(loader, "batch_size")
+    runner.fit(loader, epochs=1)
+    assert runner.state.batch_size == 1

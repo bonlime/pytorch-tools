@@ -3,6 +3,7 @@ import math
 import numpy as np
 from tqdm import tqdm
 from enum import Enum
+from loguru import logger
 from copy import deepcopy
 from collections import OrderedDict
 from collections import defaultdict
@@ -218,7 +219,7 @@ class Timer(Callback):
             self.has_printed = True
             d_time = self.timer.data_time.avg_smooth
             b_time = self.timer.batch_time.avg_smooth
-            self.state.logger.info(f"TimeMeter profiling. Data time: {d_time:.2E}s. Model time: {b_time:.2E}s \n")
+            logger.info(f"TimeMeter profiling. Data time: {d_time:.2E}s. Model time: {b_time:.2E}s \n")
 
 
 class PhasesScheduler(Callback):
@@ -348,7 +349,7 @@ class ReduceLROnPlateau(Callback):
                 if param_group["lr"] * self.factor > self.min_lr:
                     param_group["lr"] *= self.factor
             if self.verbose:
-                self.state.logger.info(f"ReduceLROnPlateau reducing learning rate to {param_group['lr'] * self.factor}")
+                logger.info(f"ReduceLROnPlateau reducing learning rate to {param_group['lr'] * self.factor}")
 
     def get_monitor_value(self):
         value = None
@@ -412,7 +413,7 @@ class CheckpointSaver(Callback):
         if self.monitor_op(current, self.best):
             ep = self.state.epoch_log
             if self.verbose:
-                self.state.logger.info(
+                logger.info(
                     f"Epoch {ep:2d}: best {self.monitor} improved from {self.best:.4f} to {current:.4f}"
                 )
             self.best = current
@@ -462,10 +463,9 @@ class TensorBoard(Callback):
             return
         os.makedirs(self.log_dir, exist_ok=True)
         self.state.tb_logger = SummaryWriter(self.log_dir)
-        self.log_every *= self.state.batch_size * self.state.world_size
 
     def on_batch_end(self):
-        if self.state.is_train and (self.state.global_sample_step % self.log_every == 0):
+        if self.state.is_train and (self.state.step % self.log_every == 0):
             # TODO: select better name instead of train_ ?
             self.state.tb_logger.add_scalar("train_/loss", self.state.loss_meter.val, self.state.global_sample_step)
             for name, metric in self.state.metric_meters.items():
@@ -566,14 +566,14 @@ class FileLogger(Callback):
     You have to manually configure loguru.logger to enable actual logging to file"""
 
     def on_epoch_begin(self):
-        self.state.logger.info(f"Epoch {self.state.epoch_log} | lr {self.current_lr:.2e}")
+        logger.info(f"Epoch {self.state.epoch_log} | lr {self.current_lr:.2e}")
 
     def on_epoch_end(self):
         loss, metrics = self.state.train_loss, self.state.train_metrics
-        self.state.logger.info("Train " + self._format_meters(loss, metrics))
+        logger.info("Train " + self._format_meters(loss, metrics))
         if self.state.val_loss is not None:
             loss, metrics = self.state.val_loss, self.state.val_metrics
-            self.state.logger.info("Val   " + self._format_meters(loss, metrics))
+            logger.info("Val   " + self._format_meters(loss, metrics))
 
     @property
     def current_lr(self):
@@ -803,7 +803,7 @@ class ResetOptimizer(Callback):
                 self.state.optimizer.state = defaultdict(dict)
 
             if self.verbose:
-                self.state.logger.info("Reseting optimizer")
+                logger.info("Reseting optimizer")
 
 
 # docstring from https://github.com/rwightman/pytorch-image-models
