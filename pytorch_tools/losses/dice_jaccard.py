@@ -1,5 +1,5 @@
 import torch
-from .base import Loss, Mode
+from .base import Loss, Mode, _reduce
 from .functional import soft_dice_score, soft_jaccard_score
 
 
@@ -22,9 +22,10 @@ class DiceLoss(Loss):
 
     IOU_FUNCTION = soft_dice_score
 
-    def __init__(self, mode="binary", log_loss=False, from_logits=True, eps=1.0):
+    def __init__(self, mode="binary", reduction="mean", log_loss=False, from_logits=True, eps=1.0):
         super(DiceLoss, self).__init__()
         self.mode = Mode(mode)  # raises an error if not valid
+        self.reduction = reduction
         self.log_loss = log_loss
         self.from_logits = from_logits
         self.eps = eps
@@ -64,8 +65,7 @@ class DiceLoss(Loss):
         # So we zero contribution of channel that does not have true pixels
         mask = y_true.sum(dims) > 0
         loss *= mask.float()
-
-        return loss.mean()
+        return _reduce(loss, self.reduction)
 
 
 class JaccardLoss(DiceLoss):

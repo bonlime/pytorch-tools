@@ -3,7 +3,7 @@ from functools import partial
 
 from .base import Loss
 from .base import Mode
-from .base import Reduction
+from .base import _reduce
 from .functional import focal_loss_with_logits
 
 
@@ -56,10 +56,7 @@ class FocalLoss(Loss):
         temperature=1.0,
     ):
         super().__init__()
-        # use Enum to validate that values are valid
-        Mode(mode)
-        Reduction(reduction)
-        self.mode = mode
+        self.mode = Mode(mode)
         self.gamma = gamma
         self.alpha = alpha
         self.reduction = reduction
@@ -71,7 +68,7 @@ class FocalLoss(Loss):
     def forward(self, y_pred, y_true):
         y_pred /= self.temperature
         not_ignored = y_true.ne(self.ignore_label)
-        if self.mode == "multiclass":
+        if self.mode == Mode.MULTICLASS:
             # to hangle ignore label we set it to 0, then scatter and set it to ignore index back
             y_true = y_true.where(not_ignored, torch.zeros(1).to(y_true))
             y_true_one_hot = torch.zeros_like(y_pred)
@@ -99,9 +96,4 @@ class FocalLoss(Loss):
         # Filter anchors with -1 label from loss computation
         loss = loss.where(not_ignored, torch.zeros(1).to(loss))
 
-        if self.reduction == "mean":
-            return loss.mean()
-        elif self.reduction == "sum":
-            return loss.sum()
-        else:
-            return loss
+        return _reduce(loss, self.reduction)
