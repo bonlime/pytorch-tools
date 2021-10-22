@@ -108,7 +108,6 @@ class BlurPool(nn.Module):
 class SpaceToDepth(nn.Module):
     def __init__(self, block_size=4):
         super().__init__()
-        assert block_size in {2, 4}, "Space2Depth only supports blocks size = 4 or 2"
         self.block_size = block_size
 
     def forward(self, x):
