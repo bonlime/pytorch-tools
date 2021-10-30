@@ -4,7 +4,7 @@ from functools import wraps
 
 import torch
 import torch.nn as nn
-from torchvision.models.utils import load_state_dict_from_url
+from torch.hub import load_state_dict_from_url
 
 from pytorch_tools.modules.residual import conv1x1
 from pytorch_tools.modules.residual import conv3x3

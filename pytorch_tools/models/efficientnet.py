@@ -18,8 +18,7 @@ from functools import wraps, partial
 
 import torch
 from torch import nn
-from torchvision.models.utils import load_state_dict_from_url
-
+from torch.hub import load_state_dict_from_url
 from pytorch_tools.modules import ABN
 from pytorch_tools.modules import bn_from_name
 from pytorch_tools.modules.residual import InvertedResidual

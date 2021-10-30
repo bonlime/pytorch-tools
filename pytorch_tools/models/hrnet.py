@@ -13,8 +13,7 @@ from functools import wraps, partial
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models.utils import load_state_dict_from_url
-
+from torch.hub import load_state_dict_from_url
 from pytorch_tools.modules.residual import conv1x1
 from pytorch_tools.modules.residual import conv3x3
 from pytorch_tools.modules.residual import BasicBlock
