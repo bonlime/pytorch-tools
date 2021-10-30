@@ -1,7 +1,7 @@
 from torch.nn.modules.loss import _Loss
 import torch
 from enum import Enum
-
+from typing import Union
 
 class Mode(Enum):
     BINARY = "binary"
@@ -15,6 +15,22 @@ class Reduction(Enum):
     NONE = "none"
     SAMPLE_SUM = "sample_sum"  # mean by sample dim + sum by batch dim
 
+def _reduce(x: torch.Tensor, reduction: Union[str, Reduction]="mean") -> torch.Tensor:
+    r"""Reduce input in batch dimension if needed.
+    Args:
+        x: Tensor with shape (N, *).
+        reduction: Specifies the reduction type:
+            ``'none'`` | ``'mean'`` | ``'sum'``. Default: ``'mean'``
+    """
+    reduction = Reduction(reduction)
+    if reduction == Reduction.NONE:
+        return x
+    elif reduction == Reduction.MEAN:
+        return x.mean()
+    elif reduction == Reduction.SUM:
+        return x.sum()
+    else:
+        raise ValueError("Uknown reduction. Expected one of {'none', 'mean', 'sum'}")
 
 class Loss(_Loss):
     """Loss which supports addition and multiplication"""
