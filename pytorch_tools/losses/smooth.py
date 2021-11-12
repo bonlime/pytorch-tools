@@ -63,6 +63,7 @@ class CrossEntropyLoss(Loss):
         if self.mode == Mode.BINARY:
             # squeeze to allow different shapes like BSx1xHxW vs BSxHxW
             if self.from_logits:
+                y_true = y_true.to(dtype=y_pred.dtype) # if target is long, make sure to cast to float
                 loss = F.binary_cross_entropy_with_logits(
                     y_pred.squeeze(), y_true.squeeze(), pos_weight=self.weight, reduction=self.reduction.value
                 )
