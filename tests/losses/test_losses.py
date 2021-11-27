@@ -18,7 +18,7 @@ set_random_seed(42)
 
 EPS = 1e-3
 BS = 16
-N_CLASSES = 10
+N_CLASSES = 7
 IM_SIZE = 10
 INP = torch.randn(BS, N_CLASSES)
 INP_BINARY = torch.randn(BS).float()
@@ -461,6 +461,15 @@ def test_cross_entropy_weight():
     my_ce_w = losses.CrossEntropyLoss(weight=weight_3)(INP, TARGET)
     assert torch.allclose(torch_ce_w, my_ce_w)
 
+@torch.no_grad()
+@pytest.mark.parametrize("reduction", ["mean", "none"])
+def test_cross_entropy_reduction(reduction):
+    torch_ce = F.cross_entropy(INP_IMG, TARGET_IMG_MULTICLASS, reduction=reduction)
+    my_ce_loss = losses.CrossEntropyLoss(mode="multiclass", reduction=reduction)
+    # using multilabel in our loss because in current implementation it wouldn't perform OHE
+    my_ce = my_ce_loss(INP_IMG, TARGET_IMG_MULTILABEL)
+    assert torch.allclose(torch_ce, my_ce)
+    
 
 # For lovasz tests only check that it doesn't fail, not that results are right
 
