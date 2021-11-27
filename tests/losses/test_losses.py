@@ -461,6 +461,12 @@ def test_cross_entropy_weight():
     my_ce_w = losses.CrossEntropyLoss(weight=weight_3)(INP, TARGET)
     assert torch.allclose(torch_ce_w, my_ce_w)
 
+    # test 2d case
+    torch2d_ce_w = torch.nn.CrossEntropyLoss(weight=weight_1)(INP_IMG, TARGET_IMG_MULTICLASS)
+    my2d_ce_w = losses.CrossEntropyLoss(weight=weight_1)(INP_IMG, TARGET_IMG_MULTILABEL)
+    assert torch.allclose(torch2d_ce_w, my2d_ce_w)
+
+
 @torch.no_grad()
 @pytest.mark.parametrize("reduction", ["mean", "none"])
 def test_cross_entropy_reduction(reduction):

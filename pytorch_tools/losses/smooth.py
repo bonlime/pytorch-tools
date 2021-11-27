@@ -82,8 +82,9 @@ class CrossEntropyLoss(Loss):
         y_pred = y_pred.float()
         logprobs = F.log_softmax(y_pred, dim=1) if self.from_logits else y_pred.log()
         # loss of each sample is weighted by it's target class
-        logprobs = logprobs * self.weight
-        sample_weights = self.weight * y_true_one_hot
+        weight = self.weight.view(1, -1, *([1,] * (y_pred.ndim - 2))) # match dimensions
+        logprobs = logprobs * weight
+        sample_weights = weight * y_true_one_hot
         # multiple labels handling
         nll_loss = -logprobs * y_true_one_hot
         nll_loss = nll_loss.sum(1)
