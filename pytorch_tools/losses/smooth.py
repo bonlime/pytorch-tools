@@ -40,7 +40,7 @@ class CrossEntropyLoss(Loss):
         weight=1.0,
         reduction="mean",
         from_logits=True,
-        temperature=1.0,
+        temperature=None,
         normalize=False,
     ):
         super().__init__()
@@ -50,14 +50,15 @@ class CrossEntropyLoss(Loss):
         self.smoothing = smoothing
         self.from_logits = from_logits
         self.register_buffer("weight", torch.tensor(weight))
-        self.temperature = temperature
+        if temperature is not None:
+            self.register_buffer("temperature", torch.tensor(temperature))
         assert not (normalize and mode == "binary"), "Normalize not supported for binary case"
         self.normalize = normalize
 
     def forward(self, y_pred, y_true):
         if self.normalize:
             y_pred = F.normalize(y_pred, dim=1)
-        if self.from_logits:  # only scale logits
+        if self.from_logits and hasattr(self, "temperature"):  # only scale logits
             y_pred /= self.temperature
 
         if self.mode == Mode.BINARY:
