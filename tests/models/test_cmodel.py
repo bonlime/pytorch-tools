@@ -1,5 +1,6 @@
 import yaml
 import torch
+import pytest
 import torch.nn as nn
 
 from pytorch_tools.models import CModel as OriginalCModel
@@ -58,7 +59,6 @@ def test_external_module():
     """
     layer_config = yaml.safe_load(config)["layer_config"]
     model = CModel(layer_config)
-    print(model)
     assert model(INP).shape == (1, 8 + 16, 16, 16)
 
 
@@ -140,6 +140,7 @@ def test_extra_kwargs():
     extra_model = CModel(extra_config["layer_config"], extra_config["extra_kwargs"])
     assert extra_model(INP).shape == (1, 48, 16, 16)
 
+
 def test_eval():
     extra_config = """
     layer_config:
@@ -157,3 +158,62 @@ def test_eval():
     # check that default Module.eval() works
     extra_model = extra_model.eval().requires_grad_(False)
     assert extra_model(INP).shape == (1, 3, 16, 16)
+
+
+def test_jit_script_sequential():
+    config_str = """
+    layer_config:
+        - module: nn.Conv2d
+        - module: nn.Conv2d
+    extra_kwargs:
+        nn.Conv2d:
+            kernel_size: 3
+            padding: 1
+            in_channels: 3
+            out_channels: 3
+    """
+    config = yaml.safe_load(config_str)
+    model = CModel(config["layer_config"], config["extra_kwargs"])
+    jit_model = torch.jit.script(model)
+    assert jit_model(INP).shape == (1, 3, 16, 16)
+
+
+def test_jit_trace_custom():
+    config_str = """
+    layer_config:
+        - { module: nn.Conv2d, tag: os2 }
+        - module: nn.Conv2d
+        - module: Concat
+          inputs: [_prev_, os2]
+    extra_kwargs:
+        nn.Conv2d:
+            in_channels: 3
+            out_channels: 3
+            kernel_size: 3
+            padding: 1
+    """
+    config = yaml.safe_load(config_str)
+    model = CModel(config["layer_config"], config["extra_kwargs"])
+    trace_model = torch.jit.trace(model, INP)
+    assert trace_model(INP).shape == (1, 3 + 3, 16, 16)
+
+
+@pytest.mark.skip("Can't script because of different input types")
+def test_jit_script_custom():
+    config_str = """
+    layer_config:
+        - { module: nn.Conv2d, tag: os2 }
+        - module: nn.Conv2d
+        - module: Concat
+          inputs: [_prev_, os2]
+    extra_kwargs:
+        nn.Conv2d:
+            in_channels: 3
+            out_channels: 3
+            kernel_size: 3
+            padding: 1
+    """
+    config = yaml.safe_load(config_str)
+    model = CModel(config["layer_config"], config["extra_kwargs"])
+    script_model = torch.jit.script(model)
+    assert script_model(INP).shape == (1, 3 + 3, 16, 16)
