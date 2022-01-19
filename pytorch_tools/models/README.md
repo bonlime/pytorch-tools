@@ -1,3 +1,21 @@
+# CModel
+Caffe-like explicit model constructor. C(onfig)Model
+
+### Usage
+In order to allow using your own modules you have to redefine `CModel.module_from_name` after imports. Example:
+
+```python
+from mypackage.modules import MyModule
+from pytorch_tools.models import CModel as OriginalCModel
+
+class CModel(OriginalCModel):
+    @staticmethod
+    def module_from_name(name):
+        return eval(name)
+
+# now you could use `MyModule` in your configs
+```
+
 # Just Another PyTorch Model Zoo
 All models here were either written from scratch or refactored from open-source implementations.
 All models here use `Activated Normalization` layers instead of traditional `Normalization` followed by `Activation`. It makes changing activation function and normalization layer easy and convenient. It also allows using [Inplace Activated Batch Norm](https://github.com/mapillary/inplace_abn) from the box, which is essential for reducing memory footprint in segmentation tasks.
