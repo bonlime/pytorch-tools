@@ -29,10 +29,9 @@ class Runner:
         use_fp16=False,
     ):
         super().__init__()
-        self.state = RunnerState(model=model, optimizer=optimizer, criterion=criterion, use_fp16=use_fp16)
+        self.state = RunnerState(model=model, optimizer=optimizer, criterion=criterion, use_fp16=use_fp16, accumulate_steps=accumulate_steps)
         self.callbacks = Callbacks(callbacks)
         self.callbacks.set_state(self.state)
-        self.accumulate_steps = accumulate_steps
 
     def fit(
         self,
@@ -90,12 +89,12 @@ class Runner:
 
         if self.state.is_train:
             # backward for every batch
-            self.state.grad_scaler.scale(loss / self.accumulate_steps).backward()
+            self.state.grad_scaler.scale(loss / self.state.accumulate_steps).backward()
 
             self.callbacks.on_after_backward()
 
             # everything else only before making step
-            if self.state.step % self.accumulate_steps == 0:
+            if self.state.step % self.state.accumulate_steps == 0:
                 self.state.grad_scaler.step(self.state.optimizer)
                 self.state.grad_scaler.update()
                 self.state.optimizer.zero_grad()

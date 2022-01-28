@@ -18,6 +18,7 @@ class RunnerState:
         optimizer=None,
         criterion=None,
         use_fp16=False,
+        accumulate_steps=1,
     ):
         # base
         self.model = model
@@ -45,6 +46,8 @@ class RunnerState:
         self.step = None
         # total number of samples seen. usefull to log independentely of batch_size or world_size
         self.global_sample_step = 0
+        # number of steps to accumulate
+        self.accumulate_steps = accumulate_steps
 
         # for DDP
         self.rank = utils.env_rank()

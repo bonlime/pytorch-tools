@@ -592,6 +592,8 @@ class GradientClipping(Callback):
         assert gradient_clip_val > 0, "Invalid value for gradient clipping"
 
     def on_after_backward(self):
+        if self.state.step % self.state.accumulate_steps != 0:
+            return
         self.state.grad_scaler.unscale_(self.state.optimizer)
         torch.nn.utils.clip_grad_norm_(self.state.model.parameters(), self.gradient_clip_val)
 
@@ -620,6 +622,9 @@ class AdaptiveGradientClipping(Callback):
             return x.norm(norm_type, dim=tuple(range(1, x.ndim)), keepdim=True)
 
     def on_after_backward(self):
+        if self.state.step % self.state.accumulate_steps != 0:
+            return
+
         self.state.grad_scaler.unscale_(self.state.optimizer)
 
         for p in self.state.model.parameters():

@@ -247,3 +247,14 @@ def test_state_batch_size():
     delattr(loader, "batch_size")
     runner.fit(loader, epochs=1)
     assert runner.state.batch_size == 1
+
+
+def test_accumulate_steps_with_clip_grad():
+    runner = Runner(
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        callbacks=[pt_clb.GradientClipping(1)],
+        accumulate_steps=4,
+    )
+    runner.fit(TEST_LOADER, epochs=2)
