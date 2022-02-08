@@ -198,7 +198,6 @@ def test_jit_trace_custom():
     assert trace_model(INP).shape == (1, 3 + 3, 16, 16)
 
 
-@pytest.mark.skip("Can't script because of different input types")
 def test_jit_script_custom():
     config_str = """
     layer_config:

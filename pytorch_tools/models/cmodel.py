@@ -39,6 +39,24 @@ class ModuleStructure:
     tag: Optional[str] = None
 
 
+class InputWrapper(nn.Module):
+    """This wrapper is needed to make the CModel scriptable"""
+    def __init__(self, block, n_inputs=1):
+        super().__init__()
+        self.block = block
+        self.n_inputs = n_inputs
+        if n_inputs == 1:
+            self.forward = self.forward_1
+        else:
+            self.forward = self.forward_many
+
+    def forward_1(self, x: List[torch.Tensor]) -> torch.Tensor:
+        return self.block(x[0])
+
+    def forward_many(self, x: List[torch.Tensor]) -> torch.Tensor:
+        return self.block(x)
+
+
 class CModel(nn.Sequential):
     """
     Abstract builder that can be used to create models from config.
@@ -86,6 +104,9 @@ class CModel(nn.Sequential):
             m = l.module(*l.args, **l.kwargs)
             if l.repeat > 1:
                 m = nn.Sequential(*[l.module(*l.args, **l.kwargs) for _ in range(l.repeat)])
+            
+            if len(tag_to_idx) > 1: # only wrap if not sequential
+                m = InputWrapper(m, len(l.inputs))
 
             # add some information about from/idx to module
             m.input_indexes = [tag_to_idx[inp] for inp in l.inputs]
@@ -96,13 +117,13 @@ class CModel(nn.Sequential):
             saved_layers_idx.extend(idx for idx in m.input_indexes if idx != -1)
         return nn.ModuleList(layers), saved_layers_idx
 
-    def custom_forward(self, x):
+    def custom_forward(self, x: torch.Tensor):
         saved_outputs: List[torch.Tensor] = []
         for layer in self.children():
-            inp = [x if j == -1 else saved_outputs[j] for j in layer.input_indexes]
-            x = layer(*inp)
+            inp: List[torch.Tensor] = [x if j == -1 else saved_outputs[j] for j in layer.input_indexes]
+            x = layer(inp)
             # append None even if don't need this output in order to preserve ordering
-            saved_outputs.append(x if layer.idx in self.saved_layers_idx else None)
+            saved_outputs.append(x if layer.idx in self.saved_layers_idx else torch.empty(0))
         return x
 
     def _maybe_eval(self, name: str):
