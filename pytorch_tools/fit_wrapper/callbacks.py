@@ -861,7 +861,7 @@ class ModelEma(Callback):
 
         with torch.no_grad():
             for (ema_v, m_v) in zip(self.ema.state_dict().values(), self.state.model.state_dict().values()):
-                if m_v.numel() == 1:  # to prevent errors on `num_batches_tracked` in BN
+                if m_v.dtype == torch.long: # to prevent errors on `num_batches_tracked` in BN
                     continue
                 ema_v.sub_(ema_v.sub(m_v), alpha=self.decay_factor)
 
