@@ -11,8 +11,8 @@ from collections import defaultdict
 import torch
 from torch.cuda import amp
 
-from pytorch_tools.fit_wrapper.state import RunnerState
-import pytorch_tools.utils.misc as utils
+from .state import RunnerState
+from .utils import listify, to_numpy, env_rank, AverageMeter, TimeMeter
 from pytorch_tools.utils.visualization import plot_confusion_matrix
 from pytorch_tools.utils.visualization import render_figure_to_tensor
 from pytorch_tools.utils.tensorboard import CorrectedSummaryWriter as SummaryWriter
@@ -74,7 +74,7 @@ class Callbacks(Callback):
 
     def __init__(self, callbacks):
         super().__init__()
-        self.callbacks = utils.listify(callbacks)
+        self.callbacks = listify(callbacks)
 
     def set_state(self, state):
         for callback in self.callbacks:
@@ -119,7 +119,7 @@ class Callbacks(Callback):
 
 def rank_zero_only(cls: Callback) -> Callback:
     """Returns Identity callback if rank != zero. supports wrapping a class and an instance"""
-    is_rank_zero = utils.env_rank() == 0
+    is_rank_zero = env_rank() == 0
     if isinstance(cls, type):  # cls is a class
         return cls if is_rank_zero else Callback
     else:  # cls is an instance of some Callback
@@ -136,12 +136,12 @@ class BatchMetrics(Callback):
 
     def __init__(self, metrics):
         super().__init__()
-        self.metrics = utils.listify(metrics)
+        self.metrics = listify(metrics)
         self.metric_names = [m.name for m in self.metrics]
 
     def on_begin(self):
         for name in self.metric_names:
-            self.state.metric_meters[name] = utils.AverageMeter(name=name)
+            self.state.metric_meters[name] = AverageMeter(name=name)
 
     @torch.no_grad()
     def on_batch_end(self):
@@ -149,7 +149,7 @@ class BatchMetrics(Callback):
         output = self.state.output
         with amp.autocast(self.state.use_fp16):
             for metric, name in zip(self.metrics, self.metric_names):
-                self.state.metric_meters[name].update(utils.to_numpy(metric(output, target).squeeze()))
+                self.state.metric_meters[name].update(to_numpy(metric(output, target).squeeze()))
 
 
 class LoaderMetrics(Callback):
@@ -165,7 +165,7 @@ class LoaderMetrics(Callback):
 
     def __init__(self, metrics):
         super().__init__()
-        self.metrics = utils.listify(metrics)
+        self.metrics = listify(metrics)
         self.metric_names = [m.name for m in self.metrics]
 
         self.target = None
@@ -173,7 +173,7 @@ class LoaderMetrics(Callback):
 
     def on_begin(self):
         for name in self.metric_names:
-            self.state.metric_meters[name] = utils.AverageMeter(name=name)
+            self.state.metric_meters[name] = AverageMeter(name=name)
 
     def on_loader_begin(self):
         self.target = []
@@ -191,7 +191,7 @@ class LoaderMetrics(Callback):
         output = torch.cat(self.output)
         with amp.autocast(self.state.use_fp16):
             for metric, name in zip(self.metrics, self.metric_names):
-                self.state.metric_meters[name].update(utils.to_numpy(metric(output, target).squeeze()))
+                self.state.metric_meters[name].update(to_numpy(metric(output, target).squeeze()))
 
 
 @rank_zero_only
@@ -204,7 +204,7 @@ class Timer(Callback):
     def __init__(self):
         super().__init__()
         self.has_printed = False
-        self.timer = utils.TimeMeter()
+        self.timer = TimeMeter()
 
     def on_batch_begin(self):
         self.timer.batch_start()
@@ -251,8 +251,8 @@ class PhasesScheduler(Callback):
         super(PhasesScheduler, self).__init__()
 
     def _format_phase(self, phase):
-        phase["ep"] = utils.listify(phase["ep"])
-        phase["lr"] = utils.listify(phase["lr"])
+        phase["ep"] = listify(phase["ep"])
+        phase["lr"] = listify(phase["lr"])
         if len(phase["lr"]) == 2:
             phase["mode"] = phase.get("mode", "linear")
             assert len(phase["ep"]) == 2, "Linear learning rates must contain end epoch"
@@ -861,7 +861,7 @@ class ModelEma(Callback):
 
         with torch.no_grad():
             for (ema_v, m_v) in zip(self.ema.state_dict().values(), self.state.model.state_dict().values()):
-                if m_v.dtype == torch.long: # to prevent errors on `num_batches_tracked` in BN
+                if m_v.dtype == torch.long:  # to prevent errors on `num_batches_tracked` in BN
                     continue
                 ema_v.sub_(ema_v.sub(m_v), alpha=self.decay_factor)
 

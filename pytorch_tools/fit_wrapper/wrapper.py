@@ -1,10 +1,11 @@
 import copy
 import torch
 from torch.cuda import amp
-from pytorch_tools.fit_wrapper.state import RunnerState
-from pytorch_tools.fit_wrapper.callbacks import Callbacks
-from pytorch_tools.fit_wrapper.callbacks import ConsoleLogger
-from pytorch_tools.utils.misc import to_numpy
+
+from .state import RunnerState
+from .callbacks import Callbacks
+from .callbacks import ConsoleLogger
+from .utils import to_numpy
 
 
 class Runner:
@@ -29,7 +30,9 @@ class Runner:
         use_fp16=False,
     ):
         super().__init__()
-        self.state = RunnerState(model=model, optimizer=optimizer, criterion=criterion, use_fp16=use_fp16, accumulate_steps=accumulate_steps)
+        self.state = RunnerState(
+            model=model, optimizer=optimizer, criterion=criterion, use_fp16=use_fp16, accumulate_steps=accumulate_steps
+        )
         self.callbacks = Callbacks(callbacks)
         self.callbacks.set_state(self.state)
 

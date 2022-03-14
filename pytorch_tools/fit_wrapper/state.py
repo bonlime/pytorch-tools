@@ -1,6 +1,7 @@
 from torch.cuda.amp import GradScaler
-from pytorch_tools.utils import misc as utils
 from collections import defaultdict
+
+from .utils import env_rank, env_world_size, AverageMeter, reduce_meter
 
 
 class RunnerState:
@@ -37,8 +38,8 @@ class RunnerState:
         # counters
         self.num_epochs = 1
         self.epoch = 0
-        self.train_loss = self.val_loss = self.loss_meter = utils.AverageMeter("loss")
-        self.train_metrics = self.val_metrics = self.metric_meters = defaultdict(utils.AverageMeter())
+        self.train_loss = self.val_loss = self.loss_meter = AverageMeter("loss")
+        self.train_metrics = self.val_metrics = self.metric_meters = defaultdict(AverageMeter())
         self.is_train = True
         self.epoch_size = None
         self.batch_size = 0
@@ -50,8 +51,8 @@ class RunnerState:
         self.accumulate_steps = accumulate_steps
 
         # for DDP
-        self.rank = utils.env_rank()
-        self.world_size = utils.env_world_size()
+        self.rank = env_rank()
+        self.world_size = env_world_size()
 
         self.__isfrozen = True
 
@@ -71,4 +72,4 @@ class RunnerState:
         if self.val_loss is not None:
             meters = meters + list(self.val_metrics.values()) + [self.val_loss]
         for meter in meters:
-            utils.reduce_meter(meter)  # NoOp if world_size == 1
+            reduce_meter(meter)  # NoOp if world_size == 1
