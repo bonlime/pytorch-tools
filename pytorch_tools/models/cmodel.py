@@ -92,7 +92,9 @@ class CModel(nn.Sequential):
     def _parse_config(self, layer_config: List[ModuleStructure]) -> Tuple[nn.ModuleList, List[int]]:
         saved_layers_idx = []
         layers = []
-        tag_to_idx = {layer.tag: idx for idx, layer in enumerate(layer_config) if layer.tag is not None}
+        # skip unused tags
+        used_tags = set([inp for layer in layer_config for inp in layer.inputs])
+        tag_to_idx = {l.tag: idx for idx, l in enumerate(layer_config) if l.tag is not None and l.tag in used_tags}
         tag_to_idx["_prev_"] = -1
 
         for layer_idx, l in enumerate(layer_config):

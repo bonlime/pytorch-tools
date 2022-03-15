@@ -120,6 +120,21 @@ def test_unet_config():
     assert unet_model(INP).shape == (1, 32 + 16 + 8, 8, 8)
 
 
+def test_unused_tag_config():
+    config = """
+    layer_config:
+        - module: nn.Conv2d
+          args: [3, 8, 1]
+          tag: os2
+        - module: nn.Conv2d
+          args: [8, 16, 1]
+          tag: os4
+    """
+    layer_config = yaml.safe_load(config)["layer_config"]
+    model = CModel(layer_config)
+    assert model(INP).shape == (1, 16, 16, 16)
+
+
 def test_extra_kwargs():
     extra_config = """
     layer_config:
