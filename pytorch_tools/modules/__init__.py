@@ -27,6 +27,8 @@ from .activated_group_norm import AGN
 from .activated_batch_channel_norm import ABCN
 from .activated_no_norm import NoNormAct
 
+from . import conv 
+
 try:
     from inplace_abn import InPlaceABN, InPlaceABNSync
 

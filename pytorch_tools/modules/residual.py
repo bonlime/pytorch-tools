@@ -2,8 +2,10 @@ import math
 import torch
 import torch.nn as nn
 from functools import partial
+
 from .activated_batch_norm import ABN
 from .activations import activation_from_name
+from .conv import conv3x3, conv1x1
 
 # from pytorch_tools.modules import ABN
 # from pytorch_tools.modules import activation_from_name
@@ -11,26 +13,6 @@ from pytorch_tools.modules import BlurPool
 from pytorch_tools.modules import FastGlobalAvgPool2d
 from pytorch_tools.utils.misc import make_divisible
 from pytorch_tools.modules import SpaceToDepth
-
-
-def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1, bias=False):
-    """3x3 convolution with padding"""
-    return nn.Conv2d(
-        in_planes,
-        out_planes,
-        kernel_size=3,
-        stride=stride,
-        padding=dilation,
-        groups=groups,
-        bias=bias,
-        dilation=dilation,
-    )
-
-
-def conv1x1(in_planes, out_planes, stride=1, bias=False):
-    """1x1 convolution"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=bias)
-
 
 class SEModule(nn.Module):
     def __init__(self, channels, reduction_channels, norm_act="relu"):
