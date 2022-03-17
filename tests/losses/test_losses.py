@@ -116,10 +116,12 @@ def test_focal_incorrect_mode():
     with pytest.raises(ValueError):
         losses.FocalLoss(mode="some_mode")
 
+
 # as of 12.11.21 reduction is validated only during forward, so this test doesn't work
 # def test_focal_incorrect_reduction():
 #     with pytest.raises(ValueError):
 #         losses.FocalLoss(reduction="some_reduction")
+
 
 @pytest.mark.skip(reason="no time to fix enum in class on 06.10.21")
 def test_focal_fn_is_scribtable():
@@ -130,6 +132,7 @@ def test_focal_fn_is_scribtable():
     jit_func = torch.jit.script(pt_F.focal_loss_with_logits)
     loss_jit = jit_func(input_bad, target)
     assert torch.allclose(loss, loss_jit)
+
 
 @pytest.mark.skip(reason="no time to fix enum in class on 06.10.21")
 def test_focal_class_is_scribtable():
@@ -329,6 +332,7 @@ def test_multilabel_jaccard_loss():
     loss = criterion(y_pred, y_true)
     assert float(loss) == pytest.approx(1.0 - 1.0 / 3.0, abs=EPS)
 
+
 @torch.no_grad()
 def test_multilabel_jaccard_loss_reduction():
     criterion = losses.JaccardLoss(mode="multilabel", reduction="none", from_logits=False, eps=1e-4)
@@ -337,7 +341,7 @@ def test_multilabel_jaccard_loss_reduction():
     y_true = torch.tensor([[[1.0, 1.0, 0.0, 0.0], [1.0, 1.0, 0.0, 0.0]]])
 
     loss = criterion(y_pred, y_true)
-    assert torch.allclose(loss, torch.tensor([1/2, 2/3]), atol=EPS)
+    assert torch.allclose(loss, torch.tensor([1 / 2, 2 / 3]), atol=EPS)
 
 
 @pytest.mark.parametrize("loss_name", LOSSES_NAMES)
@@ -426,8 +430,6 @@ def test_binary_cross_entropy(reduction):
     assert torch.allclose(torch_ce, my_ce)
 
 
-
-
 def test_binary_cross_entropy_from_logits():
     """Check that passing from_logits True and taking sigmoid manually gives the same result"""
     loss_1 = losses.CrossEntropyLoss(mode="binary")
@@ -475,7 +477,7 @@ def test_cross_entropy_reduction(reduction):
     # using multilabel in our loss because in current implementation it wouldn't perform OHE
     my_ce = my_ce_loss(INP_IMG, TARGET_IMG_MULTILABEL)
     assert torch.allclose(torch_ce, my_ce)
-    
+
 
 # For lovasz tests only check that it doesn't fail, not that results are right
 
@@ -511,6 +513,7 @@ def test_smoothl1(reduction):
     loss_my = losses.SmoothL1Loss(delta=0, reduction=reduction)(INP, TARGET_MULTILABEL)
     loss_torch = F.l1_loss(INP, TARGET_MULTILABEL, reduction=reduction)
     assert torch.allclose(loss_my, loss_torch)
+
 
 @pytest.mark.skip(reason="no time to fix enum in class on 06.10.21")
 def test_detection_loss_is_scriptabble():

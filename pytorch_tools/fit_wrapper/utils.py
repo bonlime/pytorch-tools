@@ -51,6 +51,7 @@ def to_tensor(x: Any, dtype=None) -> torch.Tensor:
     else:
         raise ValueError("Unsupported input type" + str(type(x)))
 
+
 def env_world_size() -> int:
     return int(os.environ.get("WORLD_SIZE", 1))
 
@@ -121,6 +122,7 @@ class TimeMeter:
     def batch_end(self):
         self.batch_time.update(time.time() - self.start)
         self.start = time.time()
+
 
 def reduce_meter(meter: AverageMeter) -> AverageMeter:
     """Args: meter (AverageMeter): meter to reduce"""

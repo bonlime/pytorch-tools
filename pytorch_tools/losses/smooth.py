@@ -64,7 +64,7 @@ class CrossEntropyLoss(Loss):
         if self.mode == Mode.BINARY:
             # squeeze to allow different shapes like BSx1xHxW vs BSxHxW
             if self.from_logits:
-                y_true = y_true.to(dtype=y_pred.dtype) # if target is long, make sure to cast to float
+                y_true = y_true.to(dtype=y_pred.dtype)  # if target is long, make sure to cast to float
                 loss = F.binary_cross_entropy_with_logits(
                     y_pred.squeeze(), y_true.squeeze(), pos_weight=self.weight, reduction=self.reduction.value
                 )
@@ -83,7 +83,16 @@ class CrossEntropyLoss(Loss):
         y_pred = y_pred.float()
         logprobs = F.log_softmax(y_pred, dim=1) if self.from_logits else y_pred.log()
         # loss of each sample is weighted by it's target class
-        weight = self.weight.view(1, -1, *([1,] * (y_pred.ndim - 2))) # match dimensions
+        weight = self.weight.view(
+            1,
+            -1,
+            *(
+                [
+                    1,
+                ]
+                * (y_pred.ndim - 2)
+            )
+        )  # match dimensions
         logprobs = logprobs * weight
         sample_weights = weight * y_true_one_hot
         # multiple labels handling

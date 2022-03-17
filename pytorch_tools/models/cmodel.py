@@ -41,6 +41,7 @@ class ModuleStructure:
 
 class InputWrapper(nn.Module):
     """This wrapper is needed to make the CModel scriptable"""
+
     def __init__(self, block, n_inputs=1):
         super().__init__()
         self.block = block
@@ -106,8 +107,8 @@ class CModel(nn.Sequential):
             m = l.module(*l.args, **l.kwargs)
             if l.repeat > 1:
                 m = nn.Sequential(*[l.module(*l.args, **l.kwargs) for _ in range(l.repeat)])
-            
-            if len(tag_to_idx) > 1: # only wrap if not sequential
+
+            if len(tag_to_idx) > 1:  # only wrap if not sequential
                 m = InputWrapper(m, len(l.inputs))
 
             # add some information about from/idx to module

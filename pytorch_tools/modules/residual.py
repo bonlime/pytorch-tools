@@ -14,6 +14,7 @@ from pytorch_tools.modules import FastGlobalAvgPool2d
 from pytorch_tools.utils.misc import make_divisible
 from pytorch_tools.modules import SpaceToDepth
 
+
 class SEModule(nn.Module):
     def __init__(self, channels, reduction_channels, norm_act="relu"):
         super(SEModule, self).__init__()

@@ -175,7 +175,8 @@ def test_fused_vgg():
     fused_out = fused(inp)
     assert torch.allclose(orig_out, fused_out, atol=1e-6)
 
-@pytest.mark.skip # currently not working for some reason
+
+@pytest.mark.skip  # currently not working for some reason
 def test_xca_module():
     """make sure that version that works on images and version that works on token are identical"""
     BS = 2

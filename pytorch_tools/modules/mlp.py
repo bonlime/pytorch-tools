@@ -61,19 +61,19 @@ class Attention(nn.Module):
 
 
 class SpatialGatingBlock(nn.Module):
-    """ Residual Block with Spatial Gating
-    Args: 
-        dim_in (int): input dimension 
+    """Residual Block with Spatial Gating
+    Args:
+        dim_in (int): input dimension
         seq_len (int): sequence length
         attn_dim (Optional[int]): if given, adds single-head self-attention
         mlp_ratio (int): how much to increase number of channels inside block
-            intuitively this is the same as bottleneck_ratio in ResNet bottleneck 
+            intuitively this is the same as bottleneck_ratio in ResNet bottleneck
         dim_out (Optional[int]): output number of dimensions. if not given would be same as input
         norm_layer (nn.Module): normalization layer to use
         act_layer: activation after first projection
         spatial_act_layer: activation after spatial gating unit but before summation with residual
             not present in paper so is Identity by default. need additional investigation
-        drop_path (float): probability to drop some 
+        drop_path (float): probability to drop some
 
     Ref: `Pay Attention to MLPs` - https://arxiv.org/abs/2105.08050
     """

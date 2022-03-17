@@ -3,6 +3,7 @@ import torch
 from enum import Enum
 from typing import Union
 
+
 class Mode(Enum):
     BINARY = "binary"
     MULTICLASS = "multiclass"
@@ -15,7 +16,8 @@ class Reduction(Enum):
     NONE = "none"
     SAMPLE_SUM = "sample_sum"  # mean by sample dim + sum by batch dim
 
-def _reduce(x: torch.Tensor, reduction: Union[str, Reduction]="mean") -> torch.Tensor:
+
+def _reduce(x: torch.Tensor, reduction: Union[str, Reduction] = "mean") -> torch.Tensor:
     r"""Reduce input in batch dimension if needed.
     Args:
         x: Tensor with shape (N, *).
@@ -31,6 +33,7 @@ def _reduce(x: torch.Tensor, reduction: Union[str, Reduction]="mean") -> torch.T
         return x.sum()
     else:
         raise ValueError("Uknown reduction. Expected one of {'none', 'mean', 'sum'}")
+
 
 class Loss(_Loss):
     """Loss which supports addition and multiplication"""
