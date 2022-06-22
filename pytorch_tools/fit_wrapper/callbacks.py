@@ -5,8 +5,11 @@ from tqdm import tqdm
 from enum import Enum
 from loguru import logger
 from copy import deepcopy
+from typing import Optional, Tuple, Dict, List
+from dataclasses import dataclass
 from collections import OrderedDict
 from collections import defaultdict
+from collections import Iterable
 
 import torch
 from torch.cuda import amp
@@ -223,43 +226,54 @@ class Timer(Callback):
             logger.info(f"TimeMeter profiling. Data time: {d_time:.2E}s. Model time: {b_time:.2E}s \n")
 
 
+@dataclass
+class DataStage:
+    # start and end epoch for current stage
+    start: int = 0
+    end: int = 1
+    lr: "Optional[ (float, float) | float ]" = 1
+    lr_mode: Optional[str] = "linear"
+    # not processed by `PhasesScheduler` but allows more advanced logic
+    extra_args: Optional[Dict] = None
+
+    def __post_init__(self):
+        # will pass for list, typle, omegaconf.listconfig
+        if not isinstance(self.lr, Iterable):
+            self.lr = [self.lr, self.lr]
+        assert self.start < self.end, "start > end in stages"
+
+
 class PhasesScheduler(Callback):
     """
     Scheduler that uses `phases` to process updates.
     Supported `mode`'s are {`linear`, `cos`, `poly`}
+    NOTE: loss specified in phases would be multiplied by original loss in param groups
 
     Args:
-        phases (List[Dict]): phases
-        change_every (int): how often to actually change the lr. changing too
-            often may slowdown the training
+        phases (List[DataStage]): phases
+        change_every (int): how often to actually change the lr. changing too often may slowdown the training
 
     Example:
         PHASES = [
-            {"ep":[0,8],  "lr":[0,0.1]},
-            {"ep":[8,24], "lr":[0.1, 0.01], "mode":"cos"},
-            {'ep':[24, 30], "lr": 0.001},
+            {"start": 0, "end":8, "lr":[0,0.1]},
+            {"start": 8, "end": 24, "lr":[0.1, 0.01], "lr_mode":"cos"},
+            {"start": 24, "end": 30, "lr": 0.001},
         ]
     """
 
-    def __init__(self, phases, change_every=50):
+    def __init__(self, phases: List[DataStage], change_every=50):
+        if type(phases[0]) != DataStage:
+            phases = [DataStage(**ph) for ph in phases]
+
+        self.phases = phases
         self.change_every = change_every
         self.current_lr = None
-        self.current_mom = None
-        self.phases = [self._format_phase(p) for p in phases]
+        self.tot_epochs = max([p.end for p in phases])
         self.phase = self.phases[0]
-        self.tot_epochs = max([max(p["ep"]) for p in self.phases])
         super(PhasesScheduler, self).__init__()
 
-    def _format_phase(self, phase):
-        phase["ep"] = listify(phase["ep"])
-        phase["lr"] = listify(phase["lr"])
-        if len(phase["lr"]) == 2:
-            phase["mode"] = phase.get("mode", "linear")
-            assert len(phase["ep"]) == 2, "Linear learning rates must contain end epoch"
-        return phase
-
     @staticmethod
-    def _schedule(start, end, pct, mode):
+    def _schedule(start: int, end: int, pct: float, mode: str):
         """anneal from `start` to `end` as pct goes from 0.0 to 1.0."""
         if mode == "linear":
             return start + (end - start) * pct
@@ -271,41 +285,37 @@ class PhasesScheduler(Callback):
         else:
             raise ValueError(f"Mode: `{mode}` is not supported in PhasesScheduler")
 
-    def _get_lr_mom(self, batch_curr):
+    def _get_lr(self, batch_curr: int) -> float:
         phase = self.phase
         batch_tot = self.state.epoch_size
-        if len(phase["ep"]) == 1:
-            perc = 0
-        else:
-            ep_start, ep_end = phase["ep"]
-            ep_curr, ep_tot = self.state.epoch - ep_start, ep_end - ep_start
-            perc = (ep_curr * batch_tot + batch_curr) / (ep_tot * batch_tot)
-        if len(phase["lr"]) == 1:
-            new_lr = phase["lr"][0]  # constant learning rate
-        else:
-            lr_start, lr_end = phase["lr"]
-            new_lr = self._schedule(lr_start, lr_end, perc, phase["mode"])
-
+        ep_curr, ep_tot = self.state.epoch - phase.start, phase.end - phase.start
+        perc = (ep_curr * batch_tot + batch_curr) / ((ep_tot + 1) * batch_tot)
+        assert perc <= 1 and perc >= 0
+        lr_start, lr_end = phase.lr  # may be the same
+        new_lr = self._schedule(lr_start, lr_end, perc, phase.lr_mode)
         return new_lr
+
+    def on_begin(self):
+        self.original_lr = [pg.get("lr", 1) for pg in self.state.optimizer.param_groups]
 
     def on_epoch_begin(self):
         new_phase = None
         for phase in reversed(self.phases):
-            if self.state.epoch >= phase["ep"][0]:
+            if self.state.epoch >= phase.start:
                 new_phase = phase
                 break
-        if new_phase is None:
-            raise Exception("Epoch out of range")
+        if new_phase is None or self.state.epoch > phase.end:
+            raise ValueError("Epoch out of range")
         else:
             self.phase = new_phase
 
     def on_batch_begin(self):
-        lr = self._get_lr_mom(self.state.step)
+        lr = self._get_lr(self.state.step)
         if self.current_lr == lr or (self.state.step % self.change_every != 0):
             return
         self.current_lr = lr
-        for param_group in self.state.optimizer.param_groups:
-            param_group["lr"] = lr
+        for orig_lr, param_group in zip(self.original_lr, self.state.optimizer.param_groups):
+            param_group["lr"] = lr * orig_lr
 
 
 class ReduceMode(Enum):

@@ -176,19 +176,51 @@ def test_segm_callback(callback):
     runner.fit(TEST_SEGM_LOADER, epochs=2)
 
 
-def test_invalid_phases_scheduler_mode():
-    runner = Runner(
-        model=TEST_MODEL,
-        optimizer=TEST_OPTIMIZER,
-        criterion=TEST_CRITERION,
-        callbacks=pt_clb.PhasesScheduler(
-            [
-                {"ep": [0, 1], "lr": [0, 1], "mode": "new_mode"},
-            ]
-        ),
-    )
+def test_scheduler_invalid_mode():
+    sch = pt_clb.PhasesScheduler([{"start": 0, "end": 1, "lr": [0, 1], "lr_mode": "new_mode"}])
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=sch)
     with pytest.raises(ValueError):
         runner.fit(TEST_LOADER, epochs=2)
+
+
+def test_scheduler_invalid_epochs():
+    with pytest.raises(AssertionError):
+        pt_clb.PhasesScheduler([{"start": 10, "end": 5, "lr": [0, 1]}])
+
+
+def test_scheduler_invalid_wrong_epochs():
+    sch = pt_clb.PhasesScheduler([{"start": 5, "end": 10, "lr": [0, 1]}])
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=sch)
+    with pytest.raises(ValueError):
+        runner.fit(TEST_LOADER, epochs=2)
+
+    sch = pt_clb.PhasesScheduler([{"start": 0, "end": 1, "lr": [0, 1]}])
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=sch)
+    with pytest.raises(ValueError):
+        runner.fit(TEST_LOADER, epochs=3)
+
+
+def test_scheduler_single_lr():
+    sch = pt_clb.PhasesScheduler([{"start": 0, "end": 1, "lr": 1}])
+    runner = Runner(model=TEST_MODEL, optimizer=TEST_OPTIMIZER, criterion=TEST_CRITERION, callbacks=sch)
+    runner.fit(TEST_LOADER, epochs=1)
+
+
+def test_scheduler_correct_lr():
+    """Check that scheduler is multiplicative"""
+    params = list(TEST_MODEL.parameters())
+    opt = torch.optim.SGD([dict(params=params[:2], lr=1e-3), dict(params=params[2:], lr=1e-2)])
+    sch = pt_clb.PhasesScheduler([{"start": 0, "end": 1, "lr": [0, 5]}], change_every=1)
+    # should be half of max LR after half epochs
+    runner = Runner(model=TEST_MODEL, optimizer=opt, criterion=TEST_CRITERION, callbacks=sch)
+    runner.fit(TEST_LOADER, epochs=1)
+    expected = 5 * (LOADER_LEN - 1) / (2 * LOADER_LEN)
+    assert [pg["lr"] for pg in runner.state.optimizer.param_groups] == [expected * 1e-3, expected * 1e-2]
+    # should be full LR after full epochs
+    runner.state.optimizer = torch.optim.SGD([dict(params=params[:2], lr=1e-3), dict(params=params[2:], lr=1e-2)])
+    runner.fit(TEST_LOADER, epochs=2)
+    expected = 5 * (2 * LOADER_LEN - 1) / (2 * LOADER_LEN)
+    assert [pg["lr"] for pg in runner.state.optimizer.param_groups] == [expected * 1e-3, expected * 1e-2]
 
 
 def test_loader_metric():
