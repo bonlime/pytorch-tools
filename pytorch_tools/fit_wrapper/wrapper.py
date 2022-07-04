@@ -42,6 +42,7 @@ class Runner:
         steps_per_epoch=None,
         val_loader=None,
         val_steps=None,
+        check_val_every_n_epoch=1,
         epochs=1,
         start_epoch=0,
     ):
@@ -52,6 +53,7 @@ class Runner:
                 when epoch is very long or it's not clearly defined. Defaults to None.
             val_loader: Validation DataLoader with defined `len` and `batch_size` Defaults to None.
             val_steps (int): same as `steps_per_epoch` but for val data. Defaults to None.
+            check_val_every_n_epoch (int): how often to perform validation
             epochs (int): Number of epochs to train for. Defaults to 1.
             start_epoch (int): From which epoch to start. Useful on restarts. Defaults to 0.
         """
@@ -67,7 +69,9 @@ class Runner:
             self.state.train_loss = copy.copy(self.state.loss_meter)
             self.state.train_metrics = copy.deepcopy(self.state.metric_meters)
 
-            if val_loader is not None:
+            need_val = ((epoch + 1) % check_val_every_n_epoch) == 0
+            has_val_loader = val_loader is not None
+            if has_val_loader and need_val:
                 self.evaluate(val_loader, steps=val_steps)
                 self.state.val_loss = copy.copy(self.state.loss_meter)
                 self.state.val_metrics = copy.deepcopy(self.state.metric_meters)

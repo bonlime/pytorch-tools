@@ -38,8 +38,9 @@ class RunnerState:
         # counters
         self.num_epochs = 1
         self.epoch = 0
-        self.train_loss = self.val_loss = self.loss_meter = AverageMeter("loss")
-        self.train_metrics = self.val_metrics = self.metric_meters = defaultdict(AverageMeter())
+        self.train_loss = self.loss_meter = AverageMeter("loss")
+        self.train_metrics = self.metric_meters = defaultdict(AverageMeter())
+        self.val_loss = self.val_metrics = None
         self.is_train = True
         self.epoch_size = None
         self.batch_size = 0

@@ -290,3 +290,18 @@ def test_accumulate_steps_with_clip_grad():
         accumulate_steps=4,
     )
     runner.fit(TEST_LOADER, epochs=2)
+
+
+def test_check_val_every_n_epoch():
+    runner = Runner(
+        model=TEST_MODEL,
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        callbacks=None,
+    )
+    runner.fit(TEST_LOADER, val_loader=TEST_LOADER, epochs=2, check_val_every_n_epoch=3)
+    # check that it didn't perform validation
+    assert runner.state.val_loss is None
+
+    runner.fit(TEST_LOADER, val_loader=TEST_LOADER, epochs=3, check_val_every_n_epoch=3)
+    assert runner.state.val_loss is not None
