@@ -24,7 +24,6 @@ class Model(nn.Module):
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.dropout = nn.Dropout2d(0.1)
         self.fc = nn.Linear(HIDDEN_DIM, NUM_CLASSES)
-        self.last_conv = nn.Conv2d(HIDDEN_DIM, NUM_CLASSES, kernel_size=3, padding=1)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -38,6 +37,10 @@ class Model(nn.Module):
 
 
 class SegmModel(Model):
+    def __init__(self):
+        super().__init__()
+        self.last_conv = nn.Conv2d(HIDDEN_DIM, NUM_CLASSES, kernel_size=3, padding=1)
+
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
@@ -121,9 +124,36 @@ def test_ModelEma_callback():
         model=TEST_MODEL,
         optimizer=TEST_OPTIMIZER,
         criterion=TEST_CRITERION,
-        callbacks=pt_clb.ModelEma(TEST_MODEL),
+        callbacks=pt_clb.ModelEma(),
     )
     runner.fit(TEST_LOADER, epochs=2)
+    # Should also add model to communication dict
+    assert "ema_model" in runner.state.communication_dict
+
+
+def test_ModelEma_callback_ddp():
+    os.environ["RANK"] = "0"
+    os.environ["MASTER_PORT"] = "12345"
+    torch.distributed.init_process_group(backend="nccl", init_method="env://", world_size=1)
+    runner = Runner(
+        model=torch.nn.parallel.DistributedDataParallel(deepcopy(TEST_MODEL)),
+        optimizer=TEST_OPTIMIZER,
+        criterion=TEST_CRITERION,
+        callbacks=pt_clb.ModelEma(),
+    )
+    runner.fit(TEST_LOADER, epochs=2)
+    # Should be without DDP wrapper
+    assert not hasattr(runner.state.communication_dict["ema_model"], "module")
+
+
+def test_ModelEma_callback_non_float_decay():
+    with pytest.raises(AssertionError):
+        runner = Runner(
+            model=TEST_MODEL,
+            optimizer=TEST_OPTIMIZER,
+            criterion=TEST_CRITERION,
+            callbacks=pt_clb.ModelEma(TEST_MODEL),
+        )
 
 
 # We only test that callbacks don't crash NOT that they do what they should do

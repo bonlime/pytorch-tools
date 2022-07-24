@@ -13,6 +13,7 @@ from collections import Iterable
 
 import torch
 from torch.cuda import amp
+from torch.nn.parallel import DistributedDataParallel
 
 from .state import RunnerState
 from .utils import listify, to_numpy, env_rank, AverageMeter, TimeMeter
@@ -856,14 +857,22 @@ class ModelEma(Callback):
             visible training slowdown. Real decay factor is adjusted to match every step update.
     """
 
-    def __init__(self, model, decay=0.9999, decay_every=10):
+    def __init__(self, decay=0.9999, decay_every=10):
         super().__init__()
-        self.ema = deepcopy(model).eval()
-        for p in self.ema.parameters():
-            p.requires_grad_(False)
+        assert isinstance(decay, float), "Decay in EMA should be float"
+        self.ema = None
         self.model_copy = None
         self.decay_factor = 1 - decay ** decay_every  # simulate every step decay
         self.decay_every = decay_every
+
+    def on_begin(self):
+        if self.ema is not None:
+            return
+        model = self.state.model
+        if isinstance(self.state.model, DistributedDataParallel):
+            model = model.module
+        self.ema = deepcopy(model).eval().requires_grad_(False)
+        self.state.communication_dict["ema_model"] = self.ema
 
     def on_batch_end(self):
         if not self.state.is_train or (self.state.step % self.decay_every != 0):

@@ -50,6 +50,8 @@ class RunnerState:
         self.global_sample_step = 0
         # number of steps to accumulate
         self.accumulate_steps = accumulate_steps
+        # dict for communication between callbacks
+        self.communication_dict = dict()
 
         # for DDP
         self.rank = env_rank()
