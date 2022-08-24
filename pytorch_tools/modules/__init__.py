@@ -34,7 +34,6 @@ try:
 
     HAS_INPLACE_ABN = True
 except (ModuleNotFoundError, ImportError):
-    logger.warning("Inplace ABN is not installed. Using ABN by default")
     HAS_INPLACE_ABN = False
     InPlaceABN = ABN
     InPlaceABNSync = ABN

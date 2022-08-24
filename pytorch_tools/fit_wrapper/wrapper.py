@@ -68,7 +68,8 @@ class Runner:
             self._run_loader(train_loader, steps=steps_per_epoch)
             self.state.train_loss = copy.copy(self.state.loss_meter)
             self.state.train_metrics = copy.deepcopy(self.state.metric_meters)
-
+            self.state.val_loss = None
+            self.state.val_metrics = None
             need_val = ((epoch + 1) % check_val_every_n_epoch) == 0
             has_val_loader = val_loader is not None
             if has_val_loader and need_val:

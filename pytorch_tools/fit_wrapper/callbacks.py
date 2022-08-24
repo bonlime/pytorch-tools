@@ -477,9 +477,11 @@ class TensorBoard(Callback):
     def on_batch_end(self):
         if self.state.is_train and (self.state.step % self.log_every == 0):
             # TODO: select better name instead of train_ ?
-            self.state.tb_logger.add_scalar("train_/loss", self.state.loss_meter.val, self.state.global_sample_step)
+            self.state.tb_logger.add_scalar(
+                "train_/loss", self.state.loss_meter.avg_smooth, self.state.global_sample_step
+            )
             for name, metric in self.state.metric_meters.items():
-                self.state.tb_logger.add_scalar(f"train_/{name}", metric.val, self.state.global_sample_step)
+                self.state.tb_logger.add_scalar(f"train_/{name}", metric.avg_smooth, self.state.global_sample_step)
 
     def on_epoch_end(self):
         self.state.tb_logger.add_scalar("train/loss", self.state.train_loss.avg, self.state.global_sample_step)
@@ -567,7 +569,7 @@ class ConsoleLogger(Callback):
 
     def on_batch_end(self):
         desc = OrderedDict({"Loss": f"{self.state.loss_meter.avg_smooth:.4f}"})
-        desc.update({name: f"{m.avg_smooth:.3f}" for (name, m) in self.state.metric_meters.items()})
+        desc.update({name: f"{m.avg:.3f}" for (name, m) in self.state.metric_meters.items()})
         self.pbar.set_postfix(**desc)
         self.pbar.update()
 

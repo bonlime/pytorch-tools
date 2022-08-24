@@ -1,5 +1,6 @@
 from torch.cuda.amp import GradScaler
 from collections import defaultdict
+from typing import Dict, Optional
 
 from .utils import env_rank, env_world_size, AverageMeter, reduce_meter
 
@@ -38,9 +39,12 @@ class RunnerState:
         # counters
         self.num_epochs = 1
         self.epoch = 0
-        self.train_loss = self.loss_meter = AverageMeter("loss")
-        self.train_metrics = self.metric_meters = defaultdict(AverageMeter())
-        self.val_loss = self.val_metrics = None
+        self.train_loss = AverageMeter("loss")
+        self.loss_meter = AverageMeter("loss")
+        self.train_metrics: Dict[str, AverageMeter] = defaultdict(AverageMeter())
+        self.metric_meters: Dict[str, AverageMeter] = defaultdict(AverageMeter())
+        self.val_loss: Optional[AverageMeter] = None
+        self.val_metrics: Optional[Dict[str, AverageMeter]] = None
         self.is_train = True
         self.epoch_size = None
         self.batch_size = 0

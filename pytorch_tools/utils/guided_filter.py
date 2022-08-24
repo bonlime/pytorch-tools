@@ -2,7 +2,7 @@
 PyTorch Guided Filter
 
 Code is based on https://github.com/lisabug/guided-filter
-Paper: Guided Image Filtering. Kaiming He et al 
+Paper: Guided Image Filtering. Kaiming He et al
 TODO: add `scale` option
 """
 
