@@ -77,7 +77,7 @@ class AverageMeter:
         avg - true average
         avg_smooth - smoothed average"""
 
-    def __init__(self, name="Meter", avg_mom=0.9):
+    def __init__(self, name="Meter", avg_mom=0.95):
         self.avg_mom = avg_mom
         self.name = name
         self.reset()
@@ -91,10 +91,9 @@ class AverageMeter:
     def update(self, val):
         self.val = val
         if self.count == 0:
-            self.avg_smooth = val
+            self.avg_smooth = self.avg_smooth + val
         else:
-            self.avg_smooth *= self.avg_mom
-            self.avg_smooth += val * (1 - self.avg_mom)
+            self.avg_smooth = self.avg_smooth * self.avg_mom + val * (1 - self.avg_mom)
         self.count += 1
         self.avg *= (self.count - 1) / self.count
         self.avg += val / self.count
