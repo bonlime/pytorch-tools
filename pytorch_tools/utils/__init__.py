@@ -4,3 +4,4 @@ from . import preprocessing
 from . import rle
 from . import tensorboard
 from . import visualization
+from . import fuse
