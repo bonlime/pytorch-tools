@@ -74,6 +74,7 @@ class TileInference:
         tile_size: int
         overlap: By how many pixels tiles are overlapped with each other
         model: Any callable used for processing single input patch.
+        border_pad: padding from borders. if not given would be same as `overlap`
         scale: ratio of output size to input size
         fusion: One of {'mean', 'pyramid'}. Defines how overlapped patches are weighted.
     """
@@ -83,6 +84,7 @@ class TileInference:
         tile_size: List[int],
         overlap: List[int],
         model: Callable,
+        border_pad: Optional[List[int]] = None,
         scale: float = 1,
         fusion: str = "mean",
     ):
@@ -92,10 +94,11 @@ class TileInference:
 
         self.tile_size = torch.tensor(tile_size)
         self.overlap = torch.tensor(overlap)
-        if not all(self.tile_size > 2 * self.overlap):
+        self.border_pad = torch.tensor(overlap if border_pad is None else border_pad)
+        if not all(self.tile_size >= 2 * self.overlap):
             raise ValueError("Overlap can't be larger than tile size")
 
-        self.tile_step = self.tile_size - 2 * self.overlap
+        self.tile_step = self.tile_size - self.overlap
 
         self.scale = scale
         self.model = model
@@ -120,9 +123,9 @@ class TileInference:
 
         # Number of tiles in all directions.
         shapes_tensor = torch.tensor(image.shape[1:], dtype=torch.long)
-        n_tiles = shapes_tensor.div(self.tile_step).ceil().long()
+        n_tiles = (shapes_tensor - self.overlap + 2 * self.border_pad).div(self.tile_step).ceil().long()
 
-        extra_pads = n_tiles * self.tile_step + 2 * self.overlap - shapes_tensor
+        extra_pads = n_tiles * self.tile_step - shapes_tensor + self.overlap
         pad_l, pad_r = extra_pads.div(2, rounding_mode="floor"), extra_pads - extra_pads.div(2, rounding_mode="floor")
         pads = torch.stack([pad_r, pad_l], dim=1).flatten().flip(dims=(0,))
 
@@ -142,9 +145,8 @@ class TileInference:
         w = self.weight.to("cpu")
 
         for tile, out_slice in tile_generator:
-            # Process
-            output_tile = self.model(tile).cpu()
-
+            # Process. add and remove batch dimension manually
+            output_tile = self.model(tile[None])[0].cpu()
             channel_slice = slice(0, output_tile.size(0))
             output[[channel_slice, *out_slice]] += output_tile * w
             norm_mask[[channel_slice, *out_slice]] += w
@@ -152,8 +154,8 @@ class TileInference:
         # Normalize by mask to weighten overlapped patches.
         output = torch.div(output, norm_mask)
 
-        # Crop added margins
-        if self.overlap > 0:
+        # Crop added margins if we have any
+        if (pad_l + pad_r).sum() > 0:
             unpad_slices = [
                 slice(int(l * self.scale), -int(r * self.scale)) for l, r in zip(pad_l.tolist(), pad_r.tolist())
             ]
