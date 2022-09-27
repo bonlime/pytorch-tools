@@ -5,16 +5,16 @@ Some functions may duplicate, this is expected
 import os
 import time
 import torch
-import collections
+from collections.abc import Iterable
 import numpy as np
 import torch.distributed as dist
 from typing import Any
 
 
-def listify(p: Any) -> collections.Iterable:
+def listify(p: Any) -> Iterable:
     if p is None:
         p = []
-    elif not isinstance(p, collections.Iterable):
+    elif not isinstance(p, Iterable):
         p = [p]
     return p
 

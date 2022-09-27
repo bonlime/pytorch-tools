@@ -9,7 +9,7 @@ from typing import Optional, Tuple, Dict, List
 from dataclasses import dataclass
 from collections import OrderedDict
 from collections import defaultdict
-from collections import Iterable
+from collections.abc import Iterable
 
 import torch
 from torch.cuda import amp
