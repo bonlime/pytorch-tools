@@ -864,7 +864,7 @@ class ModelEma(Callback):
         assert isinstance(decay, float), "Decay in EMA should be float"
         self.ema = None
         self.model_copy = None
-        self.decay_factor = 1 - decay ** decay_every  # simulate every step decay
+        self.decay_factor = 1 - decay**decay_every  # simulate every step decay
         self.decay_every = decay_every
 
     def on_begin(self):

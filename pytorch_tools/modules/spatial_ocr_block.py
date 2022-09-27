@@ -109,7 +109,7 @@ class SpatialOCR(nn.Module):
 
         # sim_map.shape = B x H*W//16 x 256 @ B x 256 x C => B x H*W//16 x C
         sim_map = torch.matmul(query, key)
-        sim_map = (self.key_channels ** -0.5) * sim_map
+        sim_map = (self.key_channels**-0.5) * sim_map
         sim_map = sim_map.softmax(dim=-1)
 
         # add bg context ...

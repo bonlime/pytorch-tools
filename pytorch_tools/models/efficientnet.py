@@ -219,7 +219,7 @@ def _patch_block_args(blocks_args, output_stride=32):
 
 
 def _decode_block_string(block_string):
-    """ Gets a block through a string notation of arguments. """
+    """Gets a block through a string notation of arguments."""
     assert isinstance(block_string, str)
 
     ops = block_string.split("_")

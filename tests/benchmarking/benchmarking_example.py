@@ -9,22 +9,22 @@ def consume_gpu_ram(n):
 
 
 def consume_gpu_ram_256mb():
-    return consume_gpu_ram(2 ** 13)
+    return consume_gpu_ram(2**13)
 
 
 # should be 1024 peak, 0 used
 z = [consume_gpu_ram_256mb() for i in range(4)]  # 1GB
 del z
-print("Peak memory: {}Mb".format(torch.cuda.max_memory_allocated(0) / 2 ** 10 / 2 ** 10))
-print("Current memory: {}Mb".format(torch.cuda.memory_allocated(0) / 2 ** 10 / 2 ** 10))
+print("Peak memory: {}Mb".format(torch.cuda.max_memory_allocated(0) / 2**10 / 2**10))
+print("Current memory: {}Mb".format(torch.cuda.memory_allocated(0) / 2**10 / 2**10))
 torch.cuda.reset_max_memory_allocated()
 
 # should be: 512 peaked, 256 used
 c1 = consume_gpu_ram_256mb()
 c2 = consume_gpu_ram_256mb()
 del c1
-print("Peak memory: {}Mb".format(torch.cuda.max_memory_allocated(0) / 2 ** 10 / 2 ** 10))
-print("Current memory: {}Mb".format(torch.cuda.memory_allocated(0) / 2 ** 10 / 2 ** 10))
+print("Peak memory: {}Mb".format(torch.cuda.max_memory_allocated(0) / 2**10 / 2**10))
+print("Current memory: {}Mb".format(torch.cuda.memory_allocated(0) / 2**10 / 2**10))
 torch.backends.cudnn.benchmark = False
 #### SPEED ####
 x = torch.ones((8, 3, 32, 32), requires_grad=True).cuda(0)

@@ -93,7 +93,7 @@ def test_model(model, forward_only=False):
             f_times.std(),
             (fb_times - f_times).mean(),
             (fb_times - f_times).std(),
-            torch.cuda.max_memory_allocated(0) / 2 ** 20,
+            torch.cuda.max_memory_allocated(0) / 2**20,
             BS * 1000 / fb_times.mean(),
         )
     )

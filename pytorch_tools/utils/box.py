@@ -177,7 +177,7 @@ def generate_anchors_boxes(
         image_size = (image_size, image_size)
     scale_vals = [anchor_scale * 2 ** (i / num_scales) for i in range(num_scales)]
     # from lowest stride to largest. Anchors from models should be in the same order!
-    strides = [2 ** i for i in pyramid_levels]
+    strides = [2**i for i in pyramid_levels]
 
     # get offsets for anchor boxes for one pixel
     num_anchors = num_scales * len(aspect_ratios)

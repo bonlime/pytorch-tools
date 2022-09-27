@@ -31,7 +31,7 @@ class Attention(nn.Module):
     def __init__(self, dim_in, dim_inner, dim_out=None):
         super().__init__()
         dim_out = dim_out or dim_in
-        self.scale = dim_inner ** -0.5
+        self.scale = dim_inner**-0.5
         self.to_qkv = nn.Linear(dim_in, dim_inner * 3, bias=False)
         self.to_out = nn.Linear(dim_inner, dim_out)
 

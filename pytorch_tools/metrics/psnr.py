@@ -55,11 +55,11 @@ class SSIM:
 
         mu1 = cv2.filter2D(img1, -1, window)[5:-5, 5:-5]  # valid
         mu2 = cv2.filter2D(img2, -1, window)[5:-5, 5:-5]
-        mu1_sq = mu1 ** 2
-        mu2_sq = mu2 ** 2
+        mu1_sq = mu1**2
+        mu2_sq = mu2**2
         mu1_mu2 = mu1 * mu2
-        sigma1_sq = cv2.filter2D(img1 ** 2, -1, window)[5:-5, 5:-5] - mu1_sq
-        sigma2_sq = cv2.filter2D(img2 ** 2, -1, window)[5:-5, 5:-5] - mu2_sq
+        sigma1_sq = cv2.filter2D(img1**2, -1, window)[5:-5, 5:-5] - mu1_sq
+        sigma2_sq = cv2.filter2D(img2**2, -1, window)[5:-5, 5:-5] - mu2_sq
         sigma12 = cv2.filter2D(img1 * img2, -1, window)[5:-5, 5:-5] - mu1_mu2
 
         ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))

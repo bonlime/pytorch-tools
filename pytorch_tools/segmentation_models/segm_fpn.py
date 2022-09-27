@@ -10,7 +10,7 @@ from pytorch_tools.segmentation_models.encoders import get_encoder
 
 
 class PanopticDecoder(nn.Module):
-    """ Takes a feature pyramid, upscales the feature map to the same size and merges by sum or concatenation"""
+    """Takes a feature pyramid, upscales the feature map to the same size and merges by sum or concatenation"""
 
     def __init__(
         self,

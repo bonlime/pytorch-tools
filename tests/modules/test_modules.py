@@ -90,18 +90,18 @@ def test_weight_standardization_depthwise():
 def test_fpn_block():
     """Check that it works for different number of input feature maps"""
     inp_channels = [15, 16, 17, 18]
-    inp = [torch.rand(1, in_ch, 2 * 2 ** idx, 2 * 2 ** idx) for idx, in_ch in enumerate(inp_channels)]
+    inp = [torch.rand(1, in_ch, 2 * 2**idx, 2 * 2**idx) for idx, in_ch in enumerate(inp_channels)]
     # test for 4 features maps
     fpn4 = modules.fpn.FPN(inp_channels, pyramid_channels=55)
     res4 = fpn4(inp)
     for idx, r in enumerate(res4):
-        assert r.shape == torch.Size([1, 55, 2 * 2 ** idx, 2 * 2 ** idx])
+        assert r.shape == torch.Size([1, 55, 2 * 2**idx, 2 * 2**idx])
 
     # test that is also works for 3 feature maps
     fpn3 = modules.fpn.FPN(inp_channels[:3], pyramid_channels=55)
     res3 = fpn3(inp[:3])
     for idx, r in enumerate(res3):
-        assert r.shape == torch.Size([1, 55, 2 * 2 ** idx, 2 * 2 ** idx])
+        assert r.shape == torch.Size([1, 55, 2 * 2**idx, 2 * 2**idx])
 
 
 def test_fpn_num_layers():
@@ -113,27 +113,27 @@ def test_fpn_num_layers():
 def test_bifpn_block():
     """Check that it works for different number of input feature maps"""
     inp_channels = [15, 16, 17, 18, 19]
-    inp = [torch.rand(1, in_ch, 2 * 2 ** idx, 2 * 2 ** idx) for idx, in_ch in enumerate(inp_channels)]
+    inp = [torch.rand(1, in_ch, 2 * 2**idx, 2 * 2**idx) for idx, in_ch in enumerate(inp_channels)]
     # test for 5 features maps
     bifpn5 = modules.bifpn.BiFPN(inp_channels, pyramid_channels=55)
     res5 = bifpn5(inp)
     for idx, r in enumerate(res5):
-        assert r.shape == torch.Size([1, 55, 2 * 2 ** idx, 2 * 2 ** idx])
+        assert r.shape == torch.Size([1, 55, 2 * 2**idx, 2 * 2**idx])
 
     # test that is also works for 3 feature maps
     bifpn3 = modules.bifpn.BiFPN(inp_channels[:3], pyramid_channels=55)
     res3 = bifpn3(inp[:3])
     for idx, r in enumerate(res3):
-        assert r.shape == torch.Size([1, 55, 2 * 2 ** idx, 2 * 2 ** idx])
+        assert r.shape == torch.Size([1, 55, 2 * 2**idx, 2 * 2**idx])
 
 
 def test_first_bifpn_layer():
     inp_channels = [15, 16, 17, 18, 19]
-    inp = [torch.rand(1, in_ch, 2 * 2 ** idx, 2 * 2 ** idx) for idx, in_ch in enumerate(inp_channels)]
+    inp = [torch.rand(1, in_ch, 2 * 2**idx, 2 * 2**idx) for idx, in_ch in enumerate(inp_channels)]
     layer = modules.bifpn.FirstBiFPNLayer(inp_channels, 55)
     res = layer(inp)
     for idx, r in enumerate(res):
-        assert r.shape == torch.Size([1, 55, 2 * 2 ** idx, 2 * 2 ** idx])
+        assert r.shape == torch.Size([1, 55, 2 * 2**idx, 2 * 2**idx])
 
 
 def test_bifpn_num_layers():
@@ -156,7 +156,7 @@ def test_space2depth():
 
 
 def test_drop_connect():
-    """"Tests that dropconnect works correctly for any number of dimensions"""
+    """ "Tests that dropconnect works correctly for any number of dimensions"""
     drop_connect = modules.residual.DropConnect(0.5)
     inp1d = torch.rand(2, 10, 16)
     inp3d = torch.rand(2, 10, 16, 16, 16)
@@ -182,7 +182,7 @@ def test_xca_module():
     BS = 2
     DIM = 128
     SIZE = 7
-    inp = torch.rand(BS, SIZE ** 2, DIM)
+    inp = torch.rand(BS, SIZE**2, DIM)
     inp_img = inp.transpose(1, 2).reshape(BS, DIM, SIZE, SIZE)
     xca_timm = modules.residual.XCA_Token(DIM, num_heads=4)
     xca_my = modules.residual.XCA(DIM, num_heads=4, qkv_bias=False)
