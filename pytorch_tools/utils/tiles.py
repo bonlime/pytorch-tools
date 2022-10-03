@@ -46,7 +46,7 @@ def compute_pyramid_patch_weight_loss(width: int, height: int, depth: Optional[i
     De_y = torch.linspace(0.5, height - 0.5, height).abs()
     De_y = torch.minimum(De_y, De_y.flip(dims=(0,)))
 
-    De_z = torch.tensor(torch.inf)
+    De_z = torch.tensor(float('inf'))
     if depth is not None:
         De_z = torch.linspace(0.5, depth - 0.5, depth).abs()
         De_z = torch.minimum(De_z, De_z.flip(dims=(0,)))
