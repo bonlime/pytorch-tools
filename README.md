@@ -19,3 +19,7 @@ Requires GPU drivers and CUDA already installed.
 It is also recommended to install NVIDIA Apex to allow usage of additional optimizers
 
 `pip install ---upgrade -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git`
+
+Designed and maintained by @bonlime and @zakajd
+
+Star the project if you like it!
