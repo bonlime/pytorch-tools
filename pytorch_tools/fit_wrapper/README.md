@@ -52,4 +52,9 @@ This runner is very simple and requires writing thin wrapper for DDP every time.
 Monkey patch `Runner._make_step` function with yours
 
 ### Process multiple inputs/outputs
-Instead of modifying Runner move this logic inside Loss function.
+Instead of modifying Runner move this logic inside Loss function. 
+
+### Limitations
+Currently trainer is well suited for supervised tasks. GANs e.t.c are not well supported...
+
+
