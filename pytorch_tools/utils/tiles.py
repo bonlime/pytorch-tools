@@ -46,7 +46,7 @@ def compute_pyramid_patch_weight_loss(width: int, height: int, depth: Optional[i
     De_y = torch.linspace(0.5, height - 0.5, height).abs()
     De_y = torch.minimum(De_y, De_y.flip(dims=(0,)))
 
-    De_z = torch.tensor(float('inf'))
+    De_z = torch.tensor(float("inf"))
     if depth is not None:
         De_z = torch.linspace(0.5, depth - 0.5, depth).abs()
         De_z = torch.minimum(De_z, De_z.flip(dims=(0,)))
@@ -137,16 +137,18 @@ class TileInference:
         # Empty output tensor
         out_shape = (torch.tensor(padded_image.shape[1:]) * self.scale).long()
         out_shape = [image.size(0), *out_shape.tolist()]
-        output = torch.zeros(out_shape)
+
+        # Empty output tensor
+        output = image.new_zeros(out_shape)
         # Used to save weight mask used for blending
-        norm_mask = torch.zeros(out_shape)
+        norm_mask = image.new_zeros(out_shape)
 
         # Move weights to correct device and dtype
-        w = self.weight.to("cpu")
+        w = self.weight.to(device=image.device)
 
         for tile, out_slice in tile_generator:
             # Process. add and remove batch dimension manually
-            output_tile = self.model(tile[None])[0].cpu()
+            output_tile = self.model(tile[None])[0]
             channel_slice = slice(0, output_tile.size(0))
             output[[channel_slice, *out_slice]] += output_tile * w
             norm_mask[[channel_slice, *out_slice]] += w

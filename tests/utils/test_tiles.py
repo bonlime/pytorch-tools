@@ -88,3 +88,20 @@ def test_tile_inference_3d(func_scale, overlap, fusion):
     tiler_res = tiler(large_img)
     full_res = func(large_img[None])[0]
     assert torch.allclose(full_res, tiler_res)
+
+
+# check that we preserve device
+@pytest.mark.skipif(not torch.backends.mps.is_available(), reason="MPS is not available")
+def test_mps_device():
+    tiler = TileInference(tile_size=(16, 16), overlap=2, model=lambda x: x.pow(2))
+    img = torch.rand(3, 32, 32, device="mps")
+    out = tiler(img)
+    assert out.device.type == "mps"
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+def test_cuda_device():
+    tiler = TileInference(tile_size=(16, 16), overlap=2, model=lambda x: x.pow(2))
+    img = torch.rand(3, 32, 32, device="cuda")
+    out = tiler(img)
+    assert out.device.type == "cuda"
