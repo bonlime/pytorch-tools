@@ -6,10 +6,12 @@ try:
 except ImportError:
     HAS_TENSORBOARD = False
 
+
 class CorrectedSummaryWriter:
     def __init__(self, *args, **kwargs) -> None:
         raise NotImplementedError("Install `tensorboard` to use CorrectedSummaryWriter")
-        
+
+
 if HAS_TENSORBOARD:
     # current pytorch SummaryWriter adds additional subfolder for hparams which leads to clutter
     # remove when #40574 is fixed
