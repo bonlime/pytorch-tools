@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "pytorch_tools"
+description = "Tool box for PyTorch"
+authors = [{name = "Emil Zakirov", email = "bonlimezak@gmail.com"}]
+requires-python = ">=3.10"
+classifiers = ["Programming Language :: Python :: 3", "Operating System :: OS Independent"]
+readme = "README.md"
+dependencies = [
+    "torch>=1.6",
+    "torchvision>=0.7.0",
+    "loguru>=0.4.1",
+    "tqdm>=4.49"
+]
+dynamic = ["version"]
+license = {text = "MIT License"}
+
+[tool.setuptools_scm]

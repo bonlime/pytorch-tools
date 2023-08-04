@@ -1,4 +1,10 @@
-__version__ = "0.5.1"
+"""pweb package."""
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("pytorch_tools")
+except PackageNotFoundError:
+    __version__ = "unknown version"
 
 from . import fit_wrapper
 from . import losses
