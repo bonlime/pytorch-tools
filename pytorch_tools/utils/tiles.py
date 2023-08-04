@@ -131,7 +131,7 @@ class TileInference:
 
         # Make image divisible by `tile_size` and add border pixels if necessary
         # Other border types produce artifacts
-        padded_image = F.pad(image, pads.tolist(), mode="replicate")
+        padded_image = F.pad(image, pads.tolist(), mode="reflect")
         tile_generator = self.iter_split(padded_image)
 
         # Empty output tensor
