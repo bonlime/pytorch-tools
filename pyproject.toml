@@ -12,7 +12,6 @@ classifiers = ["Programming Language :: Python :: 3", "Operating System :: OS In
 readme = "README.md"
 dependencies = [
     "torch>=1.6",
-    "torchvision>=0.7.0",
     "loguru>=0.4.1",
     "tqdm>=4.49"
 ]
