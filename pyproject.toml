@@ -13,7 +13,8 @@ readme = "README.md"
 dependencies = [
     "torch>=1.6",
     "loguru>=0.4.1",
-    "tqdm>=4.49"
+    "tqdm>=4.49",
+    "matplotlib>=3.7.1"
 ]
 dynamic = ["version"]
 license = {text = "MIT License"}
