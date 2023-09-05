@@ -144,7 +144,7 @@ class TileInference:
         norm_mask = image.new_zeros(out_shape)
 
         # Move weights to correct device and dtype
-        w = self.weight.to(device=image.device)
+        w = self.weight.to(device=image.device, dtype=image.dtype)
 
         for tile, out_slice in tile_generator:
             # Process. add and remove batch dimension manually
