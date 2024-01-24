@@ -3,7 +3,7 @@ from __future__ import print_function, with_statement, division
 import copy
 import os
 import torch
-from tqdm.autonotebook import tqdm
+from tqdm.auto import tqdm
 from torch.optim.lr_scheduler import _LRScheduler
 import matplotlib.pyplot as plt
 from .schedulers import LinearLR, ExponentialLR
