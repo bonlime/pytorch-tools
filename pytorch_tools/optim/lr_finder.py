@@ -4,8 +4,6 @@ import copy
 import os
 import torch
 from tqdm.auto import tqdm
-from torch.optim.lr_scheduler import _LRScheduler
-import matplotlib.pyplot as plt
 from .schedulers import LinearLR, ExponentialLR
 
 
@@ -212,6 +210,8 @@ class LRFinder(object):
             losses = losses[skip_start:-skip_end]
 
         # Plot loss as a function of the learning rate
+        import matplotlib.pyplot as plt
+
         plt.plot(lrs, losses)
         if log_lr:
             plt.xscale("log")
