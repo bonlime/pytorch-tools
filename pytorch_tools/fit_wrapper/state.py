@@ -61,6 +61,8 @@ class RunnerState:
         self.rank = env_rank()
         self.world_size = env_world_size()
 
+        # would be set in wrapper to give callbacks access to current loader
+        self._loader: "DataLoader | None" = None
         self.__isfrozen = True
 
     def __setattr__(self, key, value):

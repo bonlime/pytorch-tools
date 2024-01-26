@@ -116,6 +116,7 @@ class Runner:
         self.state.loss_meter.reset()
         for metric in self.state.metric_meters.values():
             metric.reset()
+        self.state._loader = loader
         self.state.epoch_size = steps or len(loader)  # steps overwrites len
         self.callbacks.on_loader_begin()
         with torch.set_grad_enabled(self.state.is_train):
