@@ -58,7 +58,6 @@ class Runner:
             start_epoch (int): From which epoch to start. Useful on restarts. Defaults to 0.
         """
         self.state.num_epochs = epochs
-        self.state.batch_size = getattr(train_loader, "batch_size", 1)
         self.callbacks.on_begin()
         for epoch in range(start_epoch, epochs):
             self.state.is_train = True
@@ -118,6 +117,7 @@ class Runner:
             metric.reset()
         self.state._loader = loader
         self.state.epoch_size = steps or len(loader)  # steps overwrites len
+        self.state.batch_size = getattr(loader, "batch_size", 1)
         self.callbacks.on_loader_begin()
         with torch.set_grad_enabled(self.state.is_train):
             for i, batch in enumerate(loader):
