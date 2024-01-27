@@ -17,6 +17,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 from .state import RunnerState
 from .utils import listify, to_numpy, env_rank, AverageMeter, TimeMeter
+from pytorch_tools.losses.base import Loss
 from pytorch_tools.utils.visualization import plot_confusion_matrix
 from pytorch_tools.utils.visualization import render_figure_to_tensor
 from pytorch_tools.utils.tensorboard import CorrectedSummaryWriter as SummaryWriter
@@ -138,9 +139,9 @@ class BatchMetrics(Callback):
             must have `name` attribute.
     """
 
-    def __init__(self, metrics):
+    def __init__(self, metrics: List[Loss]):
         super().__init__()
-        self.metrics = listify(metrics)
+        self.metrics: List[Loss] = listify(metrics)
         self.metric_names = [m.name for m in self.metrics]
 
     def on_begin(self):
@@ -151,9 +152,12 @@ class BatchMetrics(Callback):
     def on_batch_end(self):
         _, target = self.state.input
         output = self.state.output
+        all_sub_losses = {}
         with amp.autocast(self.state.use_fp16):
             for metric, name in zip(self.metrics, self.metric_names):
                 self.state.metric_meters[name].update(to_numpy(metric(output, target).squeeze()))
+                all_sub_losses.update(**metric.sub_losses)
+        self.state.communication_dict["metric_sub_losses"] = all_sub_losses
 
 
 class LoaderMetrics(Callback):

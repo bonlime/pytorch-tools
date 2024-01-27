@@ -1,7 +1,7 @@
 from torch.nn.modules.loss import _Loss
 import torch
 from enum import Enum
-from typing import Union
+from typing import Union, Dict
 
 
 class Mode(Enum):
@@ -35,8 +35,21 @@ def _reduce(x: torch.Tensor, reduction: Union[str, Reduction] = "mean") -> torch
         raise ValueError("Uknown reduction. Expected one of {'none', 'mean', 'sum'}")
 
 
+def get_name(module: torch.nn.Module) -> str:
+    if hasattr(module, "name"):
+        return module.name
+    elif hasattr(module, "loss"):
+        return get_name(module.loss)
+    else:
+        return type(module).__name__
+
+
 class Loss(_Loss):
     """Loss which supports addition and multiplication"""
+
+    def __init__(self):
+        super().__init__()
+        self._sub_losses: Dict = dict()
 
     def __add__(self, other):
         if isinstance(other, Loss):
@@ -56,6 +69,11 @@ class Loss(_Loss):
     def __rmul__(self, other):
         return self.__mul__(other)
 
+    @property
+    def sub_losses(self) -> Dict:
+        # this allows to obtain some values from combined loss, to show as metrics
+        return self._sub_losses or dict()
+
 
 class WeightedLoss(Loss):
     """
@@ -63,20 +81,29 @@ class WeightedLoss(Loss):
     This class helps to balance multiple losses if they have different scales
     """
 
-    def __init__(self, loss, weight=1.0):
+    def __init__(self, loss: Loss, weight=1.0):
         super().__init__()
+        self.name = get_name(loss)
         self.loss = loss
         self.register_buffer("weight", torch.tensor([weight]))
 
     def forward(self, *inputs):
         return self.loss(*inputs) * self.weight[0]
 
+    @property
+    def sub_losses(self) -> Dict:
+        return self.loss.sub_losses
+
 
 class SumOfLosses(Loss):
-    def __init__(self, l1, l2):
+    def __init__(self, l1: Loss, l2: Loss):
         super().__init__()
         self.l1 = l1
         self.l2 = l2
 
     def __call__(self, *inputs):
         return self.l1(*inputs) + self.l2(*inputs)
+
+    @property
+    def sub_losses(self) -> Dict:
+        return {**self.l1.sub_losses, **self.l2.sub_losses}
