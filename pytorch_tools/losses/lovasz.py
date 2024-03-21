@@ -121,7 +121,7 @@ def _lovasz_softmax_flat(y_pred, y_true, classes="present"):
     class_to_sum = list(range(C)) if classes in ["all", "present"] else classes
     for c in class_to_sum:
         fg = (y_true == c).float()  # foreground for class c
-        if classes is "present" and fg.sum() == 0:
+        if (classes == "present") and (fg.sum() == 0):
             continue
         if C == 1:
             if len(classes) > 1:
