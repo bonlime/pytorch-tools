@@ -277,7 +277,7 @@ if __name__ == "__main__":
         if args.torch_amp:
             INP = INP.half()
             model = model.half()
-            model.forward = torch.cuda.amp.autocast()(model.forward)
+            model.forward = torch.amp.autocast()(model.forward)
         if args.forward:
             model.eval()
         if args.print:

@@ -1,4 +1,4 @@
-from torch.cuda.amp import GradScaler
+from torch.amp import GradScaler
 from collections import defaultdict
 from typing import Dict, Optional
 

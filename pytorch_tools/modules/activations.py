@@ -44,13 +44,13 @@ def mish_jit_bwd(x, grad_output):
 
 class MishFunction(torch.autograd.Function):
     @staticmethod
-    @torch.cuda.amp.custom_fwd
+    @torch.amp.custom_fwd(device_type="cuda")
     def forward(ctx, x):
         ctx.save_for_backward(x)
         return mish_jit_fwd(x)
 
     @staticmethod
-    @torch.cuda.amp.custom_bwd
+    @torch.amp.custom_bwd(device_type="cuda")
     def backward(ctx, grad_output):
         x = ctx.saved_tensors[0]
         return mish_jit_bwd(x, grad_output)
